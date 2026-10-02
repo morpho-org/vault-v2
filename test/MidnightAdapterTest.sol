@@ -3449,34 +3449,43 @@ contract MidnightAdapterTest is Test {
         assertEq(newAdapter.shortfallRefillPeriod(), 0, "period");
     }
 
-    function testSetShortfallParams(uint256 ratio, uint256 period) public {
-        uint256 maxRatio = adapter.MAX_MAX_SHORTFALL_RATIO();
-        assertEq(maxRatio, 0.1e18);
-        ratio = bound(ratio, 0, maxRatio);
+    function testSetMaxShortfallRatio(uint256 ratio) public {
+        ratio = bound(ratio, 0, 1e18);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setMaxShortfallRatio(ratio);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (1e18 + 1)));
+        vm.expectRevert(IMidnightAdapterBase.MaxShortfallRatioTooHigh.selector);
+        adapter.setMaxShortfallRatio(1e18 + 1);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (ratio)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMaxShortfallRatio(ratio, 0);
+        adapter.setMaxShortfallRatio(ratio);
+        assertEq(adapter.maxShortfallRatio(), ratio);
+    }
+
+    function testSetShortfallRefillPeriod(uint256 period) public {
         period = bound(period, 0, type(uint24).max);
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.setShortfallParams(ratio, period);
+        adapter.setShortfallRefillPeriod(period);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (maxRatio + 1, period)));
-        vm.expectRevert(IMidnightAdapterBase.MaxShortfallRatioTooHigh.selector);
-        adapter.setShortfallParams(maxRatio + 1, period);
-
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (ratio, period)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallParams(ratio, period, 0);
-        adapter.setShortfallParams(ratio, period);
-        assertEq(adapter.maxShortfallRatio(), ratio);
+        emit IMidnightAdapterBase.SetShortfallRefillPeriod(period, 0);
+        adapter.setShortfallRefillPeriod(period);
         assertEq(adapter.shortfallRefillPeriod(), period);
     }
 
-    function testSetShortfallParamsRefillPeriodOverflow(uint256 period) public {
+    function testSetShortfallRefillPeriodOverflow(uint256 period) public {
         period = bound(period, uint256(type(uint24).max) + 1, type(uint256).max);
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        adapter.setShortfallParams(0.005e18, period);
+        adapter.setShortfallRefillPeriod(period);
     }
 
     function testSetShortfallParamsChangesBothParameters(bool wasDisabled) public {
@@ -3502,9 +3511,7 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(wasDisabled ? 1 days : 12 hours);
 
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.01e18, 1 days)));
-        adapter.setShortfallParams(0.01e18, 1 days);
+        setMaxShortfallRatio(0.01e18);
 
         uint256 allowance = wasDisabled ? 0 : 0.25e18;
         assertEq(adapter.shortfallAllowance(), allowance);
@@ -3527,11 +3534,11 @@ contract MidnightAdapterTest is Test {
 
         uint256 ratio = disable ? 0 : 0.001e18;
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (ratio, 1 days)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (ratio)));
         uint256 allowance = disable ? 0 : 0.1e18;
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallParams(ratio, 1 days, allowance);
-        adapter.setShortfallParams(ratio, 1 days);
+        emit IMidnightAdapterBase.SetMaxShortfallRatio(ratio, allowance);
+        adapter.setMaxShortfallRatio(ratio);
         assertEq(adapter.shortfallAllowance(), allowance);
 
         setShortfallParams(0.005e18, 1 days);
@@ -3546,9 +3553,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 80e18, MAX_TICK);
         assertEq(adapter.shortfallAllowance(), 0.5e18, "stored allowance is not yet clamped");
 
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.01e18, 1 days)));
-        adapter.setShortfallParams(0.01e18, 1 days);
+        setMaxShortfallRatio(0.01e18);
         assertEq(adapter.shortfallAllowance(), 0.1e18, "clamp to old cap before increasing the ratio");
     }
 
@@ -3558,9 +3563,7 @@ contract MidnightAdapterTest is Test {
         skip(6 hours);
 
         uint256 period = shorten ? 12 hours : 2 days;
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
-        adapter.setShortfallParams(0.005e18, period);
+        setShortfallRefillPeriod(period);
 
         assertEq(adapter.shortfallAllowance(), 0.125e18);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
@@ -3582,10 +3585,10 @@ contract MidnightAdapterTest is Test {
 
         uint256 period = disableLimit ? 0 : 1 days;
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallParams(0.005e18, period, disableLimit ? 0.125e18 : 0);
-        adapter.setShortfallParams(0.005e18, period);
+        emit IMidnightAdapterBase.SetShortfallRefillPeriod(period, disableLimit ? 0.125e18 : 0);
+        adapter.setShortfallRefillPeriod(period);
 
         assertEq(adapter.shortfallAllowance(), disableLimit ? 0.125e18 : 0);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
@@ -3609,7 +3612,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallZeroRefillPeriodDisablesLimit(uint256 ratio, bool takerSale) public {
-        ratio = bound(ratio, 0, adapter.MAX_MAX_SHORTFALL_RATIO());
+        ratio = bound(ratio, 0, 1e18);
         setShortfallParams(ratio, 0);
         Offer memory initial = buy(30 days, 100e18);
 
@@ -3672,7 +3675,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallMaxRatio() public {
-        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 1 days);
+        setShortfallParams(0.1e18, 1 days);
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);
         deal(address(loanToken), taker, 50e18);
@@ -3775,7 +3778,7 @@ contract MidnightAdapterTest is Test {
     function testShortfallLargePositionRemainsUsable(uint256 action) public {
         action = bound(action, 0, 5);
         setUpRealVault();
-        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 1 days);
+        setShortfallParams(0.1e18, 1 days);
         uint256 assets = 10 * (uint256(type(uint112).max) + 1);
         deal(address(loanToken), address(this), assets);
         realVault.deposit(assets, address(this));
@@ -3804,7 +3807,7 @@ contract MidnightAdapterTest is Test {
             setShortfallParams(0, 1 days);
             assertEq(adapter.maxShortfallRatio(), 0);
         } else {
-            setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 0);
+            setShortfallParams(0.1e18, 0);
             assertEq(adapter.shortfallRefillPeriod(), 0);
         }
         assertEq(adapter.shortfallAllowance(), action == 4 ? 0 : assets / 10);
@@ -4332,9 +4335,20 @@ contract MidnightAdapterTest is Test {
     }
 
     function setShortfallParams(uint256 ratio, uint256 period) internal {
+        setMaxShortfallRatio(ratio);
+        setShortfallRefillPeriod(period);
+    }
+
+    function setMaxShortfallRatio(uint256 ratio) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (ratio, period)));
-        adapter.setShortfallParams(ratio, period);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (ratio)));
+        adapter.setMaxShortfallRatio(ratio);
+    }
+
+    function setShortfallRefillPeriod(uint256 period) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
+        adapter.setShortfallRefillPeriod(period);
     }
 
     function submitTimelock(bytes4 selector, uint256 duration) internal {

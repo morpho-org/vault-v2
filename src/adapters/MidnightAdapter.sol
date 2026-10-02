@@ -65,7 +65,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
-    uint256 public constant MAX_MAX_SHORTFALL_RATIO = 0.1e18; // 10%
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -267,16 +266,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
         timelocked();
-        require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
+        require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
         updateShortfallAllowance(totalNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO < 2**64.
+        // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= WAD < 2**64.
         maxShortfallRatio = uint64(newMaxShortfallRatio);
-        shortfallRefillPeriod = newShortfallRefillPeriod.toUint24();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
-        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod, shortfallAllowance);
+        emit SetMaxShortfallRatio(newMaxShortfallRatio, shortfallAllowance);
+    }
+
+    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
+        timelocked();
+        updateShortfallAllowance(totalNetCredit);
+        shortfallRefillPeriod = newShortfallRefillPeriod.toUint24();
+        shortfallAllowance =
+            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(maxShortfallRatio, WAD)).toUint128();
+        emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
     }
 
     /* SKIM FUNCTIONS */

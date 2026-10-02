@@ -31,9 +31,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
     event SetMaxTtm(uint256 newMaxTtm);
-    event SetShortfallParams(
-        uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod, uint256 shortfallAllowance
-    );
+    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
+    event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
@@ -98,7 +97,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
-    function MAX_MAX_SHORTFALL_RATIO() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -106,7 +104,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function totalNetCredit() external view returns (uint256);
     function maxShortfallRatio() external view returns (uint64);
     function shortfallRefillPeriod() external view returns (uint24);
-    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external;
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
+    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
     function shortfallAllowance() external view returns (uint128);
     function shortfallUpdatedAt() external view returns (uint40);
     function skimRecipient() external view returns (address);
