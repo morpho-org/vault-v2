@@ -3574,33 +3574,59 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.125e18 + uint256(0.5e18) * 6 hours / period);
     }
 
-    function testSetShortfallParamsZeroPeriodTransitions(bool enableInstantRefill) public {
-        if (!enableInstantRefill) setShortfallParams(0.005e18, 0);
+    function testSetShortfallParamsZeroPeriodTransitions(bool disableLimit) public {
+        if (!disableLimit) setShortfallParams(0.005e18, 0);
         Offer memory offer = buy(30 days, 100e18);
+        setMaxSellRate(offer.market, type(uint256).max);
         skip(6 hours);
 
-        uint256 period = enableInstantRefill ? 0 : 1 days;
+        uint256 period = disableLimit ? 0 : 1 days;
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetShortfallParams(0.005e18, period, disableLimit ? 0.125e18 : 0.5e18);
         adapter.setShortfallParams(0.005e18, period);
 
-        assertEq(adapter.shortfallAllowance(), enableInstantRefill ? 0.125e18 : 0.5e18);
+        assertEq(adapter.shortfallAllowance(), disableLimit ? 0.125e18 : 0.5e18);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), 0.5e18);
+
+        if (!disableLimit) vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
+        sellUnits(offer.market, 2e18, MAX_TICK / 2);
     }
 
-    function testShortfallZeroRefillPeriodRefillsInstantly() public {
-        setShortfallParams(0.005e18, 0);
-        Offer memory offer = buy(30 days, 100e18);
-        setMaxSellRate(offer.market, type(uint256).max);
-        adapter.withdrawToVault(offer.market, 0);
-        assertEq(adapter.shortfallAllowance(), 0.5e18, "full cap without elapsed time");
+    function testShortfallZeroRefillPeriodDisablesLimit(uint256 ratio, bool takerSale) public {
+        ratio = bound(ratio, 0, adapter.MAX_MAX_SHORTFALL_RATIO());
+        setShortfallParams(ratio, 0);
+        Offer memory initial = buy(30 days, 100e18);
 
-        sellUnits(offer.market, 1e18, MAX_TICK / 2);
-        assertEq(adapter.shortfallAllowance(), 0, "spent");
-        adapter.withdrawToVault(offer.market, 0);
-        assertEq(adapter.shortfallAllowance(), 0.495e18, "refilled on the next operation");
+        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
+        sellUnits(initial.market, 40e18, MAX_TICK / 2);
+        setMaxSellRate(initial.market, type(uint256).max);
+
+        for (uint256 i; i < 2; i++) {
+            Offer memory offer = takerSale
+                ? makeExternalOffer(initial.market, true, 40e18, MAX_TICK / 2)
+                : makeSellOffer(initial.market, 40e18, MAX_TICK / 2);
+            uint256 netCredit = 100e18 - 40e18 * i;
+            uint256 allowance = netCredit.mulDivDown(ratio, 1e18);
+            vm.expectEmit(address(adapter));
+            emit IMidnightAdapterBase.Sell(_marketId(initial.market), 20e18, 40e18, 20e18, allowance);
+            if (takerSale) {
+                vm.prank(signerAllocator);
+                adapter.take(offer, "", 40e18);
+            } else {
+                take(offer);
+            }
+            assertEq(adapter.shortfallAllowance(), allowance, "disabled limit does not spend allowance");
+            assertEq(adapter.marketData(_marketId(initial.market)).netCredit, netCredit - 40e18);
+        }
+
+        setShortfallParams(ratio, 1 days);
+        assertEq(adapter.shortfallAllowance(), uint256(20e18).mulDivDown(ratio, 1e18));
+        vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
+        sellUnits(initial.market, 10e18, MAX_TICK / 2);
     }
 
     function testShortfallMaxRefillPeriodNeverRefills() public {
@@ -3612,11 +3638,13 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallMaxRatio() public {
-        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 0);
+        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 1 days);
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);
         deal(address(loanToken), taker, 50e18);
+        skip(1 days);
         sellUnits(offer.market, 19e18, MAX_TICK / 2);
+        skip(1 days);
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 18e18, MAX_TICK / 2);
     }

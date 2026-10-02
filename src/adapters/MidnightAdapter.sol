@@ -74,6 +74,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
     // @dev The adapter's allocation cap bounds exposure.
+    /// @dev Refill period in seconds. Zero disables the shortfall limit.
     uint128 public shortfallRefillPeriod;
     uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
@@ -495,7 +496,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        if (block.timestamp < market.maturity) {
+        if (block.timestamp < market.maturity && shortfallRefillPeriod != 0) {
             require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
             shortfallAllowance -= saleShortfall.toUint128();
         }
