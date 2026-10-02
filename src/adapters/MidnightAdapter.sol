@@ -43,7 +43,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
-    uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant MAX_MARKETS = 250;
 
     /* TIMELOCKS STORAGE */
 
