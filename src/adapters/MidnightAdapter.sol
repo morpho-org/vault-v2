@@ -42,8 +42,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
-    /// @dev Takers of offers of the adapter can fill slots with dust takes.
-    uint256 public constant MAX_MARKETS = 250;
 
     /* TIMELOCKS STORAGE */
 
@@ -54,6 +52,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    /// @dev Takers of offers of the adapter can fill slots with dust takes.
+    uint16 public maxMarkets;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint128 public minBuyRate;
     uint128 public maxTtm;
@@ -240,6 +240,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         maxTtm = newMaxTtm.toUint128();
         emit SetMaxTtm(newMaxTtm);
+    }
+
+    function setMaxMarkets(uint16 newMaxMarkets) external {
+        timelocked();
+        require(newMaxMarkets >= marketIds.length, MaxMarketsTooLow());
+        maxMarkets = newMaxMarkets;
+        emit SetMaxMarkets(newMaxMarkets);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -503,10 +510,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketData[lastMarketId].index = _marketData.index;
             marketIds.pop();
         } else if (storedNetCredit == 0 && newNetCredit > 0) {
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            require(marketIds.length < maxMarkets, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            _marketData.index = uint8(marketIds.length);
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < maxMarkets.
+            _marketData.index = uint16(marketIds.length);
             marketIds.push(marketId);
         }
         emit UpdateMarket(marketId, _marketData.netCredit, _marketData.growth);
