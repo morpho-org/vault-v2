@@ -3413,6 +3413,32 @@ contract MidnightAdapterTest is Test {
 
     /* NET CREDIT BOUNDS */
 
+    function testTotalNetCreditBounds() public {
+        uint256 maxMarkets = adapter.MAX_MARKETS();
+        uint256 maxTotalNetCredit = maxMarkets * type(uint128).max;
+        assertLe(maxTotalNetCredit, type(uint160).max);
+        deal(address(loanToken), address(parentVault), maxTotalNetCredit);
+        deal(storedCollaterals[0].token, address(this), maxTotalNetCredit + type(uint128).max);
+        deal(storedCollaterals[1].token, address(this), maxTotalNetCredit + type(uint128).max);
+
+        Offer memory offer;
+        for (uint256 i = 1; i <= maxMarkets; i++) {
+            offer = buy(i, type(uint128).max);
+            assertEq(adapter.totalNetCredit(), i * type(uint128).max);
+        }
+        assertEq(adapter.marketIdsLength(), maxMarkets);
+
+        sellUnits(offer.market, type(uint128).max, MAX_TICK);
+        assertEq(adapter.totalNetCredit(), maxTotalNetCredit - type(uint128).max);
+        assertEq(adapter.marketIdsLength(), maxMarkets - 1);
+
+        buy(maxMarkets + 1, type(uint128).max);
+        assertEq(adapter.totalNetCredit(), maxTotalNetCredit);
+        assertEq(adapter.marketIdsLength(), maxMarkets);
+        assertEq(adapter.shortfallRefillPeriod(), 1 days);
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
+    }
+
     function testOnBuyNetCreditSumAboveUint128() public {
         Offer memory offer = buyMaxNetCredit();
         bytes32 marketId = _marketId(offer.market);
@@ -3526,7 +3552,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetShortfallRefillPeriod(uint256 period) public {
-        period = bound(period, 0, type(uint24).max);
+        period = bound(period, 0, type(uint48).max);
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.setShortfallRefillPeriod(period);
 
@@ -3539,11 +3565,58 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetShortfallRefillPeriodOverflow(uint256 period) public {
-        period = bound(period, uint256(type(uint24).max) + 1, type(uint256).max);
+        period = bound(period, uint256(type(uint48).max) + 1, type(uint256).max);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         adapter.setShortfallRefillPeriod(period);
+    }
+
+    function testShortfallStoragePacking() public {
+        buyMaxNetCredit();
+        skip(12 hours);
+        setShortfallRefillPeriod(type(uint48).max);
+
+        vm.record();
+        assertEq(adapter.totalNetCredit(), type(uint128).max);
+        assertEq(adapter.shortfallRefillPeriod(), type(uint48).max);
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
+        (bytes32[] memory creditReads,) = vm.accesses(address(adapter));
+        assertEq(creditReads.length, 3);
+        assertEq(creditReads[0], creditReads[1], "credit and refill period share one slot");
+        assertEq(creditReads[0], creditReads[2], "credit and timestamp share one slot");
+
+        vm.record();
+        assertEq(adapter.maxShortfallRatio(), 0.005e18);
+        assertEq(adapter.shortfallAllowance(), uint256(type(uint128).max).mulDivDown(0.005e18, 1e18) / 2);
+        (bytes32[] memory allowanceReads,) = vm.accesses(address(adapter));
+        assertEq(allowanceReads.length, 2);
+        assertEq(allowanceReads[0], allowanceReads[1], "ratio and allowance share one slot");
+        assertNotEq(creditReads[0], allowanceReads[0]);
+    }
+
+    function testShortfallRefillsWithLongPeriod(uint256 period) public {
+        period = bound(period, uint256(type(uint24).max) + 1, type(uint48).max);
+        setShortfallRefillPeriod(period);
+        Offer memory offer = buy(30 days, 100e18);
+        skip(period / 2);
+        adapter.withdrawToVault(offer.market, 0);
+
+        assertEq(adapter.shortfallAllowance(), uint256(0.5e18).mulDivDown(period / 2, period));
+        assertEq(adapter.shortfallRefillPeriod(), period);
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
+        assertEq(adapter.totalNetCredit(), 100e18);
+    }
+
+    function testShortfallUpdatedAtUint48Max() public {
+        Offer memory offer = buy(30 days, 100e18);
+        vm.warp(type(uint48).max);
+        adapter.withdrawToVault(offer.market, 0);
+
+        assertEq(adapter.shortfallAllowance(), 0.5e18);
+        assertEq(adapter.shortfallUpdatedAt(), type(uint48).max);
+        assertEq(adapter.shortfallRefillPeriod(), 1 days);
+        assertEq(adapter.totalNetCredit(), 100e18);
     }
 
     function testSetShortfallParamsChangesBothParameters(bool wasDisabled) public {
@@ -3721,7 +3794,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.05e18);
     }
 
-    function testShortfallMaxRefillPeriod() public {
+    function testShortfallLongRefillPeriodCapsAllowance() public {
         setShortfallParams(0.005e18, type(uint24).max);
         Offer memory offer = buy(365 days, 100e18);
         skip(type(uint24).max / 2);

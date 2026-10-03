@@ -27,6 +27,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
+    using MathLib for uint160;
     using MathLib for uint128;
     using MathLib for uint48;
     using DurationsLib for bytes32;
@@ -68,15 +69,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    uint256 public totalNetCredit;
+    uint160 public totalNetCredit;
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
     // @dev The adapter's allocation cap bounds exposure.
     /// @dev Refill period in seconds. Zero disables the shortfall limit.
-    uint24 public shortfallRefillPeriod;
+    uint48 public shortfallRefillPeriod;
+    uint48 public shortfallUpdatedAt;
     uint64 public maxShortfallRatio;
     uint128 public shortfallAllowance;
-    uint40 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -279,7 +280,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
         timelocked();
         updateShortfallAllowance(totalNetCredit);
-        shortfallRefillPeriod = newShortfallRefillPeriod.toUint24();
+        shortfallRefillPeriod = newShortfallRefillPeriod.toUint48();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(maxShortfallRatio, WAD)).toUint128();
         emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
@@ -543,7 +544,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 )
                 .toUint128();
         }
-        shortfallUpdatedAt = block.timestamp.toUint40();
+        shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
     /// @dev Updates market net credit and inserts or removes the market from marketIds as needed.
@@ -556,7 +557,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 storedNetCredit = _marketData.netCredit;
 
         _marketData.netCredit = newNetCredit;
-        totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint160(totalNetCredit + newNetCredit - storedNetCredit);
         if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;
