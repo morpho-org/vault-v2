@@ -27,7 +27,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
-    using MathLib for uint160;
+    using MathLib for uint136;
     using MathLib for uint128;
     using MathLib for uint48;
     using DurationsLib for bytes32;
@@ -44,6 +44,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
+
+    /* CONSTANTS */
+
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint256 public constant MAX_MARKETS = 250;
 
@@ -53,33 +56,37 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
 
-    /* MANAGEMENT */
+    /* ADAPTER STORAGE */
 
     address public skimRecipient;
-    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
-    uint128 public minBuyRate;
-    uint128 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
-    /* ACCOUNTING */
-
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    uint160 public totalNetCredit;
+
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
     // @dev The adapter's allocation cap bounds exposure.
     /// @dev Refill period in seconds. Zero disables the shortfall limit.
-    uint48 public shortfallRefillPeriod;
+    uint40 public shortfallRefillPeriod;
+    uint32 public maxTtm;
     uint48 public shortfallUpdatedAt;
+    uint136 public totalNetCredit;
+
     uint64 public maxShortfallRatio;
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
+    uint64 public minBuyRate;
     uint128 public shortfallAllowance;
+
+    /* TRANSIENT STORAGE */
+
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
+
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -243,13 +250,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinBuyRate(uint256 newMinBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minBuyRate = newMinBuyRate.toUint128();
+        minBuyRate = newMinBuyRate.toUint64();
         emit SetMinBuyRate(newMinBuyRate);
     }
 
     function setMaxTtm(uint256 newMaxTtm) external {
         timelocked();
-        maxTtm = newMaxTtm.toUint128();
+        maxTtm = newMaxTtm.toUint32();
         emit SetMaxTtm(newMaxTtm);
     }
 
@@ -280,7 +287,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
         timelocked();
         updateShortfallAllowance(totalNetCredit);
-        shortfallRefillPeriod = newShortfallRefillPeriod.toUint48();
+        shortfallRefillPeriod = newShortfallRefillPeriod.toUint40();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(maxShortfallRatio, WAD)).toUint128();
         emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
@@ -558,7 +565,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         _marketData.netCredit = newNetCredit;
         // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-        totalNetCredit = uint160(totalNetCredit + newNetCredit - storedNetCredit);
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - storedNetCredit);
         if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;

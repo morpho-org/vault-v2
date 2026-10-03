@@ -22,11 +22,11 @@ library MathLib {
         }
     }
 
-    /// @dev Casts from uint256 to uint24, reverting if input number is too large.
-    function toUint24(uint256 x) internal pure returns (uint24) {
-        require(x <= type(uint24).max, ErrorsLib.CastOverflow());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint24).max.
-        return uint24(x);
+    /// @dev Casts from uint256 to uint32, reverting if input number is too large.
+    function toUint32(uint256 x) internal pure returns (uint32) {
+        require(x <= type(uint32).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint32).max.
+        return uint32(x);
     }
 
     /// @dev Casts from uint256 to uint40, reverting if input number is too large.
@@ -43,11 +43,11 @@ library MathLib {
         return uint48(x);
     }
 
-    /// @dev Casts from uint256 to uint120, reverting if input number is too large.
-    function toUint120(uint256 x) internal pure returns (uint120) {
-        require(x <= type(uint120).max, ErrorsLib.CastOverflow());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint120).max.
-        return uint120(x);
+    /// @dev Casts from uint256 to uint64, reverting if input number is too large.
+    function toUint64(uint256 x) internal pure returns (uint64) {
+        require(x <= type(uint64).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint64).max.
+        return uint64(x);
     }
 
     /// @dev Casts from uint256 to uint128, reverting if input number is too large.
@@ -62,14 +62,6 @@ library MathLib {
         require(x >= 0, ErrorsLib.CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because x >= 0.
         return uint256(x);
-    }
-
-    /// @dev Casts from uint256 to int256, reverting if input number overflows.
-    function toInt256(uint256 x) internal pure returns (int256) {
-        // forge-lint: disable-next-item(unsafe-typecast) type(int256).max is positive.
-        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(int256).max.
-        return int256(x);
     }
 
     /// @dev Returns min(x, y).
