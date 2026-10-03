@@ -110,7 +110,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = marketData[_marketIdAt(i)];
+            MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
             while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
@@ -118,14 +118,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
         for (uint256 j = length - 1; j > 0; j--) {
             allocations[j - 1] += allocations[j];
-        }
-    }
-
-    /// @dev Returns marketIds[i], skipping the bounds check. Requires i < marketIds.length.
-    function _marketIdAt(uint256 i) internal view returns (bytes32 marketId) {
-        assembly ("memory-safe") {
-            mstore(0, marketIds.slot)
-            marketId := sload(add(keccak256(0, 32), i))
         }
     }
 
