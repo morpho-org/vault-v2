@@ -533,7 +533,7 @@ contract MidnightAdapterTest is Test {
     /* FORCE REMOVABLE */
 
     function testForceRemovableDefault(bytes32 marketId) public view {
-        assertFalse(adapter.forceRemovable(marketId));
+        assertFalse(adapter.marketData(marketId).forceRemovable);
     }
 
     function testSetForceRemovableNotTimelocked(address caller, bytes32 marketId, bool newForceRemovable) public {
@@ -551,7 +551,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.submit(data);
         assertEq(adapter.executableAt(data), block.timestamp + duration, "execution delay");
-        assertEq(adapter.forceRemovable(marketId), !newForceRemovable, "unchanged before execution");
+        assertEq(adapter.marketData(marketId).forceRemovable, !newForceRemovable, "unchanged before execution");
 
         skip(duration - 1);
         vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
@@ -563,7 +563,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetForceRemovable(marketId, newForceRemovable);
         adapter.setForceRemovable(marketId, newForceRemovable);
-        assertEq(adapter.forceRemovable(marketId), newForceRemovable, "setting updated");
+        assertEq(adapter.marketData(marketId).forceRemovable, newForceRemovable, "setting updated");
         assertEq(adapter.executableAt(data), 0, "pending call consumed");
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
@@ -587,7 +587,27 @@ contract MidnightAdapterTest is Test {
             vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         }
         adapter.setForceRemovable(marketId, true);
-        assertFalse(adapter.forceRemovable(marketId));
+        assertFalse(adapter.marketData(marketId).forceRemovable);
+    }
+
+    function testSetForceRemovablePreservesMarketData(bool newForceRemovable) public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory second = buy(7 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(second.market);
+        MarketData memory before = adapter.marketData(marketId);
+
+        setForceRemovable(marketId, !newForceRemovable);
+        setForceRemovable(marketId, newForceRemovable);
+        MarketData memory after_ = adapter.marketData(marketId);
+        assertEq(after_.netCredit, before.netCredit, "netCredit unchanged");
+        assertEq(after_.growth, before.growth, "growth unchanged");
+        assertEq(after_.maturity, before.maturity, "maturity unchanged");
+        assertEq(after_.index, before.index, "index unchanged");
+        assertEq(after_.forceRemovable, newForceRemovable, "setting updated");
+
+        sell(first.market, 1e18);
+        assertEq(adapter.marketData(marketId).index, 0, "updated index");
+        assertEq(adapter.marketData(marketId).forceRemovable, newForceRemovable, "setting unchanged");
     }
 
     function testForceRemovablePreventsBuys(bool takerBuy) public {
@@ -663,7 +683,7 @@ contract MidnightAdapterTest is Test {
             vaultBalanceBefore + TickLib.tickToPrice(offer.tick),
             "sale proceeds"
         );
-        assertTrue(adapter.forceRemovable(marketId), "setting not consumed");
+        assertTrue(adapter.marketData(marketId).forceRemovable, "setting not consumed");
         assertEq(adapter.maxSellRate(keccak256(abi.encode(offer.market.collateralParams))), maxSellRate);
     }
 
@@ -677,13 +697,13 @@ contract MidnightAdapterTest is Test {
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
-        assertFalse(adapter.forceRemovable(secondMarketId), "other market protected");
+        assertFalse(adapter.marketData(secondMarketId).forceRemovable, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
 
         setForceRemovable(firstMarketId, false);
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        assertFalse(adapter.forceRemovable(firstMarketId), "override disabled");
+        assertFalse(adapter.marketData(firstMarketId).forceRemovable, "override disabled");
         assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
 
         sellUnits(first.market, 1e18, MAX_TICK);

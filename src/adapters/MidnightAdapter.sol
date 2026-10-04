@@ -59,7 +59,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
-    mapping(bytes32 marketId => bool) public forceRemovable;
 
     /* ACCOUNTING */
 
@@ -253,7 +252,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setForceRemovable(bytes32 marketId, bool newForceRemovable) external {
         timelocked();
-        forceRemovable[marketId] = newForceRemovable;
+        marketData[marketId].forceRemovable = newForceRemovable;
         emit SetForceRemovable(marketId, newForceRemovable);
     }
 
@@ -388,7 +387,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        require(!forceRemovable[marketId], UnauthorizedBuy());
+        require(!marketData[marketId].forceRemovable, UnauthorizedBuy());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
@@ -461,11 +460,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
-        require(forceRemovable[marketId] || block.timestamp < market.maturity, UnauthorizedSell());
+        require(marketData[marketId].forceRemovable || block.timestamp < market.maturity, UnauthorizedSell());
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (!forceRemovable[marketId] && soldNetCredit > sellerAssets) {
+        if (!marketData[marketId].forceRemovable && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
