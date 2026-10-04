@@ -590,6 +590,43 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.forceRemovable(marketId));
     }
 
+    function testForceRemovablePreventsBuys(bool takerBuy) public {
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        bytes memory data;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+            midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+            data = ratify([offer], signerAllocator);
+        }
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        setForceRemovable(marketId, true);
+
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            this.takeWithAccrual(offer, data, taker, address(0));
+        }
+        assertEq(adapter.marketData(marketId).netCredit, 0, "buy rejected");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "no assets spent");
+
+        Offer memory otherOffer = buy(7 days, 1e18);
+        assertEq(adapter.marketData(_marketId(otherOffer.market)).netCredit, 1e18, "other market unaffected");
+
+        setForceRemovable(marketId, false);
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            this.takeWithAccrual(offer, data, taker, address(0));
+        }
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
+    }
+
     function testForceRemovableOverridesMaxSellRate(bool takerSale, bool zeroProceeds, bool zeroRate) public {
         Offer memory boughtOffer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
