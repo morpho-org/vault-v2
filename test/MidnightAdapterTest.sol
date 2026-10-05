@@ -3632,7 +3632,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalNetCredit(), 100e18);
     }
 
-    function testLastUpdateUint48Max() public {
+    function testShortfallUpdatedAtUint48Max() public {
         Offer memory offer = buy(30 days, 100e18);
         vm.warp(type(uint48).max);
         adapter.withdrawToVault(offer.market, 0);
