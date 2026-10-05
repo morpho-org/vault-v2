@@ -315,12 +315,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Redeem(marketId, msg.sender, receiver, redeemedShares, withdrawnAssets);
     }
 
-    function redeemSharesByTake(
-        Offer memory offer,
-        bytes memory ratifierData,
-        uint128 redeemedShares,
-        address receiver
-    ) external {
+    function redeemSharesByTake(Offer memory offer, bytes memory ratifierData, uint128 redeemedShares, address receiver)
+        external
+    {
         require(offer.buy, IncorrectOffer());
         (bytes32 marketId, uint256 soldUnits) = burnShares(offer.market, redeemedShares);
         (, uint256 sellerAssets) =
