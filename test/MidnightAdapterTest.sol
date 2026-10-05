@@ -2296,7 +2296,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "zero prevents below-par sales");
     }
 
-    function testSellPostMaturityRequiresForceRemovable(bool afterMaturity, bool zeroRate) public {
+    function testMaxSellRateDisabledFromMaturity(bool afterMaturity, bool zeroRate) public {
         Offer memory offer = buy(30 days, 2e18);
         setMaxSellRate(offer.market, zeroRate ? 0 : 1);
         skip(30 days - 1);
@@ -2306,25 +2306,14 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 2e18, "below-par sale rejected before maturity");
 
         skip(afterMaturity ? 2 : 1);
-        vm.expectRevert(IMidnightAdapterBase.UnauthorizedSell.selector);
-        sellUnits(offer.market, 1e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.UnauthorizedSell.selector);
-        sellUnits(offer.market, 1e18, MAX_TICK);
-
-        setForceRemovable(_marketId(offer.market), true);
         sellUnits(offer.market, 1e18, MAX_TICK / 2);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "below-par sale accepted from maturity");
 
-        setForceRemovable(_marketId(offer.market), false);
-        vm.expectRevert(IMidnightAdapterBase.UnauthorizedSell.selector);
-        sellUnits(offer.market, 1e18, MAX_TICK);
-
-        setForceRemovable(_marketId(offer.market), true);
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "par sale accepted");
     }
 
-    function testForceRemovableAllowsSellsFromMaturity(bool takerSale, uint256 tick, uint256 elapsed) public {
+    function testSellFromMaturity(bool takerSale, bool forceRemovable, uint256 tick, uint256 elapsed) public {
         Offer memory boughtOffer = buy(30 days, 1e18);
         skip(30 days + bound(elapsed, 0, 365 days));
         tick = bound(tick, 0, 2) * (MAX_TICK / 2);
@@ -2334,15 +2323,7 @@ contract MidnightAdapterTest is Test {
             : makeSellOffer(boughtOffer.market, 1e18, MAX_TICK);
         offer.tick = tick;
 
-        vm.expectRevert(IMidnightAdapterBase.UnauthorizedSell.selector);
-        if (takerSale) {
-            vm.prank(signerAllocator);
-            adapter.take(offer, "", 1e18);
-        } else {
-            take(offer);
-        }
-
-        setForceRemovable(_marketId(boughtOffer.market), true);
+        if (forceRemovable) setForceRemovable(_marketId(boughtOffer.market), true);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18);
