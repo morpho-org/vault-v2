@@ -359,9 +359,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
+            bool useWrapperGate = enterGateFactory != address(0)
+                && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate)
+                && WrapperEnterGate(offer.market.enterGate).marketId() == marketId;
+            if (useWrapperGate) {
+                useWrapperGate = WrapperEnterGate(offer.market.enterGate).admit(offer.maker);
+                if (useWrapperGate) require(IERC20(parentVault).balanceOf(offer.maker) > 0, NotAuthorized());
+            }
+
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
+            if (useWrapperGate) WrapperEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
 
@@ -393,7 +402,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(
             enterGateFactory == address(0) || market.enterGate == address(0)
                 || (IEnterGateFactory(enterGateFactory).isGate(market.enterGate)
-                    && WrapperEnterGate(market.enterGate).marketId() == marketId),
+                    && WrapperEnterGate(market.enterGate).marketId() == marketId
+                    && !WrapperEnterGate(market.enterGate).cannotAdmit(address(this))),
             IncorrectEnterGate()
         );
         require(block.timestamp <= market.maturity, BuyPostMaturity());
