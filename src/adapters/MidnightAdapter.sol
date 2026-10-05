@@ -241,10 +241,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
-    function setForceRemovable(bytes32 marketId, bool newForceRemovable) external {
+    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external {
         timelocked();
-        marketData[marketId].forceRemovable = newForceRemovable;
-        emit SetForceRemovable(marketId, newForceRemovable);
+        marketData[marketId].forceReevaluationAllowed = newForceReevaluationAllowed;
+        emit SetForceReevaluationAllowed(marketId, newForceReevaluationAllowed);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -265,6 +265,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
+
+    /// @dev Reduces current value without changing maturity value.
+    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+
+        MarketData storage _marketData = marketData[marketId];
+        require(_marketData.forceReevaluationAllowed, ForceReevaluationNotAllowed());
+        require(newGrowth >= _marketData.growth, GrowthNotIncreasing());
+        require(newGrowth <= WAD / (_marketData.maturity - block.timestamp), GrowthTooHigh());
+
+        // forge-lint: disable-next-item(unsafe-typecast) newGrowth <= WAD < 2**64.
+        _marketData.growth = uint64(newGrowth);
+        _marketData.forceReevaluationAllowed = false;
+        emit ForceReevaluateMarket(msg.sender, marketId, newGrowth);
+    }
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
@@ -378,7 +394,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        require(!marketData[marketId].forceRemovable, UnauthorizedBuy());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
@@ -390,6 +405,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
+        require(!marketData[marketId].forceReevaluationAllowed, UnauthorizedBuy());
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -453,7 +469,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(seller == address(this), NotSelf());
 
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (!marketData[marketId].forceRemovable && block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],

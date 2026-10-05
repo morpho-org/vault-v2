@@ -13,7 +13,7 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
-    bool forceRemovable;
+    bool forceReevaluationAllowed;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -33,7 +33,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMinBuyRate(uint256 newMinBuyRate);
     event SetMaxTtm(uint256 newMaxTtm);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
-    event SetForceRemovable(bytes32 indexed marketId, bool newForceRemovable);
+    event SetForceReevaluationAllowed(bytes32 indexed marketId, bool newForceReevaluationAllowed);
+    event ForceReevaluateMarket(address indexed sender, bytes32 indexed marketId, uint256 newGrowth);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
@@ -63,6 +64,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotMidnight();
     error NotSelf();
     error OtherSellInProgress();
+    error GrowthNotIncreasing();
+    error GrowthTooHigh();
+    error MarketMatured();
+    error ForceReevaluationNotAllowed();
     error BuyRateTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
@@ -98,7 +103,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinBuyRate(uint256 newMinBuyRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
-    function setForceRemovable(bytes32 marketId, bool newForceRemovable) external;
+    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external;
+    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;
     function removeSubRatifier(address subRatifier) external;
@@ -147,7 +153,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool forceRemovable);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool forceReevaluationAllowed);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
