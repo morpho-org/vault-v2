@@ -572,7 +572,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, _marketData);
+        emit UpdateMarket(marketId, _marketData, shortfallAllowance);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }

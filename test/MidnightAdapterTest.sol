@@ -1830,7 +1830,7 @@ contract MidnightAdapterTest is Test {
         data.maturity = uint48(soldOffer.market.maturity);
         data.index = uint8(soldIndex);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(soldOffer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(soldOffer.market), data, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0);
         sell(soldOffer.market, 1e18);
@@ -2366,7 +2366,7 @@ contract MidnightAdapterTest is Test {
         data.netCredit = 1e18;
         data.maturity = uint48(offer.market.maturity);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 0, 0);
         take(offer);
@@ -2449,7 +2449,7 @@ contract MidnightAdapterTest is Test {
         data.maturity = uint48(offer.market.maturity);
         uint256 allowance = uint256(offer.maxUnits).mulDivDown(adapter.maxShortfallRatio(), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, allowance);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, 0, allowance);
         vm.prank(signerAllocator);
@@ -2656,7 +2656,7 @@ contract MidnightAdapterTest is Test {
         data.maturity = uint48(offer.market.maturity);
         uint256 allowance = uint256(oldNetCredit).mulDivDown(adapter.maxShortfallRatio(), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(marketId, data);
+        emit IMidnightAdapterBase.UpdateMarket(marketId, data, allowance);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, oldNetCredit - data.netCredit, allowance);
         vm.prank(signerAllocator);
@@ -2724,7 +2724,7 @@ contract MidnightAdapterTest is Test {
         MarketData memory data;
         data.maturity = uint48(offer.market.maturity);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(marketId, data);
+        emit IMidnightAdapterBase.UpdateMarket(marketId, data, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, 1e18, 0);
         vm.prank(signerAllocator);
@@ -4351,7 +4351,7 @@ contract MidnightAdapterTest is Test {
         .zeroFloorSub(1e18);
         uint256 assetsBefore = adapter.realAssets();
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 1e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), 1e18, 2e18, saleShortfall, 1e18 - saleShortfall);
         sellUnits(offer.market, 2e18, MAX_TICK / 2);
@@ -4429,7 +4429,7 @@ contract MidnightAdapterTest is Test {
         data.netCredit = 100e18;
         data.maturity = uint48(offer.market.maturity);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 0, 0);
         take(offer);
@@ -4437,21 +4437,21 @@ contract MidnightAdapterTest is Test {
 
         skip(12 hours);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 0.25e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, 0, 0.25e18);
         adapter.withdrawToVault(offer.market, 0);
 
         data.netCredit = 10e18;
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 0.25e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), 90e18, 90e18, 0, 0.25e18);
         sellUnits(offer.market, 90e18, MAX_TICK);
 
         data.netCredit = 9.98e18;
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data);
+        emit IMidnightAdapterBase.UpdateMarket(_marketId(offer.market), data, 0.05e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), 0.01e18, 0.02e18, 0.01e18, 0.04e18);
         sellUnits(offer.market, 0.02e18, MAX_TICK / 2);
