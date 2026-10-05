@@ -22,7 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-/// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with withdrawToVault(marketId, 0)). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
+/// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
