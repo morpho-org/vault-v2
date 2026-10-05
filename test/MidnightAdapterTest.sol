@@ -1197,7 +1197,7 @@ contract MidnightAdapterTest is Test {
         assertEq(data.netCredit, offer.maxUnits);
         assertEq(data.maturity, vm.getBlockTimestamp() + 100 * 365 days);
         assertEq(adapter.maxTtm(), type(uint32).max);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
     }
 
     function testMaxTtmZero() public {
@@ -3448,7 +3448,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalNetCredit(), maxTotalNetCredit);
         assertEq(adapter.marketIdsLength(), maxMarkets);
         assertEq(adapter.shortfallRefillPeriod(), 1 days);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
     }
 
     function testOnBuyNetCreditSumAboveUint128() public {
@@ -3594,7 +3594,7 @@ contract MidnightAdapterTest is Test {
         vm.record();
         assertEq(adapter.totalNetCredit(), type(uint128).max);
         assertEq(adapter.shortfallRefillPeriod(), type(uint40).max);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         assertEq(adapter.maxTtm(), type(uint32).max);
         (bytes32[] memory creditReads,) = vm.accesses(address(adapter));
         assertEq(creditReads.length, 4);
@@ -3628,7 +3628,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.shortfallAllowance(), uint256(0.5e18).mulDivDown(period / 2, period));
         assertEq(adapter.shortfallRefillPeriod(), period);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         assertEq(adapter.totalNetCredit(), 100e18);
     }
 
@@ -3638,7 +3638,7 @@ contract MidnightAdapterTest is Test {
         adapter.withdrawToVault(offer.market, 0);
 
         assertEq(adapter.shortfallAllowance(), 0.5e18);
-        assertEq(adapter.lastUpdate(), type(uint48).max);
+        assertEq(adapter.shortfallUpdatedAt(), type(uint48).max);
         assertEq(adapter.shortfallRefillPeriod(), 1 days);
         assertEq(adapter.totalNetCredit(), 100e18);
     }
@@ -3651,7 +3651,7 @@ contract MidnightAdapterTest is Test {
         setShortfallParams(0.01e18, 12 hours);
         uint256 allowance = zeroRatio ? 1e18 : 0.25e18;
         assertEq(adapter.shortfallAllowance(), allowance);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), allowance, "allowance preserved after parameter changes");
 
@@ -3670,7 +3670,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 allowance = zeroRatio ? 0 : 0.25e18;
         assertEq(adapter.shortfallAllowance(), allowance);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 1e18, MAX_TICK / 2);
         adapter.withdrawToVault(offer.market, 0);
@@ -3727,7 +3727,7 @@ contract MidnightAdapterTest is Test {
         setShortfallRefillPeriod(period);
 
         assertEq(adapter.shortfallAllowance(), 0.125e18);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         adapter.withdrawToVault(offer.market, 0);
@@ -3752,7 +3752,7 @@ contract MidnightAdapterTest is Test {
         adapter.setShortfallRefillPeriod(period);
 
         assertEq(adapter.shortfallAllowance(), instantRefill ? 0.125e18 : 0.5e18);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), 0.5e18);
 
@@ -3802,7 +3802,7 @@ contract MidnightAdapterTest is Test {
 
         setShortfallRefillPeriod(1 days);
         assertEq(adapter.shortfallAllowance(), netCredit.mulDivDown(ratio, 1e18));
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
     }
 
     function testShortfallZeroRatioRejectsShortfallWithInstantRefill() public {
@@ -3864,13 +3864,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxShortfallRatio(), 0.005e18);
         assertEq(adapter.shortfallRefillPeriod(), 1 days);
         assertEq(adapter.shortfallAllowance(), 0);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
 
         skip(elapsed);
         assertEq(adapter.shortfallAllowance(), 0, "stored state is not refreshed");
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), uint256(0.5e18) * MathLib.min(elapsed, 1 days) / 1 days);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
     }
 
     function testShortfallBeforeRefillReverts(bool takerSale) public {
@@ -4012,7 +4012,7 @@ contract MidnightAdapterTest is Test {
             assertEq(adapter.shortfallRefillPeriod(), 0);
         }
         assertEq(adapter.shortfallAllowance(), action == 4 ? 0 : assets / 10);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         assertEq(adapter.totalNetCredit(), expectedNetCredit);
         assertEq(realVault.allocation(adapter.adapterId()), expectedNetCredit);
     }
@@ -5803,7 +5803,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(buyer.called(), "callback ran");
         assertEq(adapter.totalNetCredit(), 4e18);
         assertEq(adapter.shortfallAllowance(), instantRefill ? 0.8e18 : 0.4e18);
-        assertEq(adapter.lastUpdate(), vm.getBlockTimestamp());
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
     }
 
     /// forge-config: default.isolate = true

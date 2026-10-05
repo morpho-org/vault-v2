@@ -73,7 +73,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Refill period in seconds.
     uint40 public shortfallRefillPeriod;
     uint32 public maxTtm;
-    uint48 public lastUpdate;
+    uint48 public shortfallUpdatedAt;
     uint136 public totalNetCredit;
 
     uint64 public maxShortfallRatio;
@@ -537,10 +537,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             ? allowanceCap.toUint128()
             : MathLib.min(
                     allowanceCap,
-                    shortfallAllowance + allowanceCap.mulDivDown(block.timestamp - lastUpdate, shortfallRefillPeriod)
+                    shortfallAllowance
+                        + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
                 )
                 .toUint128();
-        lastUpdate = block.timestamp.toUint48();
+        shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
     /// @dev Refreshes shortfall allowance before updating exposure, then updates market net credit and marketIds.
