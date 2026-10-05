@@ -503,8 +503,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
-        shortfallAllowance -= saleShortfall.toUint128();
+        if (saleShortfall > 0) {
+            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
+            shortfallAllowance -= saleShortfall.toUint128();
+        }
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
