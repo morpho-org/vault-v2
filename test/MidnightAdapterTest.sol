@@ -10,7 +10,12 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
-import {IMidnightAdapter, IMidnightAdapterBase, MarketData} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapter,
+    IMidnightAdapterBase,
+    MarketData,
+    MaturityData
+} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {MidnightAdapterPriceRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterPriceRatifierV1.sol";
 import {
     IMidnightAdapterPriceRatifierV1
@@ -305,12 +310,17 @@ contract MidnightAdapterTest is Test {
 
     /* GETTERS */
 
-    function testGetEmptyData(bytes32 marketId) public view {
+    function testGetEmptyData(bytes32 marketId, uint256 maturity) public view {
         MarketData memory marketData = adapter.marketData(marketId);
         assertEq(marketData.netCredit, 0, "market netCredit");
         assertEq(marketData.growth, 0, "growth");
         assertEq(marketData.maturity, 0, "maturity");
         assertEq(marketData.index, 0, "index");
+
+        MaturityData memory maturityData = adapter.maturityData(maturity);
+        assertEq(maturityData.netCredit, 0, "maturity netCredit");
+        assertEq(maturityData.index, 0, "maturity index");
+        assertEq(adapter.maturitiesLength(), 0, "maturities length");
     }
 
     function testGetMarketData() public {
@@ -327,6 +337,52 @@ contract MidnightAdapterTest is Test {
 
         sell(first.market, 1e18);
         assertEq(adapter.marketData(_marketId(second.market)).index, 0, "updated index");
+    }
+
+    function testGetMaturityData() public {
+        Offer memory offer = buy(7 days, 1e18);
+
+        MaturityData memory maturityData = adapter.maturityData(offer.market.maturity);
+        assertEq(maturityData.netCredit, offer.maxUnits, "netCredit");
+        assertEq(maturityData.index, 0, "index");
+        assertEq(adapter.maturitiesLength(), 1, "maturities length");
+        assertEq(adapter.maturities(0), offer.market.maturity, "maturity");
+
+        // A second market on the same maturity aggregates into the same entry.
+        Offer memory other = buyOtherMarketSameMaturity(7 days, 1e18);
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, offer.maxUnits + other.maxUnits, "aggregated");
+        assertEq(adapter.marketIdsLength(), 2, "two markets");
+        assertEq(adapter.maturitiesLength(), 1, "still one maturity");
+    }
+
+    function testMaturitiesRemovedWhenEmptied() public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory second = buy(7 days, 1e18);
+        assertEq(adapter.maturitiesLength(), 2, "two maturities");
+        assertEq(adapter.maturityData(second.market.maturity).index, 1, "second index");
+
+        // Swap-and-pop moves the last maturity into the emptied slot.
+        sell(first.market, 1e18);
+        assertEq(adapter.maturitiesLength(), 1, "one maturity left");
+        assertEq(adapter.maturities(0), second.market.maturity, "second moved into slot 0");
+        assertEq(adapter.maturityData(second.market.maturity).index, 0, "second index updated");
+
+        sell(second.market, 1e18);
+        assertEq(adapter.maturitiesLength(), 0, "no maturity left");
+    }
+
+    function testMaturityKeptWhileAnyMarketHoldsCredit() public {
+        Offer memory first = buy(7 days, 1e18);
+        Offer memory second = buyOtherMarketSameMaturity(7 days, 1e18);
+        assertEq(adapter.maturitiesLength(), 1, "one maturity");
+
+        sell(first.market, 1e18);
+        assertEq(adapter.marketIdsLength(), 1, "one market left");
+        assertEq(adapter.maturitiesLength(), 1, "maturity kept");
+        assertEq(adapter.maturityData(second.market.maturity).netCredit, second.maxUnits, "remaining net credit");
+
+        sell(second.market, 1e18);
+        assertEq(adapter.maturitiesLength(), 0, "maturity removed");
     }
 
     /* TIMELOCKS */
@@ -1650,6 +1706,39 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(extra);
         assertEq(adapter.durationAllocations()[2], limit);
+    }
+
+    /// @dev Markets sharing a maturity are summed into one entry before the scan, so they cost one iteration together.
+    function testDurationAllocationsAggregateByMaturity() public {
+        Offer memory first = buy(7 days, 1e18);
+        buyOtherMarketSameMaturity(7 days, 2e18);
+        assertEq(adapter.marketIdsLength(), 2, "two markets");
+        assertEq(adapter.maturitiesLength(), 1, "one maturity");
+        assertEq(adapter.durationAllocations()[0], 3e18, "1 day holds both");
+        assertEq(adapter.durationAllocations()[1], 3e18, "7 days holds both");
+
+        // Selling one market leaves the other's share on the maturity.
+        sell(first.market, 1e18);
+        assertEq(adapter.maturitiesLength(), 1, "maturity kept");
+        assertEq(adapter.durationAllocations()[0], 2e18, "1 day holds the rest");
+    }
+
+    /// @dev The scan walks maturities, so its cost does not grow with markets added on existing maturities.
+    function testDurationAllocationsAtMarketLimitSharedMaturities() public {
+        for (uint256 i; i < 125; i++) {
+            buy(180 days + i, 1e18);
+            buyOtherMarketSameMaturity(180 days + i, 1e18);
+        }
+        assertEq(adapter.marketIdsLength(), 250, "markets");
+        assertEq(adapter.maturitiesLength(), 125, "maturities");
+
+        vm.cool(address(adapter));
+        uint256 gasBefore = gasleft();
+        uint256[] memory allocations = adapter.durationAllocations();
+        emit log_named_uint("duration allocations gas, 250 markets on 125 maturities, cold", gasBefore - gasleft());
+        for (uint256 i; i < allocations.length; i++) {
+            assertEq(allocations[i], 250e18);
+        }
     }
 
     function testDurationCapsAtMarketLimit() public {
@@ -3525,6 +3614,18 @@ contract MidnightAdapterTest is Test {
 
     function buy(uint256 duration, uint256 assets, uint256 tick) internal returns (Offer memory offer) {
         offer = makeBuyOffer(duration, assets, tick);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        take(offer);
+    }
+
+    /// @dev Buys on a market that shares its maturity with buy(duration, ...) but differs by collateral oracle.
+    function buyOtherMarketSameMaturity(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
+        address otherOracle = address(new OracleMock());
+        OracleMock(otherOracle).setPrice(ORACLE_PRICE_SCALE);
+        offer = makeBuyOffer(duration, assets, MAX_TICK);
+        offer.market.collateralParams[0].oracle = otherOracle;
+        offer.group = bytes32(vm.randomUint());
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         take(offer);

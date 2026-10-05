@@ -11,7 +11,12 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapterBase,
+    IMidnightAdapterStaticTyping,
+    MarketData,
+    MaturityData
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -65,8 +70,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ACCOUNTING */
 
     bytes32[] public marketIds;
+    /// @dev Maturities holding net credit. Bounded by marketIds.length, since a maturity holds net credit only while one of its markets does.
+    uint48[] public maturities;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
+    mapping(uint256 maturity => MaturityData) public maturityData;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -90,6 +98,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
+    function maturitiesLength() external view returns (uint256) {
+        return maturities.length;
+    }
+
     /// @dev Returns the durations that can be capped.
     /// @dev A position counts toward every duration <= its current remaining time to maturity.
     function durations() public view returns (uint256[] memory) {
@@ -106,15 +118,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return _durationAllocations(durationsLength);
     }
 
+    /// @dev Walks maturities rather than markets: markets sharing a maturity reach the same durations, so updateMarket sums their net credit per maturity.
     function _durationAllocations(uint256 length) internal view returns (uint256[] memory allocations) {
         allocations = new uint256[](length);
         if (length == 0) return allocations;
-        for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+        for (uint256 i; i < maturities.length; i++) {
+            uint256 maturity = maturities[i];
+            uint256 ttm = maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
             while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
-            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+            if (bucket > 0) allocations[bucket - 1] += maturityData[maturity].netCredit;
         }
         for (uint256 j = length - 1; j > 0; j--) {
             allocations[j - 1] += allocations[j];
@@ -480,7 +493,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Updates market net credit and inserts or removes the market from marketIds as needed.
+    /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds and its maturity from maturities as needed.
     /// @return change The change in net credit to report to the vault's caps.
     function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
         internal
@@ -501,6 +514,23 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
+
+        MaturityData storage _maturityData = maturityData[market.maturity];
+        uint256 storedMaturityNetCredit = _maturityData.netCredit;
+        uint256 newMaturityNetCredit = storedMaturityNetCredit + newNetCredit - storedNetCredit;
+        _maturityData.netCredit = newMaturityNetCredit.toUint128();
+        // Net credit is never negative, so a maturity holds net credit iff at least one of its markets does.
+        if (newMaturityNetCredit == 0 && storedMaturityNetCredit > 0) {
+            uint48 lastMaturity = maturities[maturities.length - 1];
+            maturities[_maturityData.index] = lastMaturity;
+            maturityData[lastMaturity].index = _maturityData.index;
+            maturities.pop();
+        } else if (storedMaturityNetCredit == 0 && newMaturityNetCredit > 0) {
+            // forge-lint: disable-next-item(unsafe-typecast) maturities.length <= marketIds.length <= MAX_MARKETS.
+            _maturityData.index = uint8(maturities.length);
+            maturities.push(market.maturity.toUint48());
+        }
+
         emit UpdateMarket(marketId, _marketData.netCredit, _marketData.growth);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
