@@ -70,7 +70,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
     /// @dev The adapter's allocation cap bounds exposure.
-    /// @dev Refill period in seconds. Zero refills the allowance instantly.
+    /// @dev Refill period in seconds.
     uint40 public shortfallRefillPeriod;
     uint32 public maxTtm;
     uint48 public lastUpdate;
