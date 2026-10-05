@@ -313,7 +313,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change), shortfallAllowance);
+        emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -392,7 +392,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, assets, uint256(-change), shortfallAllowance);
+            emit ForceDeallocate(marketId, assets, uint256(-change));
             return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
@@ -470,7 +470,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), change), paidAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) boughtNetCredit and the credit loss fit in uint128.
-        emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change), shortfallAllowance);
+        emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change));
         return CALLBACK_SUCCESS;
     }
 
@@ -510,7 +510,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall, shortfallAllowance);
+        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall);
         return CALLBACK_SUCCESS;
     }
 
