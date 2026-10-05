@@ -22,6 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
@@ -68,10 +69,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
-    // proceeds.
-    // @dev The adapter's allocation cap bounds exposure.
-    /// @dev Refill period in seconds. Zero disables the shortfall limit.
+    /// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
+    /// @dev The adapter's allocation cap bounds exposure.
+    /// @dev Refill period in seconds. Zero restores the full allowance on every update.
     uint40 public shortfallRefillPeriod;
     uint32 public maxTtm;
     uint48 public shortfallUpdatedAt;
@@ -276,20 +276,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
-        updateShortfallAllowance(totalNetCredit);
+        updateShortfallAllowance();
         // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= WAD < 2**64.
         maxShortfallRatio = uint64(newMaxShortfallRatio);
-        shortfallAllowance =
-            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
         emit SetMaxShortfallRatio(newMaxShortfallRatio, shortfallAllowance);
     }
 
     function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
         timelocked();
-        updateShortfallAllowance(totalNetCredit);
+        updateShortfallAllowance();
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint40();
-        shortfallAllowance =
-            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(maxShortfallRatio, WAD)).toUint128();
         emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
     }
 
@@ -309,7 +305,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
@@ -389,7 +384,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
-            updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
@@ -430,7 +424,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + (newNetCredit - boughtNetCredit));
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
@@ -504,17 +497,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + (newNetCredit + soldNetCredit));
         int256 change = updateMarket(marketId, market, newNetCredit);
 
         uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        if (shortfallRefillPeriod != 0) {
-            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
-            shortfallAllowance -= saleShortfall.toUint128();
-        }
+        require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
+        shortfallAllowance -= saleShortfall.toUint128();
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
@@ -540,26 +530,28 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev shortfallAllowance is ignored while shortfallRefillPeriod is zero.
-    function updateShortfallAllowance(uint256 netCredit) internal {
-        if (shortfallRefillPeriod != 0) {
-            uint256 allowanceCap = MathLib.min(netCredit, totalNetCredit).mulDivDown(maxShortfallRatio, WAD);
-            shortfallAllowance = MathLib.min(
+    /// @dev Uses stored totalNetCredit; newly recognized losses affect the next update.
+    /// @dev A zero refill period restores the full allowance on every update.
+    function updateShortfallAllowance() internal {
+        uint256 allowanceCap = MathLib.min(totalNetCredit.mulDivDown(maxShortfallRatio, WAD), type(uint128).max);
+        shortfallAllowance = shortfallRefillPeriod == 0
+            ? allowanceCap.toUint128()
+            : MathLib.min(
                     allowanceCap,
                     shortfallAllowance
                         + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
                 )
                 .toUint128();
-        }
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
-    /// @dev Updates market net credit and inserts or removes the market from marketIds as needed.
+    /// @dev Refreshes shortfall allowance before updating exposure, then updates market net credit and marketIds.
     /// @return change The change in net credit to report to the vault's caps.
     function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
         internal
         returns (int256 change)
     {
+        updateShortfallAllowance();
         MarketData storage _marketData = marketData[marketId];
         uint256 storedNetCredit = _marketData.netCredit;
 
