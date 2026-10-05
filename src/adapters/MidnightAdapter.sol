@@ -570,11 +570,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray = new bytes32[](3 + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](4 + market.collateralParams.length * 2);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] = keccak256(abi.encode("gates", market.enterGate, market.liquidatorGate));
+        idsArray[j++] = keccak256(abi.encode("enterGate", market.enterGate));
+        idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
         idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
