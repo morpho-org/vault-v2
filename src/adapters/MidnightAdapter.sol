@@ -532,7 +532,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Uses stored totalNetCredit; newly recognized losses affect the next update.
     /// @dev A zero refill period restores the full allowance on every update.
     function updateShortfallAllowance() internal {
-        uint256 allowanceCap = totalNetCredit.mulDivDown(maxShortfallRatio, WAD);
+        uint256 allowanceCap = MathLib.min(totalNetCredit.mulDivDown(maxShortfallRatio, WAD), type(uint128).max);
         shortfallAllowance = shortfallRefillPeriod == 0
             ? allowanceCap.toUint128()
             : MathLib.min(
