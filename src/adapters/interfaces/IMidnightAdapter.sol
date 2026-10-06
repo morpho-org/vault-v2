@@ -110,7 +110,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function durationAllocations() external view returns (uint256[] memory);
+    function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
