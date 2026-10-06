@@ -135,7 +135,7 @@ filtered {
 rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
 filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
-    f -> functionIsTimelocked(f)
+    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
 } {
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
@@ -143,16 +143,32 @@ filtered {
     // Record EarliestTime.lastExecutableAt.
     fb(e, args);
 
-    // The timelock that applies to the calldata of f is the one of its selector, except for decreaseTimelock for which it is the one of its first argument (tied below).
-    bytes4 timelockSelector;
-    require f.selector == sig:decreaseTimelock(bytes4, uint256).selector || timelockSelector == to_bytes4(f.selector), "the timelock of f applies";
-
+    // The timelock that applies to the calldata of f is the one of its selector.
+    bytes4 timelockSelector = to_bytes4(f.selector);
     mathint earliestTime = earliestExecutionTime(blockTimestampBefore, timelockSelector, timelock(timelockSelector), EarliestTime.lastExecutableAt);
 
     require e.block.timestamp < earliestTime, "assume the call happens before the earliest execution time";
     f@withrevert(e, args);
 
+    assert lastReverted;
+}
+
+// Same for decreaseTimelock, for which the timelock that applies is the one of its first argument.
+rule cannotDecreaseTimelockBeforeMinimumTime(env e, calldataarg args, method fb) filtered { fb -> fb.contract == EarliestTime && fb.isFallback } {
+    uint256 blockTimestampBefore;
+    require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
+
+    // Record EarliestTime.lastExecutableAt.
+    fb(e, args);
+
+    // The first argument of decreaseTimelock (tied below).
+    bytes4 timelockSelector;
+    mathint earliestTime = earliestExecutionTime(blockTimestampBefore, timelockSelector, timelock(timelockSelector), EarliestTime.lastExecutableAt);
+
+    require e.block.timestamp < earliestTime, "assume the call happens before the earliest execution time";
+    decreaseTimelock@withrevert(e, args);
+
     // The first argument of decreaseTimelock is the key of its write to timelock.
-    require f.selector != sig:decreaseTimelock(bytes4, uint256).selector || lastReverted || timelockSelector == lastTimelockSelector, "the timelock of the first argument of decreaseTimelock applies";
+    require lastReverted || timelockSelector == lastTimelockSelector, "the timelock of the first argument of decreaseTimelock applies";
     assert lastReverted;
 }
