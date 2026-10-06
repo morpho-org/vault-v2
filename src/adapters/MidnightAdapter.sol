@@ -268,18 +268,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
-    /// @dev Sub-ratifiers define how allocator offers are authorized.
-    /// @dev The sentinel can only remove sub-ratifiers.
-    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator()
-                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
-            NotAuthorized()
-        );
-        isSubRatifier[subRatifier] = newIsSubRatifier;
-        emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
-    }
-
     /* SKIM FUNCTIONS */
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -325,6 +313,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         );
         IMidnight(midnight).setConsumed(group, amount, address(this));
         emit SetConsumed(msg.sender, group, amount);
+    }
+
+    /// @dev Sub-ratifiers define how allocator offers are authorized.
+    /// @dev The sentinel can only remove sub-ratifiers.
+    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
+        isSubRatifier[subRatifier] = newIsSubRatifier;
+        emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
     }
 
     /* ACCRUAL */
