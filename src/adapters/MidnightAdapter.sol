@@ -119,7 +119,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns, for each duration, the stored net credit of the markets with at least that duration left to maturity.
-    /// @dev Losses and pending sales are only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored net credit is an upper bound of the exposure at each check.
+    /// @dev Stored net credit is an upper bound of the exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
         return _durationAllocations(durationsLength);
     }
