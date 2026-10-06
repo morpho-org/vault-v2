@@ -254,6 +254,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* NON-TIMELOCKED CURATOR FUNCTIONS */
 
+    /// @dev Help prevent operational errors when buying.
     function setMinBuyRate(uint256 newMinBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minBuyRate = newMinBuyRate.toUint64();
