@@ -1094,38 +1094,41 @@ contract MidnightAdapterTest is Test {
         priceRatifier.setIsRootRatified(address(adapter), keccak256("some root"), false);
     }
 
-    function testAddSubRatifierNotTimelocked(address caller, address subRatifier) public {
-        vm.prank(caller);
-        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.addSubRatifier(subRatifier);
-    }
-
-    function testRemoveSubRatifierUnauthorized(address caller, address subRatifier) public {
-        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
+    function testSetIsSubRatifierUnauthorized(address caller, address subRatifier, bool newIsSubRatifier) public {
+        vm.assume(!parentVault.isAllocator(caller));
+        vm.assume(newIsSubRatifier || !parentVault.isSentinel(caller));
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        adapter.removeSubRatifier(subRatifier);
+        adapter.setIsSubRatifier(subRatifier, newIsSubRatifier);
     }
 
-    function testAddAndRemoveSubRatifier(address subRatifier) public {
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (subRatifier)));
+    function testSentinelCannotAddSubRatifier(address sentinel, address subRatifier) public {
+        vm.assume(!parentVault.isAllocator(sentinel));
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.setIsSubRatifier(subRatifier, true);
+    }
+
+    function testAllocatorSetIsSubRatifier(address subRatifier) public {
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.AddSubRatifier(subRatifier);
-        adapter.addSubRatifier(subRatifier);
+        emit IMidnightAdapterBase.SetIsSubRatifier(signerAllocator, subRatifier, true);
+        vm.prank(signerAllocator);
+        adapter.setIsSubRatifier(subRatifier, true);
         assertTrue(adapter.isSubRatifier(subRatifier), "authorized");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.RemoveSubRatifier(signerAllocator, subRatifier);
+        emit IMidnightAdapterBase.SetIsSubRatifier(signerAllocator, subRatifier, false);
         vm.prank(signerAllocator);
-        adapter.removeSubRatifier(subRatifier);
+        adapter.setIsSubRatifier(subRatifier, false);
         assertFalse(adapter.isSubRatifier(subRatifier), "unauthorized");
     }
 
     function testSentinelCanRemoveSubRatifier(address sentinel) public {
-        vm.assume(sentinel != signerAllocator);
         stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetIsSubRatifier(sentinel, address(priceRatifier), false);
         vm.prank(sentinel);
-        adapter.removeSubRatifier(address(priceRatifier));
+        adapter.setIsSubRatifier(address(priceRatifier), false);
         assertFalse(adapter.isSubRatifier(address(priceRatifier)), "removed by sentinel");
     }
 
@@ -1173,7 +1176,7 @@ contract MidnightAdapterTest is Test {
         bytes memory data = ratify([offer], signerAllocator);
 
         vm.prank(signerAllocator);
-        adapter.removeSubRatifier(address(priceRatifier));
+        adapter.setIsSubRatifier(address(priceRatifier), false);
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterBase.SubRatifierFailed.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
@@ -1200,7 +1203,8 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint32).max)));
         otherAdapter.setMaxTtm(type(uint32).max);
-        addSubRatifier(otherAdapter, address(priceRatifier));
+        vm.prank(otherAllocator);
+        otherAdapter.setIsSubRatifier(address(priceRatifier), true);
         disableDurationCaps(otherAdapter);
         deal(address(loanToken), address(otherVault), 1_000_000e18);
 
@@ -4757,9 +4761,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function addSubRatifier(IMidnightAdapter _adapter, address subRatifier) internal {
-        vm.prank(curator);
-        _adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (subRatifier)));
-        _adapter.addSubRatifier(subRatifier);
+        vm.prank(signerAllocator);
+        _adapter.setIsSubRatifier(subRatifier, true);
     }
 
     function setMaxSellRate(Market memory market, uint256 newMaxSellRate) internal {
