@@ -22,6 +22,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
+/// @dev The adapter's allocation cap bounds exposure.
+/// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
@@ -68,9 +71,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    /// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
-    /// @dev The adapter's allocation cap bounds exposure.
-    /// @dev Refill period in seconds.
+    /// @dev Refill period in seconds. Zero restores the full allowance on every update.
     uint40 public shortfallRefillPeriod;
     uint32 public maxTtm;
     uint48 public lastUpdate;
@@ -127,7 +128,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = marketData[_marketIdAt(i)];
+            MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
             while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
@@ -135,14 +136,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
         for (uint256 j = length - 1; j > 0; j--) {
             allocations[j - 1] += allocations[j];
-        }
-    }
-
-    /// @dev Returns marketIds[i], skipping the bounds check. Requires i < marketIds.length.
-    function _marketIdAt(uint256 i) internal view returns (bytes32 marketId) {
-        assembly ("memory-safe") {
-            mstore(0, marketIds.slot)
-            marketId := sload(add(keccak256(0, 32), i))
         }
     }
 
@@ -276,8 +269,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
         updateShortfallAllowance();
-        // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= WAD < 2**64.
-        maxShortfallRatio = uint64(newMaxShortfallRatio);
+        maxShortfallRatio = newMaxShortfallRatio.toUint64();
         emit SetMaxShortfallRatio(newMaxShortfallRatio, shortfallAllowance);
     }
 
@@ -470,7 +462,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        // Only durations up to the bought market's time to maturity can have its allocation increased.
+        // Only durations up to the bought market's time to maturity can have their allocation increased.
         uint256 ttm = market.maturity - block.timestamp;
         uint256 affectedDurationCount;
         while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
@@ -525,8 +517,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
-        shortfallAllowance -= saleShortfall.toUint128();
+        if (saleShortfall > 0) {
+            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
+            shortfallAllowance -= saleShortfall.toUint128();
+        }
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
@@ -564,14 +558,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Uses stored totalNetCredit; newly recognized losses affect the next update.
     /// @dev A zero refill period restores the full allowance on every update.
     function updateShortfallAllowance() internal {
-        uint256 allowanceCap = totalNetCredit.mulDivDown(maxShortfallRatio, WAD);
+        uint256 allowanceCap = MathLib.min(totalNetCredit.mulDivDown(maxShortfallRatio, WAD), type(uint128).max);
         shortfallAllowance = shortfallRefillPeriod == 0
             ? allowanceCap.toUint128()
             : MathLib.min(
                     allowanceCap,
                     shortfallAllowance + allowanceCap.mulDivDown(block.timestamp - lastUpdate, shortfallRefillPeriod)
-                )
-                .toUint128();
+                ).toUint128();
         lastUpdate = block.timestamp.toUint48();
     }
 
@@ -594,12 +587,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](4 + market.collateralParams.length * 2);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] =
-            keccak256(abi.encode("marketConfig", market.enterGate, market.liquidatorGate, market.rcfThreshold));
+        idsArray[j++] = keccak256(abi.encode("enterGate", market.enterGate));
+        idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
+        idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
