@@ -74,7 +74,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Refill period in seconds. Zero restores the full allowance on every update.
     uint40 public shortfallRefillPeriod;
     uint32 public maxTtm;
-    uint48 public lastUpdate;
+    uint48 public shortfallUpdatedAt;
     uint136 public totalNetCredit;
 
     uint64 public maxShortfallRatio;
@@ -301,7 +301,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 withdrawnAssets
             );
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit, shortfallAllowance);
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -397,7 +397,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
             totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-            emit ForceDeallocate(marketId, assets, newNetCredit, shortfallAllowance);
+            emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
@@ -484,7 +484,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit, shortfallAllowance);
+        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit);
         return CALLBACK_SUCCESS;
     }
 
@@ -536,7 +536,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall, shortfallAllowance);
+        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall);
         return CALLBACK_SUCCESS;
     }
 
@@ -566,9 +566,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             ? allowanceCap.toUint128()
             : MathLib.min(
                     allowanceCap,
-                    shortfallAllowance + allowanceCap.mulDivDown(block.timestamp - lastUpdate, shortfallRefillPeriod)
+                    shortfallAllowance
+                        + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
                 ).toUint128();
-        lastUpdate = block.timestamp.toUint48();
+        shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
     /// @dev Inserts or removes the market from marketIds as its net credit crosses zero.

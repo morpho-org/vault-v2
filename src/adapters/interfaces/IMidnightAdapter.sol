@@ -35,24 +35,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
-    event WithdrawToVault(
-        bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit, uint256 shortfallAllowance
-    );
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit, uint256 shortfallAllowance);
-    event Buy(
-        bytes32 indexed marketId,
-        uint256 paidAssets,
-        uint256 boughtNetCredit,
-        uint256 newNetCredit,
-        uint256 shortfallAllowance
-    );
-    event Sell(
-        bytes32 indexed marketId,
-        uint256 sellerAssets,
-        uint256 newNetCredit,
-        uint256 saleShortfall,
-        uint256 shortfallAllowance
-    );
+    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 newNetCredit, uint256 saleShortfall);
 
     /* ERRORS */
 
@@ -103,7 +89,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
     function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
     function shortfallAllowance() external view returns (uint128);
-    function lastUpdate() external view returns (uint48);
+    function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint64);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
