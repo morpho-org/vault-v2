@@ -269,8 +269,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
         updateShortfallAllowance();
-        // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= WAD < 2**64.
-        maxShortfallRatio = uint64(newMaxShortfallRatio);
+        maxShortfallRatio = newMaxShortfallRatio.toUint64();
         emit SetMaxShortfallRatio(newMaxShortfallRatio, shortfallAllowance);
     }
 
