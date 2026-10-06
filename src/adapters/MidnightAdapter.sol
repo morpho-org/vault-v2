@@ -118,7 +118,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns, for each duration, the stored net credit of the markets with at least that duration left to maturity.
-    /// @dev Losses and pending sales are only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored net credit is an upper bound of the exposure at each check.
+    /// @dev Losses and pending sales are only taken into account when market net credit is updated. Purchases are recorded before checking caps, so stored net credit is an upper bound of the exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
         return _durationAllocations(durationsLength);
     }
@@ -304,10 +304,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        updateShortfallAllowance();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
+        updateList(marketId, market, oldNetCredit, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
+        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -383,12 +391,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
+            updateShortfallAllowance();
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
-            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
+            uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
+            updateList(marketId, offer.market, oldNetCredit, newNetCredit);
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+            // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
+            totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
             emit ForceDeallocate(marketId, assets, uint256(-change), shortfallAllowance);
@@ -401,7 +417,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
+    /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -417,6 +433,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        updateShortfallAllowance();
 
         // Cache corrected net credit before call to allocate
         uint128 newNetCredit = currentNetCredit(marketId);
@@ -424,18 +441,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
+        MarketData storage _marketData = marketData[marketId];
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
             require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
-            MarketData storage _marketData = marketData[marketId];
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        int256 change = updateMarket(marketId, market, newNetCredit);
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
+        updateList(marketId, market, oldNetCredit, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
+        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
@@ -485,6 +508,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+        updateShortfallAllowance();
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
@@ -496,14 +520,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        int256 change = updateMarket(marketId, market, newNetCredit);
-
-        uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
+        MarketData storage _marketData = marketData[marketId];
+        uint256 discountFactor = WAD - _marketData.growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
         shortfallAllowance -= saleShortfall.toUint128();
+
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
+        updateList(marketId, market, oldNetCredit, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
+        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
+
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
@@ -543,34 +575,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         lastUpdate = block.timestamp.toUint48();
     }
 
-    /// @dev Refreshes shortfall allowance before updating exposure, then updates market net credit and marketIds.
-    /// @return change The change in net credit to report to the vault's caps.
-    function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
-        internal
-        returns (int256 change)
-    {
-        updateShortfallAllowance();
+    /// @dev Inserts or removes the market from marketIds as its net credit crosses zero.
+    function updateList(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit) internal {
         MarketData storage _marketData = marketData[marketId];
-        uint256 storedNetCredit = _marketData.netCredit;
-
-        _marketData.netCredit = newNetCredit;
-        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-        totalNetCredit = uint136(totalNetCredit + newNetCredit - storedNetCredit);
-        if (newNetCredit == 0 && storedNetCredit > 0) {
+        if (newNetCredit == 0 && oldNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;
             marketData[lastMarketId].index = _marketData.index;
             marketIds.pop();
-        } else if (storedNetCredit == 0 && newNetCredit > 0) {
+            delete marketData[marketId];
+        } else if (oldNetCredit == 0 && newNetCredit > 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, _marketData);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {

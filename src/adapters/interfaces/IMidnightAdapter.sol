@@ -56,7 +56,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         uint256 saleShortfall,
         uint256 shortfallAllowance
     );
-    event UpdateMarket(bytes32 indexed marketId, MarketData data);
 
     /* ERRORS */
 
