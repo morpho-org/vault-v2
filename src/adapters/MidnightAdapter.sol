@@ -439,7 +439,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        // Only durations up to the bought market's time to maturity can have its allocation increased.
+        // Only durations up to the bought market's time to maturity can have their allocation increased.
         uint256 ttm = market.maturity - block.timestamp;
         uint256 affectedDurationCount;
         while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
