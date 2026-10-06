@@ -304,15 +304,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         updateList(marketId, market, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
-        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
-        // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change), shortfallAllowance);
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
+        IVaultV2(parentVault)
+            .deallocate(
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                withdrawnAssets
+            );
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit, shortfallAllowance);
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -393,14 +395,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
             updateList(marketId, offer.market, oldNetCredit, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
-            totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
+            // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+            totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-            // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, assets, uint256(-change), shortfallAllowance);
-            return (ids(offer.market), change);
+            emit ForceDeallocate(marketId, assets, newNetCredit, shortfallAllowance);
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -447,10 +447,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         updateList(marketId, market, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
-        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
+
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
@@ -480,11 +479,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
-        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), change), paidAssets);
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) reentry is expected; both net credit values fit in uint128.
+        IVaultV2(parentVault)
+            .allocate(
+                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
+            );
 
-        // forge-lint: disable-next-item(unsafe-typecast) boughtNetCredit and the credit loss fit in uint128.
-        emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change), shortfallAllowance);
+        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -523,17 +524,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
+        _marketData.netCerdit = newNetCredit;
         updateList(marketId, market, oldNetCredit, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
+
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) totalNetCredit fits in int256; a negative sum fails toUint136.
-        totalNetCredit = uint256(int256(uint256(totalNetCredit)) + change).toUint136();
+        IVaultV2(parentVault)
+            .deallocate(
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                sellerAssets
+            );
 
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
-
-        // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall, shortfallAllowance);
+        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 

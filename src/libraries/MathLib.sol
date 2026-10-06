@@ -57,13 +57,6 @@ library MathLib {
         return uint128(x);
     }
 
-    /// @dev Casts from uint256 to uint136, reverting if input number is too large.
-    function toUint136(uint256 x) internal pure returns (uint136) {
-        require(x <= type(uint136).max, ErrorsLib.CastOverflow());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint136).max.
-        return uint136(x);
-    }
-
     /// @dev Casts from int256 to uint256, reverting if input number is negative.
     function toUint256(int256 x) internal pure returns (uint256) {
         require(x >= 0, ErrorsLib.CastOverflow());
