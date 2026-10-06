@@ -18,13 +18,6 @@ methods {
 // Hooks do not reliably decode the data, so instead of being tracked with hooks, this ghost is tied to the storage in the rules at the data that the called function reads and writes.
 persistent ghost mapping(bytes4 => mapping(uint256 => mapping(bytes32 => uint256))) decreaseTimelockExecutableAt;
 
-// Value of the last executableAt read, which is the one at the calldata of a timelocked function when it is called.
-persistent ghost uint256 lastLoadedExecutableAt;
-
-hook Sload uint256 value executableAt[KEY bytes data] {
-    lastLoadedExecutableAt = value;
-}
-
 // Key and value of the last timelock write, which are the arguments of decreaseTimelock when it is called.
 persistent ghost bytes4 lastTimelockSelector;
 
@@ -139,27 +132,27 @@ filtered {
 }
 
 // Function must revert if called before earliest execution time.
-// Timelocked functions first read executableAt at their calldata, which is recorded by the hook, so the earliest execution time is computed after the call from the state before the call.
-rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args) filtered { f -> functionIsTimelocked(f) } {
+rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
+filtered {
+    fb -> fb.contract == EarliestTime && fb.isFallback,
+    f -> functionIsTimelocked(f)
+} {
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
-    // The timelock that applies to the calldata of f is the one of its first argument for decreaseTimelock, the one of its selector otherwise.
-    bytes4 timelockSelector;
-    uint256 timelockBefore;
-    if (f.selector == sig:decreaseTimelock(bytes4, uint256).selector) {
-        uint256 newDuration;
-        timelockBefore = timelock(timelockSelector);
-        decreaseTimelock@withrevert(e, timelockSelector, newDuration);
-    } else {
-        require timelockSelector == to_bytes4(f.selector), "the timelock of f applies";
-        timelockBefore = timelock(timelockSelector);
-        f@withrevert(e, args);
-    }
-    bool reverted = lastReverted;
+    // Record EarliestTime.lastExecutableAt.
+    fb(e, args);
 
-    mathint earliestTime = earliestExecutionTime(blockTimestampBefore, timelockSelector, timelockBefore, lastLoadedExecutableAt);
+    // The timelock that applies to the calldata of f is the one of its selector, except for decreaseTimelock for which it is the one of its first argument (tied below).
+    bytes4 timelockSelector;
+    require f.selector == sig:decreaseTimelock(bytes4, uint256).selector || timelockSelector == to_bytes4(f.selector), "the timelock of f applies";
+
+    mathint earliestTime = earliestExecutionTime(blockTimestampBefore, timelockSelector, timelock(timelockSelector), EarliestTime.lastExecutableAt);
 
     require e.block.timestamp < earliestTime, "assume the call happens before the earliest execution time";
-    assert reverted;
+    f@withrevert(e, args);
+
+    // The first argument of decreaseTimelock is the key of its write to timelock.
+    require f.selector != sig:decreaseTimelock(bytes4, uint256).selector || lastReverted || timelockSelector == lastTimelockSelector, "the timelock of the first argument of decreaseTimelock applies";
+    assert lastReverted;
 }
