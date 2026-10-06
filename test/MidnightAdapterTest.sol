@@ -912,38 +912,41 @@ contract MidnightAdapterTest is Test {
         priceRatifier.setIsRootRatified(address(adapter), keccak256("some root"), false);
     }
 
-    function testAddSubRatifierNotTimelocked(address caller, address subRatifier) public {
-        vm.prank(caller);
-        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.addSubRatifier(subRatifier);
-    }
-
-    function testRemoveSubRatifierUnauthorized(address caller, address subRatifier) public {
-        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
+    function testSetIsSubRatifierUnauthorized(address caller, address subRatifier, bool newIsSubRatifier) public {
+        vm.assume(caller != curator);
+        vm.assume(newIsSubRatifier || !parentVault.isSentinel(caller));
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        adapter.removeSubRatifier(subRatifier);
+        adapter.setIsSubRatifier(subRatifier, newIsSubRatifier);
     }
 
-    function testAddAndRemoveSubRatifier(address subRatifier) public {
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (subRatifier)));
+    function testSentinelCannotAddSubRatifier(address sentinel, address subRatifier) public {
+        vm.assume(sentinel != curator);
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.setIsSubRatifier(subRatifier, true);
+    }
+
+    function testCuratorSetIsSubRatifier(address subRatifier) public {
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.AddSubRatifier(subRatifier);
-        adapter.addSubRatifier(subRatifier);
+        emit IMidnightAdapterBase.SetIsSubRatifier(curator, subRatifier, true);
+        vm.prank(curator);
+        adapter.setIsSubRatifier(subRatifier, true);
         assertTrue(adapter.isSubRatifier(subRatifier), "authorized");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.RemoveSubRatifier(signerAllocator, subRatifier);
-        vm.prank(signerAllocator);
-        adapter.removeSubRatifier(subRatifier);
+        emit IMidnightAdapterBase.SetIsSubRatifier(curator, subRatifier, false);
+        vm.prank(curator);
+        adapter.setIsSubRatifier(subRatifier, false);
         assertFalse(adapter.isSubRatifier(subRatifier), "unauthorized");
     }
 
     function testSentinelCanRemoveSubRatifier(address sentinel) public {
-        vm.assume(sentinel != signerAllocator);
         stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetIsSubRatifier(sentinel, address(priceRatifier), false);
         vm.prank(sentinel);
-        adapter.removeSubRatifier(address(priceRatifier));
+        adapter.setIsSubRatifier(address(priceRatifier), false);
         assertFalse(adapter.isSubRatifier(address(priceRatifier)), "removed by sentinel");
     }
 
@@ -990,8 +993,8 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         bytes memory data = ratify([offer], signerAllocator);
 
-        vm.prank(signerAllocator);
-        adapter.removeSubRatifier(address(priceRatifier));
+        vm.prank(curator);
+        adapter.setIsSubRatifier(address(priceRatifier), false);
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterBase.SubRatifierFailed.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
@@ -4570,8 +4573,7 @@ contract MidnightAdapterTest is Test {
 
     function addSubRatifier(IMidnightAdapter _adapter, address subRatifier) internal {
         vm.prank(curator);
-        _adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (subRatifier)));
-        _adapter.addSubRatifier(subRatifier);
+        _adapter.setIsSubRatifier(subRatifier, true);
     }
 
     function setMaxSellRate(Market memory market, uint256 newMaxSellRate) internal {

@@ -141,22 +141,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* RATIFIERS */
 
-    /// @dev Sub-ratifiers define how allocator offers are authorized.
-    function addSubRatifier(address subRatifier) external {
-        timelocked();
-        isSubRatifier[subRatifier] = true;
-        emit AddSubRatifier(subRatifier);
-    }
-
-    function removeSubRatifier(address subRatifier) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        isSubRatifier[subRatifier] = false;
-        emit RemoveSubRatifier(msg.sender, subRatifier);
-    }
-
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
@@ -210,7 +194,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Revoke(msg.sender, selector, data);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED CURATOR FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
@@ -240,23 +224,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Abdicate(selector);
     }
 
-    function setMinBuyRate(uint256 newMinBuyRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minBuyRate = newMinBuyRate.toUint64();
-        emit SetMinBuyRate(newMinBuyRate);
-    }
-
     function setMaxTtm(uint256 newMaxTtm) external {
         timelocked();
         maxTtm = newMaxTtm.toUint32();
         emit SetMaxTtm(newMaxTtm);
-    }
-
-    /// @dev Help prevent operational errors when selling.
-    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxSellRate[collateralParamsHash] = newMaxSellRate;
-        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -279,6 +250,33 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         updateShortfallAllowance();
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint40();
         emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
+    }
+
+    /* NON-TIMELOCKED CURATOR FUNCTIONS */
+
+    function setMinBuyRate(uint256 newMinBuyRate) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        minBuyRate = newMinBuyRate.toUint64();
+        emit SetMinBuyRate(newMinBuyRate);
+    }
+
+    /// @dev Help prevent operational errors when selling.
+    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        maxSellRate[collateralParamsHash] = newMaxSellRate;
+        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+    }
+
+    /// @dev Sub-ratifiers define how allocator offers are authorized.
+    /// @dev The sentinel can only remove sub-ratifiers.
+    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator()
+                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
+        isSubRatifier[subRatifier] = newIsSubRatifier;
+        emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
     }
 
     /* SKIM FUNCTIONS */
