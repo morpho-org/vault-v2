@@ -32,6 +32,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
     event SetMaxTtm(uint256 newMaxTtm);
+    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
+    event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetForceRemovable(bytes32 indexed marketId, bool newForceRemovable);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -39,8 +41,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
+    event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
 
     /* ERRORS */
 
@@ -67,6 +69,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
+    error MaxShortfallExceeded();
+    error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -83,9 +87,16 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function maxTtm() external view returns (uint128);
+    function maxTtm() external view returns (uint32);
+    function totalNetCredit() external view returns (uint136);
+    function maxShortfallRatio() external view returns (uint64);
+    function shortfallRefillPeriod() external view returns (uint40);
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
+    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
+    function shortfallAllowance() external view returns (uint128);
+    function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
-    function minBuyRate() external view returns (uint128);
+    function minBuyRate() external view returns (uint64);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
