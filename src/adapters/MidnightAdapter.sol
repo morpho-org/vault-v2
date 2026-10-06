@@ -81,6 +81,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint64 public minBuyRate;
     uint128 public shortfallAllowance;
+    uint256 public lastTotalAssets;
 
     /* TRANSIENT STORAGE */
 
@@ -297,9 +298,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
+        uint128 netCreditBefore = currentNetCredit(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
+        // Value the pre-withdrawal position while withdrawn assets are still in the adapter.
+        (overridenMarketId, overridenMarketNetCredit) = (marketId, netCreditBefore);
         int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -488,7 +493,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
+        // Value the pre-sale position while proceeds are still in the adapter.
+        (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit + soldNetCredit);
         int256 change = updateMarket(marketId, market, newNetCredit);
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
@@ -523,10 +531,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Uses stored totalNetCredit; newly recognized losses affect the next update.
+    /// @dev The cap uses the minimum of the current and last seen vault total assets, so a temporary deposit does not raise it.
     /// @dev A zero refill period restores the full allowance on every update.
     function updateShortfallAllowance() internal {
-        uint256 allowanceCap = MathLib.min(totalNetCredit.mulDivDown(maxShortfallRatio, WAD), type(uint128).max);
+        uint256 totalAssets = IVaultV2(parentVault).totalAssets();
+        uint256 allowanceCap = MathLib.min(
+            MathLib.min(totalAssets, lastTotalAssets).mulDivDown(maxShortfallRatio, WAD), type(uint128).max
+        );
         shortfallAllowance = shortfallRefillPeriod == 0
             ? allowanceCap.toUint128()
             : MathLib.min(
@@ -536,6 +547,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 )
                 .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
+        lastTotalAssets = totalAssets;
     }
 
     /// @dev Refreshes shortfall allowance before updating exposure, then updates market net credit and marketIds.
