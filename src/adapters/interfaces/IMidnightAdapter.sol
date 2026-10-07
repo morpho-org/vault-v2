@@ -35,9 +35,17 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
-    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit);
+    event WithdrawToVault(
+        bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit, uint256 shortfallAllowance
+    );
+    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit, uint256 shortfallAllowance);
+    event Buy(
+        bytes32 indexed marketId,
+        uint256 paidAssets,
+        uint256 boughtNetCredit,
+        uint256 newNetCredit,
+        uint256 shortfallAllowance
+    );
     event Sell(
         bytes32 indexed marketId,
         uint256 sellerAssets,

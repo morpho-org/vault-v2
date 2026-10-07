@@ -1763,7 +1763,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 1e18, 1e18, 1e18);
+        emit IMidnightAdapterBase.Buy(marketId, 1e18, 1e18, 1e18, 0);
         take(offer);
 
         uint128 netCredit = adapter.marketData(marketId).netCredit;
@@ -2328,7 +2328,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
     }
 
@@ -2405,7 +2405,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 allowance = uint256(offer.maxUnits).mulDivDown(adapter.maxShortfallRatio(), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, offer.maxUnits);
+        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, offer.maxUnits, allowance);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), allowance);
@@ -2607,7 +2607,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 allowance = uint256(oldNetCredit).mulDivDown(adapter.maxShortfallRatio(), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, credit - pendingFee);
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, credit - pendingFee, allowance);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), allowance);
@@ -2672,7 +2672,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 1, "market still tracked");
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, 0);
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, 0, 0);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
 
@@ -2949,7 +2949,7 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
         loanToken.approve(address(adapter), 0.5e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ForceDeallocate(marketId, 0.5e18, 0.5e18);
+        emit IMidnightAdapterBase.ForceDeallocate(marketId, 0.5e18, 0.5e18, 0);
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
         );
@@ -3281,7 +3281,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 withdrawAmount = 0.5e18;
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, withdrawAmount, creditBefore - withdrawAmount);
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, withdrawAmount, creditBefore - withdrawAmount, 0.005e18);
         vm.prank(caller);
         adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
         assertEq(adapter.shortfallAllowance(), 0.005e18, "shortfallAllowance");
@@ -3418,7 +3418,7 @@ contract MidnightAdapterTest is Test {
         offer.maxUnits = uint128(boughtNetCredit);
         offer.group = bytes32("second buy");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit);
+        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit, 0);
         take(offer);
 
         assertEq(adapter.marketData(marketId).netCredit, expectedNetCredit, "market netCredit");
@@ -3449,7 +3449,7 @@ contract MidnightAdapterTest is Test {
 
         loanToken.approve(address(adapter), assets);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
+        emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1, 0);
         (, int256 change) = parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), assets, address(this)
         );
@@ -3470,7 +3470,9 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.repay(offer.market, type(uint128).max, taker, address(0), "");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, assets, 1);
+        emit IMidnightAdapterBase.WithdrawToVault(
+            marketId, assets, 1, uint256(type(uint128).max).mulDivDown(0.005e18, 1e18)
+        );
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, assets);
         assertEq(adapter.shortfallAllowance(), uint256(type(uint128).max).mulDivDown(0.005e18, 1e18), "allowance");
@@ -4032,7 +4034,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 900e18, taker);
         midnight.supplyCollateral(offer.market, 1, 900e18, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 900e18, 900e18, 1000e18);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 900e18, 900e18, 1000e18, 0.25e18);
         take(additionalOffer);
         bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "elapsed time uses old credit");
@@ -4121,7 +4123,7 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(initial.market, 10e18);
         loanToken.approve(address(adapter), 10e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ForceDeallocate(_marketId(initial.market), 10e18, 90e18);
+        emit IMidnightAdapterBase.ForceDeallocate(_marketId(initial.market), 10e18, 90e18, 0.25e18);
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 10e18, address(this)
         );
@@ -4130,7 +4132,7 @@ contract MidnightAdapterTest is Test {
         (offer, root_) = makeForceDeallocateOffer(initial.market, 80e18);
         loanToken.approve(address(adapter), 80e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ForceDeallocate(_marketId(initial.market), 80e18, 10e18);
+        emit IMidnightAdapterBase.ForceDeallocate(_marketId(initial.market), 80e18, 10e18, 0.25e18);
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 80e18, address(this)
         );
@@ -4250,9 +4252,9 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
         midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 50e18, 50e18);
+        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 50e18, 50e18, 0.5e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(roll.market), 50e18, 50e18, 50e18);
+        emit IMidnightAdapterBase.Buy(_marketId(roll.market), 50e18, 50e18, 50e18, 0.5e18);
         take(roll);
         assertEq(adapter.shortfallAllowance(), 0.5e18, "shortfallAllowance");
 
@@ -4389,13 +4391,13 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18, 0);
         take(offer);
         setMaxSellRate(offer.market, type(uint256).max);
 
         skip(12 hours);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, 100e18);
+        emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, 100e18, 0.25e18);
         adapter.withdrawToVault(offer.market, 0);
 
         vm.expectEmit(address(adapter));
@@ -5453,7 +5455,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(
-            _marketId(initial.market), withdrawnAssets, sameMarket ? 10e18 : 8e18 - withdrawnAssets
+            _marketId(initial.market), withdrawnAssets, sameMarket ? 10e18 : 8e18 - withdrawnAssets, 0
         );
         directTake(offer);
 

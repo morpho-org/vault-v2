@@ -270,7 +270,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 withdrawnAssets
             );
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit, shortfallAllowance);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -322,7 +322,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
             totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-            emit ForceDeallocate(marketId, assets, newNetCredit);
+            emit ForceDeallocate(marketId, assets, newNetCredit, shortfallAllowance);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
@@ -424,7 +424,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit);
+        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
