@@ -464,14 +464,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfallAllowance -= saleShortfall.toUint128();
         }
 
-        uint128 netCreditDecrease = _marketData.netCredit - newNetCredit;
+        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        if (newNetCredit == 0 && netCreditDecrease > 0) removeMarket(marketId);
-        totalNetCredit -= netCreditDecrease;
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-        // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease fits in uint128.
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(market), -int256(uint256(netCreditDecrease))), sellerAssets);
+            .deallocate(
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                sellerAssets
+            );
 
         emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
