@@ -512,9 +512,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Removes the market from marketIds and clears its stored data.
     function removeMarket(bytes32 marketId) internal {
-        uint8 index = marketData[marketId].index;
-        marketIds[index] = marketIds[marketIds.length - 1];
-        marketData[marketIds[index]].index = index;
+        MarketData storage _marketData = marketData[marketId];
+        bytes32 lastMarketId = marketIds[marketIds.length - 1];
+        marketIds[_marketData.index] = lastMarketId;
+        marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
     }
