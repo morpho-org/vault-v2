@@ -46,7 +46,13 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         uint256 newNetCredit,
         uint256 shortfallAllowance
     );
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 newNetCredit, uint256 shortfallAllowance);
+    event Sell(
+        bytes32 indexed marketId,
+        uint256 sellerAssets,
+        uint256 newNetCredit,
+        uint256 saleShortfall,
+        uint256 shortfallAllowance
+    );
 
     /* ERRORS */
 
@@ -73,12 +79,14 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
+    error MaxShortfallExceeded();
     error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
+    error VaultNotAccrued();
 
     /* FUNCTIONS */
 

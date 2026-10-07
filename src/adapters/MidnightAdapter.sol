@@ -22,7 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-/// @dev A shortfall is the negative delta if any between the amortized value of sold credit (rounded up) and the actual sales proceeds.
+/// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
 /// @dev The adapter's allocation cap bounds exposure.
 /// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
 ///
@@ -379,7 +379,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
-            _marketData.growth = ((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit).toUint64();
+            // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
+            _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -453,7 +454,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         uint256 discountFactor = WAD - _marketData.growth * market.maturity.zeroFloorSub(block.timestamp);
-        shortfallAllowance -= soldNetCredit.mulDivUp(discountFactor, WAD).zeroFloorSub(sellerAssets).toUint128();
+        uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
+        uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
+        uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
+        if (saleShortfall > 0) {
+            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
+            shortfallAllowance -= saleShortfall.toUint128();
+        }
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
@@ -469,7 +476,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, newNetCredit, shortfallAllowance);
+        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
