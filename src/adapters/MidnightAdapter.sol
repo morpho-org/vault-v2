@@ -259,7 +259,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
         totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
@@ -318,7 +318,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
-            updateList(marketId, offer.market, oldNetCredit, newNetCredit);
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
             totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
@@ -385,7 +385,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
+        if (newNetCredit > 0 && oldNetCredit == 0) {
+            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            _marketData.maturity = market.maturity.toUint48();
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+            _marketData.index = uint8(marketIds.length);
+            marketIds.push(marketId);
+        } else if (newNetCredit == 0 && oldNetCredit > 0) {
+            removeMarket(marketId);
+        }
         // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
         totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
@@ -464,7 +472,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
         totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
@@ -513,22 +521,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
-    /// @dev Inserts or removes the market from marketIds as its net credit crosses zero.
-    function updateList(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit) internal {
+    /// @dev Removes the market from marketIds and clears its stored data.
+    function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
-        if (newNetCredit == 0 && oldNetCredit > 0) {
-            bytes32 lastMarketId = marketIds[marketIds.length - 1];
-            marketIds[_marketData.index] = lastMarketId;
-            marketData[lastMarketId].index = _marketData.index;
-            marketIds.pop();
-            delete marketData[marketId];
-        } else if (oldNetCredit == 0 && newNetCredit > 0) {
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            _marketData.index = uint8(marketIds.length);
-            marketIds.push(marketId);
-        }
+        bytes32 lastMarketId = marketIds[marketIds.length - 1];
+        marketIds[_marketData.index] = lastMarketId;
+        marketData[lastMarketId].index = _marketData.index;
+        marketIds.pop();
+        delete marketData[marketId];
     }
 
     /* VIEWS */

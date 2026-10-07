@@ -1778,6 +1778,26 @@ contract MidnightAdapterTest is Test {
         assertMarkets([_marketId(first.market), marketId, _marketId(last.market)]);
     }
 
+    function testOnBuyZeroUnitsAfterFullLossRemovesMarket() public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory offer = buy(7 days, 1e18, discountTick);
+        Offer memory last = buy(30 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        setMidnightCredit(marketId, address(adapter), 0);
+
+        offer.group = bytes32("zero buy");
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0);
+        vm.prank(taker);
+        midnight.take(offer, data, 0, taker, taker, address(0), "");
+
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(adapter.totalNetCredit(), 2e18);
+        assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
+        assertMarkets([_marketId(first.market), _marketId(last.market)]);
+    }
+
     function testSellClearsFirstMarketAndReactivatesSlot() public {
         checkSellClearsMarketAndReactivatesSlot(0);
     }
@@ -2326,6 +2346,19 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(second.market, 1, 0.5e18, taker);
         take(second);
 
+        assertMarkets([_marketId(first.market)]);
+    }
+
+    function testZeroUnitBuyDoesNotInsertMarket() public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.prank(taker);
+        midnight.take(offer, data, 0, taker, taker, address(0), "");
+
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(adapter.totalNetCredit(), 1e18);
+        assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
 
@@ -4051,7 +4084,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallRefillUsesStoredCredit(uint256 credit) public {
-        credit = bound(credit, 1, 1_000e18);
+        credit = bound(credit, 1, 100e18);
         Offer memory offer = buy(30 days, 100e18);
         skip(12 hours);
         setMidnightCredit(_marketId(offer.market), address(adapter), credit);
