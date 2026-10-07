@@ -257,19 +257,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
+        int256 change = updateMarket(marketId, market, newNetCredit);
 
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                withdrawnAssets
-            );
+        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
     }
 
@@ -316,15 +307,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            updateList(marketId, offer.market, oldNetCredit, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-            totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
+            int256 change = updateMarket(marketId, offer.market, newNetCredit);
 
             emit ForceDeallocate(marketId, assets, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+            return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -372,22 +358,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
-        MarketData storage _marketData = marketData[marketId];
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
             require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
+            MarketData storage _marketData = marketData[marketId];
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
+        int256 change = updateMarket(marketId, market, newNetCredit);
 
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
@@ -418,11 +400,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) reentry is expected; both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .allocate(
-                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
-            );
+        // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
+        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), change), paidAssets);
 
         emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit);
         return CALLBACK_SUCCESS;
@@ -452,8 +431,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        MarketData storage _marketData = marketData[marketId];
-        uint256 discountFactor = WAD - _marketData.growth * market.maturity.zeroFloorSub(block.timestamp);
+        // Read growth before updateMarket, which clears marketData when the position is fully sold.
+        uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
@@ -462,19 +441,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfallAllowance -= saleShortfall.toUint128();
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        updateList(marketId, market, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
-        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
-
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                sellerAssets
-            );
+        int256 change = updateMarket(marketId, market, newNetCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall);
         return CALLBACK_SUCCESS;
@@ -513,9 +481,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
-    /// @dev Inserts or removes the market from marketIds as its net credit crosses zero.
-    function updateList(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit) internal {
+    /// @dev Stores the market's new net credit, keeping totalNetCredit and marketIds in sync. Clears marketData entirely on full exit.
+    /// @return change The change in net credit to report to the vault's caps.
+    function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
+        internal
+        returns (int256 change)
+    {
         MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
+
+        _marketData.netCredit = newNetCredit;
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
         if (newNetCredit == 0 && oldNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;
@@ -529,6 +506,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
     }
 
     /* VIEWS */
