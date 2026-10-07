@@ -431,7 +431,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        // Read growth before updateMarket, which clears marketData when the position is fully sold.
+        // Read growth before updateMarket because clears marketData is cleared if the position is fully sold.
         uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
