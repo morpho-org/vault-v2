@@ -1648,6 +1648,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 250);
     }
 
+    function testDurationAllocationsLengthTooHigh() public {
+        uint256 length = adapter.durationsLength() + 1;
+        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
+        adapter.durationAllocations(length);
+    }
+
     /// @dev Returns stored exposure across all configured durations.
     function storedDurationAllocations(IMidnightAdapter target) internal view returns (uint256[] memory allocations) {
         return target.durationAllocations(target.durationsLength());

@@ -566,6 +566,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     /// @dev Stored net credit is an upper bound of the exposure at each check.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
+        require(length <= durationsLength, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
