@@ -4263,6 +4263,31 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.5e18, "purchase counted before the withdrawal");
     }
 
+    function testBuySelfFundedSameMarketEmitsFinalNetCredit() public {
+        Offer memory initial = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(initial.market);
+        skip(1 days);
+        deal(address(loanToken), address(this), 50e18);
+        loanToken.approve(address(midnight), 50e18);
+        midnight.repay(initial.market, 50e18, taker, address(0), "");
+        deal(address(loanToken), address(parentVault), 0);
+
+        Offer memory roll = makeBuyOffer(initial.market.maturity - block.timestamp, 50e18, MAX_TICK);
+        roll.market = initial.market;
+        roll.group = bytes32(vm.randomUint());
+        roll.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
+        midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
+        midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18, 0.5e18);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0.5e18);
+        take(roll);
+
+        assertEq(adapter.marketData(marketId).netCredit, 100e18);
+        assertEq(adapter.shortfallAllowance(), 0.5e18);
+    }
+
     function testShortfallExitClampsSharedAllowance() public {
         Offer memory first = buy(30 days, 100e18);
         setMaxSellRate(first.market, type(uint256).max);
