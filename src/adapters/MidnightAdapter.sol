@@ -257,14 +257,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint128 netCreditDecrease = marketData[marketId].netCredit - newNetCredit;
+        uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
-        if (newNetCredit == 0 && netCreditDecrease > 0) removeMarket(marketId);
-        totalNetCredit -= netCreditDecrease;
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+        totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; netCreditDecrease fits in uint128.
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(market), -int256(uint256(netCreditDecrease))), withdrawnAssets);
+            .deallocate(
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                withdrawnAssets
+            );
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit, shortfallAllowance);
     }
 
@@ -311,14 +316,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            uint128 netCreditDecrease = marketData[marketId].netCredit - newNetCredit;
+            uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
-            if (newNetCredit == 0 && netCreditDecrease > 0) removeMarket(marketId);
-            totalNetCredit -= netCreditDecrease;
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS + 1 uint128 values are summed.
+            totalNetCredit = uint136(totalNetCredit + newNetCredit - oldNetCredit);
 
             emit ForceDeallocate(marketId, assets, newNetCredit, shortfallAllowance);
-            // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease fits in uint128.
-            return (ids(offer.market), -int256(uint256(netCreditDecrease)));
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
