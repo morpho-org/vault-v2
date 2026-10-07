@@ -13,7 +13,6 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
-    bool forceReevaluationAllowed;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -34,14 +33,15 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
     event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
-    event SetForceReevaluationAllowed(bytes32 indexed marketId, bool newForceReevaluationAllowed);
-    event ForceReevaluateMarket(address indexed sender, bytes32 indexed marketId, uint256 newGrowth);
+    event ReevaluateMarket(
+        address indexed sender, bytes32 indexed marketId, uint256 newGrowth, uint256 shortfallAllowance
+    );
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
 
     /* ERRORS */
@@ -53,7 +53,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error BuyAtLoss();
-    error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
@@ -65,14 +64,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotMidnight();
     error NotSelf();
     error OtherSellInProgress();
-    error GrowthNotIncreasing();
     error GrowthTooHigh();
-    error ForceReevaluationNotAllowed();
     error BuyRateTooLow();
     error SelfAllocationOnly();
+    error SellAtLoss();
     error SellInProgress();
     error SellRateTooHigh();
-    error MaxShortfallExceeded();
     error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
@@ -112,8 +109,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinBuyRate(uint256 newMinBuyRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
-    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external;
-    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external;
+    function reevaluateMarket(bytes32 marketId, uint256 newGrowth) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
@@ -161,7 +157,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool forceReevaluationAllowed);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

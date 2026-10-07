@@ -22,9 +22,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-/// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
+/// @dev A shortfall is a decrease in amortized value from reevaluation. Sales must cover the amortized value of the sold credit.
 /// @dev The adapter's allocation cap bounds exposure.
-/// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
+/// @dev The shortfall allowance refill can round to zero.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
@@ -230,12 +230,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external {
-        timelocked();
-        marketData[marketId].forceReevaluationAllowed = newForceReevaluationAllowed;
-        emit SetForceReevaluationAllowed(marketId, newForceReevaluationAllowed);
-    }
-
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
@@ -286,20 +280,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    /// @dev Reduces current value without changing maturity value.
-    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external {
+    /// @dev Growth must not decrease.
+    /// @dev Must be called before maturity.
+    /// @dev The market should be updated for losses before calling to avoid wasting shortfall allowance.
+    function reevaluateMarket(bytes32 marketId, uint256 newGrowth) external {
+        updateShortfallAllowance();
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
         MarketData storage _marketData = marketData[marketId];
-        require(_marketData.forceReevaluationAllowed, ForceReevaluationNotAllowed());
-        require(newGrowth >= _marketData.growth, GrowthNotIncreasing());
-        require(newGrowth <= WAD / (_marketData.maturity - block.timestamp), GrowthTooHigh());
+        uint256 ttm = _marketData.maturity - block.timestamp;
+        require(newGrowth <= WAD / ttm, GrowthTooHigh());
 
-        // forge-lint: disable-next-item(unsafe-typecast) newGrowth <= WAD < 2**64.
-        _marketData.growth = uint64(newGrowth);
-        _marketData.forceReevaluationAllowed = false;
-        emit ForceReevaluateMarket(msg.sender, marketId, newGrowth);
+        shortfallAllowance -= _marketData.netCredit.mulDivUp((newGrowth - _marketData.growth) * ttm, WAD).toUint128();
+        _marketData.growth = newGrowth.toUint64();
+        emit ReevaluateMarket(msg.sender, marketId, newGrowth, shortfallAllowance);
     }
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
@@ -398,7 +392,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot update this market's stored net credit.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
@@ -437,7 +431,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
-        require(!marketData[marketId].forceReevaluationAllowed, UnauthorizedBuy());
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -513,17 +506,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         int256 change = updateMarket(marketId, market, newNetCredit);
 
         uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
-        uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
-        uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
-        uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        if (saleShortfall > 0) {
-            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
-            shortfallAllowance -= saleShortfall.toUint128();
-        }
+        require(sellerAssets >= soldNetCredit.mulDivUp(discountFactor, WAD), SellAtLoss());
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall);
+        emit Sell(marketId, sellerAssets, uint256(-change));
         return CALLBACK_SUCCESS;
     }
 
