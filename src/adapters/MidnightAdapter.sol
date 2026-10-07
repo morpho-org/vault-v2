@@ -265,7 +265,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; netCreditDecrease fits in uint128.
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(uint256(netCreditDecrease))), withdrawnAssets);
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit, shortfallAllowance);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -316,7 +316,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (newNetCredit == 0 && netCreditDecrease > 0) removeMarket(marketId);
             totalNetCredit -= netCreditDecrease;
 
-            emit ForceDeallocate(marketId, assets, newNetCredit);
+            emit ForceDeallocate(marketId, assets, newNetCredit, shortfallAllowance);
             // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease fits in uint128.
             return (ids(offer.market), -int256(uint256(netCreditDecrease)));
         } else {
@@ -426,7 +426,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, newNetCredit);
+        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -473,7 +473,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(uint256(netCreditDecrease))), sellerAssets);
 
-        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall);
+        emit Sell(marketId, sellerAssets, newNetCredit, saleShortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -555,6 +555,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     /// @dev Stored net credit is an upper bound of the exposure at each check.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
+        require(length <= durationsLength, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
