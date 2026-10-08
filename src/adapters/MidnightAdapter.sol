@@ -110,7 +110,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the durations that can be capped.
     /// @dev A position counts toward every duration <= its current remaining time to maturity.
-    function durations() public view returns (uint256[] memory) {
+    function durations() external view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
             _durations[i] = packedDurations.get(i);
@@ -120,7 +120,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns, for each duration, the stored net credit of the markets with at least that duration left to maturity.
     /// @dev Stored net credit is an upper bound of the exposure at each check.
-    function durationAllocations() public view returns (uint256[] memory allocations) {
+    function durationAllocations() external view returns (uint256[] memory allocations) {
         return _durationAllocations(durationsLength);
     }
 
