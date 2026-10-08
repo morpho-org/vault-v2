@@ -177,10 +177,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function setForceRemovable(bytes32 marketId, bool newForceRemovable) external {
+    function setUncappedLoss(bytes32 marketId, bool newUncappedLoss) external {
         timelocked();
-        marketData[marketId].forceRemovable = newForceRemovable;
-        emit SetForceRemovable(marketId, newForceRemovable);
+        marketData[marketId].uncappedLoss = newUncappedLoss;
+        emit SetUncappedLoss(marketId, newUncappedLoss);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -379,7 +379,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.forceRemovable, UnauthorizedBuy());
+        require(!_marketData.uncappedLoss, UnauthorizedBuy());
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -459,7 +459,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (!marketData[marketId].forceRemovable && block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
+        MarketData storage _marketData = marketData[marketId];
+        if (!_marketData.uncappedLoss && block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
@@ -467,12 +468,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        MarketData storage _marketData = marketData[marketId];
         uint256 discountFactor = WAD - _marketData.growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        if (saleShortfall > 0) {
+        if (saleShortfall > 0 && !_marketData.uncappedLoss) {
             require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
             shortfallAllowance -= saleShortfall.toUint128();
         }
@@ -528,16 +528,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data, except forceRemovable.
+    /// @dev Removes the market from marketIds and clears its stored data, except uncappedLoss.
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        bool forceRemovable = _marketData.forceRemovable;
+        bool uncappedLoss = _marketData.uncappedLoss;
         delete marketData[marketId];
-        _marketData.forceRemovable = forceRemovable;
+        _marketData.uncappedLoss = uncappedLoss;
     }
 
     /* VIEWS */

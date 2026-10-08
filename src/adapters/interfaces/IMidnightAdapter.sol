@@ -13,7 +13,7 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
-    bool forceRemovable;
+    bool uncappedLoss;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -34,7 +34,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
     event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
-    event SetForceRemovable(bytes32 indexed marketId, bool newForceRemovable);
+    event SetUncappedLoss(bytes32 indexed marketId, bool newUncappedLoss);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(
@@ -121,7 +121,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinBuyRate(uint256 newMinBuyRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
-    function setForceRemovable(bytes32 marketId, bool newForceRemovable) external;
+    function setUncappedLoss(bytes32 marketId, bool newUncappedLoss) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
@@ -169,7 +169,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool forceRemovable);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool uncappedLoss);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

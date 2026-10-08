@@ -533,51 +533,51 @@ contract MidnightAdapterTest is Test {
 
     /* FORCE REMOVABLE */
 
-    function testForceRemovableDefault(bytes32 marketId) public view {
-        assertFalse(adapter.marketData(marketId).forceRemovable);
+    function testUncappedLossDefault(bytes32 marketId) public view {
+        assertFalse(adapter.marketData(marketId).uncappedLoss);
     }
 
-    function testSetForceRemovableNotTimelocked(address caller, bytes32 marketId, bool newForceRemovable) public {
+    function testSetUncappedLossNotTimelocked(address caller, bytes32 marketId, bool newUncappedLoss) public {
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(caller);
-        adapter.setForceRemovable(marketId, newForceRemovable);
+        adapter.setUncappedLoss(marketId, newUncappedLoss);
     }
 
-    function testSetForceRemovableTimelocked(bytes32 marketId, uint256 duration, bool newForceRemovable) public {
-        setForceRemovable(marketId, !newForceRemovable);
+    function testSetUncappedLossTimelocked(bytes32 marketId, uint256 duration, bool newUncappedLoss) public {
+        setUncappedLoss(marketId, !newUncappedLoss);
         duration = bound(duration, 1, 3650 days);
-        submitTimelock(IMidnightAdapterBase.setForceRemovable.selector, duration);
+        submitTimelock(IMidnightAdapterBase.setUncappedLoss.selector, duration);
 
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceRemovable, (marketId, newForceRemovable));
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setUncappedLoss, (marketId, newUncappedLoss));
         vm.prank(curator);
         adapter.submit(data);
         assertEq(adapter.executableAt(data), block.timestamp + duration, "execution delay");
-        assertEq(adapter.marketData(marketId).forceRemovable, !newForceRemovable, "unchanged before execution");
+        assertEq(adapter.marketData(marketId).uncappedLoss, !newUncappedLoss, "unchanged before execution");
 
         skip(duration - 1);
         vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
-        adapter.setForceRemovable(marketId, newForceRemovable);
+        adapter.setUncappedLoss(marketId, newUncappedLoss);
 
         skip(1);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setForceRemovable.selector, data);
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setUncappedLoss.selector, data);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetForceRemovable(marketId, newForceRemovable);
-        adapter.setForceRemovable(marketId, newForceRemovable);
-        assertEq(adapter.marketData(marketId).forceRemovable, newForceRemovable, "setting updated");
+        emit IMidnightAdapterBase.SetUncappedLoss(marketId, newUncappedLoss);
+        adapter.setUncappedLoss(marketId, newUncappedLoss);
+        assertEq(adapter.marketData(marketId).uncappedLoss, newUncappedLoss, "setting updated");
         assertEq(adapter.executableAt(data), 0, "pending call consumed");
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.setForceRemovable(marketId, newForceRemovable);
+        adapter.setUncappedLoss(marketId, newUncappedLoss);
     }
 
-    function testSetForceRemovableRevokedOrAbdicated(bytes32 marketId, bool abdicate_) public {
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceRemovable, (marketId, true));
+    function testSetUncappedLossRevokedOrAbdicated(bytes32 marketId, bool abdicate_) public {
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setUncappedLoss, (marketId, true));
         vm.prank(curator);
         adapter.submit(data);
 
         if (abdicate_) {
-            bytes4 selector = IMidnightAdapterBase.setForceRemovable.selector;
+            bytes4 selector = IMidnightAdapterBase.setUncappedLoss.selector;
             vm.prank(curator);
             adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (selector)));
             adapter.abdicate(selector);
@@ -587,31 +587,31 @@ contract MidnightAdapterTest is Test {
             adapter.revoke(data);
             vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         }
-        adapter.setForceRemovable(marketId, true);
-        assertFalse(adapter.marketData(marketId).forceRemovable);
+        adapter.setUncappedLoss(marketId, true);
+        assertFalse(adapter.marketData(marketId).uncappedLoss);
     }
 
-    function testSetForceRemovablePreservesMarketData(bool newForceRemovable) public {
+    function testSetUncappedLossPreservesMarketData(bool newUncappedLoss) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
         MarketData memory before = adapter.marketData(marketId);
 
-        setForceRemovable(marketId, !newForceRemovable);
-        setForceRemovable(marketId, newForceRemovable);
+        setUncappedLoss(marketId, !newUncappedLoss);
+        setUncappedLoss(marketId, newUncappedLoss);
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, before.netCredit, "netCredit unchanged");
         assertEq(after_.growth, before.growth, "growth unchanged");
         assertEq(after_.maturity, before.maturity, "maturity unchanged");
         assertEq(after_.index, before.index, "index unchanged");
-        assertEq(after_.forceRemovable, newForceRemovable, "setting updated");
+        assertEq(after_.uncappedLoss, newUncappedLoss, "setting updated");
 
         sell(first.market, 1e18);
         assertEq(adapter.marketData(marketId).index, 0, "updated index");
-        assertEq(adapter.marketData(marketId).forceRemovable, newForceRemovable, "setting unchanged");
+        assertEq(adapter.marketData(marketId).uncappedLoss, newUncappedLoss, "setting unchanged");
     }
 
-    function testForceRemovablePreventsBuys(bool takerBuy) public {
+    function testUncappedLossPreventsBuys(bool takerBuy) public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
         bytes memory data;
@@ -623,7 +623,7 @@ contract MidnightAdapterTest is Test {
             data = ratify([offer], signerAllocator);
         }
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        setForceRemovable(marketId, true);
+        setUncappedLoss(marketId, true);
 
         vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
         if (takerBuy) {
@@ -638,7 +638,7 @@ contract MidnightAdapterTest is Test {
         Offer memory otherOffer = buy(7 days, 1e18);
         assertEq(adapter.marketData(_marketId(otherOffer.market)).netCredit, 1e18, "other market unaffected");
 
-        setForceRemovable(marketId, false);
+        setUncappedLoss(marketId, false);
         if (takerBuy) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", offer.maxUnits);
@@ -648,8 +648,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
     }
 
-    function testForceRemovableOverridesMaxSellRate(bool takerSale, bool zeroProceeds, bool zeroRate) public {
-        setShortfallParams(1e18, 0);
+    function testUncappedLossOverridesMaxSellRateAndShortfall(bool takerSale, bool zeroProceeds, bool zeroRate) public {
+        setShortfallParams(0, 0);
         Offer memory boughtOffer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         uint256 maxSellRate = zeroRate ? 0 : 1;
@@ -669,7 +669,7 @@ contract MidnightAdapterTest is Test {
             take(offer);
         }
 
-        setForceRemovable(marketId, true);
+        setUncappedLoss(marketId, true);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18);
@@ -685,28 +685,29 @@ contract MidnightAdapterTest is Test {
             vaultBalanceBefore + TickLib.tickToPrice(offer.tick),
             "sale proceeds"
         );
-        assertTrue(adapter.marketData(marketId).forceRemovable, "setting not consumed");
+        assertTrue(adapter.marketData(marketId).uncappedLoss, "setting not consumed");
         assertEq(adapter.maxSellRate(keccak256(abi.encode(offer.market.collateralParams))), maxSellRate);
+        assertEq(adapter.shortfallAllowance(), 0, "allowance unchanged");
     }
 
-    function testForceRemovableIsPerMarketAndCanBeDisabled() public {
+    function testUncappedLossIsPerMarketAndCanBeDisabled() public {
         setShortfallParams(1e18, 0);
         Offer memory first = buy(2 days, 2e18);
         Offer memory second = buy(1 days, 1e18);
         bytes32 firstMarketId = _marketId(first.market);
         bytes32 secondMarketId = _marketId(second.market);
-        setForceRemovable(firstMarketId, true);
+        setUncappedLoss(firstMarketId, true);
 
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
-        assertFalse(adapter.marketData(secondMarketId).forceRemovable, "other market protected");
+        assertFalse(adapter.marketData(secondMarketId).uncappedLoss, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
 
-        setForceRemovable(firstMarketId, false);
+        setUncappedLoss(firstMarketId, false);
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        assertFalse(adapter.marketData(firstMarketId).forceRemovable, "override disabled");
+        assertFalse(adapter.marketData(firstMarketId).uncappedLoss, "override disabled");
         assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
 
         sellUnits(first.market, 1e18, MAX_TICK);
@@ -2362,7 +2363,7 @@ contract MidnightAdapterTest is Test {
         bool takerSale,
         bool zeroProceeds,
         bool disableLimit,
-        bool forceRemovable,
+        bool uncappedLoss,
         uint256 elapsed
     ) public {
         if (disableLimit) setShortfallParams(1e18, 0);
@@ -2377,8 +2378,8 @@ contract MidnightAdapterTest is Test {
         skip(30 days + bound(elapsed, 0, 365 days));
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
-        if (forceRemovable) setForceRemovable(_marketId(boughtOffer.market), true);
-        if (!disableLimit) vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
+        if (uncappedLoss) setUncappedLoss(_marketId(boughtOffer.market), true);
+        if (!disableLimit && !uncappedLoss) vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18);
@@ -2386,7 +2387,7 @@ contract MidnightAdapterTest is Test {
             this.takeWithAccrual(offer, data, taker, address(0));
         }
 
-        if (disableLimit) {
+        if (disableLimit || uncappedLoss) {
             assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 0, "position sold");
             assertEq(adapter.marketData(_marketId(boughtOffer.market)).netCredit, 0, "netCredit cleared");
             assertEq(adapter.marketIdsLength(), 0, "market removed");
@@ -3447,12 +3448,11 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A market whose oracle permanently reverts cannot be abandoned beyond the shortfall allowance.
-    function testCannotAbandonMarketWithRevertingOracleFromMaturity() public {
+    /// @dev A market whose oracle permanently reverts can be abandoned beyond the shortfall allowance once uncappedLoss is set.
+    function testAbandonMarketWithRevertingOracleFromMaturity() public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
-        setForceRemovable(marketId, true);
 
         skip(7 days);
         vm.mockCallRevert(storedCollaterals[0].oracle, abi.encodeWithSignature("price()"), bytes("dead oracle"));
@@ -3482,6 +3482,18 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation unchanged");
+        }
+
+        setUncappedLoss(marketId, true);
+        this.takeWithAccrual(sellOffer, data, buyer, address(0));
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit sold");
+        assertEq(midnight.credit(marketId, buyer), 1e18, "buyer received credit");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.realAssets(), 0, "adapter realAssets cleared");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
     }
 
@@ -4783,10 +4795,10 @@ contract MidnightAdapterTest is Test {
         adapter.setMinBuyRate(newMinBuyRate);
     }
 
-    function setForceRemovable(bytes32 marketId, bool newForceRemovable) internal {
+    function setUncappedLoss(bytes32 marketId, bool newUncappedLoss) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setForceRemovable, (marketId, newForceRemovable)));
-        adapter.setForceRemovable(marketId, newForceRemovable);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setUncappedLoss, (marketId, newUncappedLoss)));
+        adapter.setUncappedLoss(marketId, newUncappedLoss);
     }
 
     function take(Offer memory offer) internal {
@@ -5636,7 +5648,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), bound(fee, 0, MAX_CONTINUOUS_FEE));
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
-        if (block.timestamp >= initial.market.maturity) setForceRemovable(_marketId(initial.market), true);
+        if (block.timestamp >= initial.market.maturity) setUncappedLoss(_marketId(initial.market), true);
         (uint128 credit, uint128 pendingFee,) =
             midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
@@ -5672,7 +5684,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), fee);
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
-        if (block.timestamp >= initial.market.maturity) setForceRemovable(_marketId(initial.market), true);
+        if (block.timestamp >= initial.market.maturity) setUncappedLoss(_marketId(initial.market), true);
         if (loss) this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         (uint128 credit,,) = midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
