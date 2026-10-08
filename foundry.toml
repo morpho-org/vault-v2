@@ -1,4 +1,5 @@
 [profile.default]
+test = "test/gas/DurationAllocationsGasTest.sol"
 via_ir = true
 optimizer = true
 optimizer_runs = 100000

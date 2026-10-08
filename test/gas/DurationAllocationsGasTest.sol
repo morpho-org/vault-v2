@@ -30,14 +30,13 @@ contract GasProber {
 /// @dev Run with `FOUNDRY_ISOLATE=false forge test --match-contract DurationAllocationsGasTest -vv`.
 /// @dev Isolate mode must be off: it makes every external call its own transaction, so storage is always cold.
 /// @dev Storage is warmed first, as the vault's accrueInterest does through realAssets before the buy callback runs.
-/// @dev Each ROW log line is: markets, durations, maturityProfile, variant, gas, resultHash.
+/// @dev Prints one table per market count, with the gas of each variant and the deltas against the current code.
 contract DurationAllocationsGasTest is Test {
     IMidnight internal midnight;
     VaultV2Mock internal parentVault;
     GasProber internal prober;
 
     uint256[] internal durationPool = [1 days, 7 days, 30 days, 90 days, 180 days, 270 days, 365 days, 730 days];
-    uint256 internal sink;
 
     uint256 internal constant MARKET_IDS_SLOT = 6;
     uint256 internal constant MARKET_DATA_SLOT = 7;
@@ -46,6 +45,7 @@ contract DurationAllocationsGasTest is Test {
     uint256 internal constant ALL_COVERED = 0;
     uint256 internal constant SPREAD = 1;
     uint256 internal constant NONE_COVERED = 2;
+    string[3] internal PROFILE_NAMES = ["all covered", "spread", "none covered"];
 
     function setUp() public {
         vm.setEvmVersion("osaka");
@@ -95,37 +95,35 @@ contract DurationAllocationsGasTest is Test {
             address(new MidnightAdapterCached(address(parentVault), address(midnight), durations)),
             address(new MidnightAdapterMain(address(parentVault), address(midnight), durations))
         ];
-        string[3] memory variantNames = ["current", "cached", "main"];
+
+        uint256[3] memory gasUsed;
 
         for (uint256 variantIndex; variantIndex < 3; variantIndex++) {
             address variant = variants[variantIndex];
             populateMarkets(variant, marketsCount, durationsCount, maturityProfile);
 
-            uint256 gasUsed = prober.probe(IMidnightAdapter(variant), durationsCount);
-
-            // The result hash lets the reader check that all variants agree.
-            uint256[] memory allocations = IMidnightAdapter(variant).durationAllocations(durationsCount);
-            sink += allocations[0];
-            bytes32 resultHash = keccak256(abi.encode(allocations));
-
-            console.log(
-                "ROW,%d,%d,%s",
-                marketsCount,
-                durationsCount,
-                string.concat(
-                    vm.toString(maturityProfile),
-                    ",",
-                    variantNames[variantIndex],
-                    ",",
-                    vm.toString(gasUsed),
-                    ",",
-                    vm.toString(resultHash)
-                )
-            );
+            gasUsed[variantIndex] = prober.probe(IMidnightAdapter(variant), durationsCount);
         }
+
+        console.log(
+            string.concat(
+                padLeft(vm.toString(durationsCount), 9),
+                "  ",
+                padRight(PROFILE_NAMES[maturityProfile], 12),
+                padLeft(vm.toString(gasUsed[0]), 10),
+                padLeft(vm.toString(gasUsed[1]), 10),
+                padLeft(vm.toString(gasUsed[2]), 10),
+                padLeft(signedDelta(gasUsed[1], gasUsed[0]), 16),
+                padLeft(signedDelta(gasUsed[2], gasUsed[0]), 14)
+            )
+        );
     }
 
     function benchmarkAllDurationsAndProfiles(uint256 marketsCount) internal {
+        console.log("");
+        console.log(string.concat("=== ", vm.toString(marketsCount), " markets ==="));
+        console.log("durations  profile        current    cached      main  cached-current  main-current");
+
         uint256[4] memory durationsCounts = [uint256(1), 2, 5, 8];
 
         for (uint256 i; i < durationsCounts.length; i++) {
@@ -133,6 +131,25 @@ contract DurationAllocationsGasTest is Test {
                 benchmark(marketsCount, durationsCounts[i], maturityProfile);
             }
         }
+    }
+
+    function signedDelta(uint256 value, uint256 baseline) internal pure returns (string memory) {
+        if (value >= baseline) return string.concat("+", vm.toString(value - baseline));
+        return string.concat("-", vm.toString(baseline - value));
+    }
+
+    function padLeft(string memory text, uint256 width) internal pure returns (string memory) {
+        while (bytes(text).length < width) {
+            text = string.concat(" ", text);
+        }
+        return text;
+    }
+
+    function padRight(string memory text, uint256 width) internal pure returns (string memory) {
+        while (bytes(text).length < width) {
+            text = string.concat(text, " ");
+        }
+        return text;
     }
 
     function testGas1Market() public {
