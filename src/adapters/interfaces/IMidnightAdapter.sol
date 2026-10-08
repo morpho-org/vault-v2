@@ -77,6 +77,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error OtherSellInProgress();
     error BuyRateTooLow();
     error SelfAllocationOnly();
+    error SellAtLoss();
     error SellInProgress();
     error SellRateTooHigh();
     error MaxShortfallExceeded();
