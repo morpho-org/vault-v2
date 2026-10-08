@@ -404,7 +404,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
-        // Cache corrected net credit before call to allocate
         uint128 newNetCredit = currentNetCredit(marketId);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
