@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets. The sale reverts if growth would become negative or if the remaining position would earn less than minRate on its amortized value.
+/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets. The sale reverts if growth would fall below minGrowth.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
@@ -76,8 +76,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys.
-    uint64 public minRate;
+    /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
+    uint64 public minGrowth;
 
     /* CONSTRUCTOR */
 
@@ -177,10 +177,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Help prevent operational errors when buying.
     /// @dev Also bounds the growth decrease of loss sales.
-    function setMinRate(uint256 newMinRate) external {
+    function setMinGrowth(uint256 newMinGrowth) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minRate = newMinRate.toUint64();
-        emit SetMinRate(newMinRate);
+        minGrowth = newMinGrowth.toUint64();
+        emit SetMinGrowth(newMinGrowth);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -343,11 +343,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
             uint256 addedAssetsWadPerSecond = (boughtNetCredit - paidAssets).mulDivDown(WAD, ttm);
-            require(addedAssetsWadPerSecond >= minRate * paidAssets, BuyRateTooLow());
-
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
+            require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -427,7 +426,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
             _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
-            require(_marketData.growth * (WAD + minRate * ttm) >= minRate * WAD, RemainingRateTooLow());
+            require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
