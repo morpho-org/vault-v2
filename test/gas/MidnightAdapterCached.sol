@@ -599,30 +599,4 @@ contract MidnightAdapterCached is IMidnightAdapterStaticTyping {
         }
         return assets;
     }
-
-    /* GAS PROBE (benchmark only) */
-
-    uint256 public probeLength;
-
-    /// @dev Measures the internal call to durationAllocations, like the buy callback does.
-    /// @dev warmStorageFirst touches the same slots realAssets touches, like the vault's accrueInterest would.
-    function gasDurationAllocations(uint256 length, bool warmStorageFirst) external returns (uint256 gasUsed) {
-        probeLength = length;
-
-        if (warmStorageFirst) {
-            uint256 growthSum;
-            for (uint256 i; i < marketIds.length; i++) {
-                growthSum += marketData[marketIds[i]].growth;
-            }
-            require(growthSum < type(uint256).max);
-        }
-
-        uint256 measuredLength = probeLength;
-
-        gasUsed = gasleft();
-        uint256[] memory allocations = durationAllocations(measuredLength);
-        gasUsed = gasUsed - gasleft();
-
-        require(allocations[0] < type(uint256).max);
-    }
 }

@@ -11,13 +11,30 @@ import {MidnightAdapterCurrent} from "./MidnightAdapterCurrent.sol";
 import {MidnightAdapterCached} from "./MidnightAdapterCached.sol";
 import {MidnightAdapterMain} from "./MidnightAdapterMain.sol";
 
+/// @dev Measures from a fresh call frame so the test contract's memory does not leak into the measurement.
+contract GasProber {
+    uint256 internal sink;
+
+    function probe(IMidnightAdapter adapter, uint256 length) external returns (uint256 gasUsed) {
+        sink += adapter.realAssets();
+
+        gasUsed = gasleft();
+        uint256[] memory allocations = adapter.durationAllocations(length);
+        gasUsed = gasUsed - gasleft();
+
+        sink += allocations[0];
+    }
+}
+
 /// @dev Benchmarks three implementations of durationAllocations.
 /// @dev Run with `FOUNDRY_ISOLATE=false forge test --match-contract DurationAllocationsGasTest -vv`.
 /// @dev Isolate mode must be off: it makes every external call its own transaction, so storage is always cold.
-/// @dev Each ROW log line is: markets, durations, maturityProfile, variant, coldGas, warmGas, resultHash.
+/// @dev Storage is warmed first, as the vault's accrueInterest does through realAssets before the buy callback runs.
+/// @dev Each ROW log line is: markets, durations, maturityProfile, variant, gas, resultHash.
 contract DurationAllocationsGasTest is Test {
     IMidnight internal midnight;
     VaultV2Mock internal parentVault;
+    GasProber internal prober;
 
     uint256[] internal durationPool = [1 days, 7 days, 30 days, 90 days, 180 days, 270 days, 365 days, 730 days];
     uint256 internal sink;
@@ -38,6 +55,7 @@ contract DurationAllocationsGasTest is Test {
         parentVault = new VaultV2Mock(
             address(loanToken), makeAddr("owner"), makeAddr("curator"), makeAddr("allocator"), address(0)
         );
+        prober = new GasProber();
     }
 
     /// @dev Writes marketIds and marketData directly into the adapter's storage.
@@ -66,18 +84,6 @@ contract DurationAllocationsGasTest is Test {
         }
     }
 
-    /// @dev Calls the adapter's gas probe, which measures the internal call to durationAllocations.
-    function probeGas(address adapter, uint256 durationsCount, bool warmStorageFirst) internal returns (uint256) {
-        vm.cool(adapter);
-
-        (bool success, bytes memory returnData) = adapter.call(
-            abi.encodeWithSignature("gasDurationAllocations(uint256,bool)", durationsCount, warmStorageFirst)
-        );
-        require(success, "probe failed");
-
-        return abi.decode(returnData, (uint256));
-    }
-
     function benchmark(uint256 marketsCount, uint256 durationsCount, uint256 maturityProfile) internal {
         uint256[] memory durations = new uint256[](durationsCount);
         for (uint256 i; i < durationsCount; i++) {
@@ -95,8 +101,7 @@ contract DurationAllocationsGasTest is Test {
             address variant = variants[variantIndex];
             populateMarkets(variant, marketsCount, durationsCount, maturityProfile);
 
-            uint256 coldGas = probeGas(variant, durationsCount, false);
-            uint256 warmGas = probeGas(variant, durationsCount, true);
+            uint256 gasUsed = prober.probe(IMidnightAdapter(variant), durationsCount);
 
             // The result hash lets the reader check that all variants agree.
             uint256[] memory allocations = IMidnightAdapter(variant).durationAllocations(durationsCount);
@@ -112,9 +117,7 @@ contract DurationAllocationsGasTest is Test {
                     ",",
                     variantNames[variantIndex],
                     ",",
-                    vm.toString(coldGas),
-                    ",",
-                    vm.toString(warmGas),
+                    vm.toString(gasUsed),
                     ",",
                     vm.toString(resultHash)
                 )
