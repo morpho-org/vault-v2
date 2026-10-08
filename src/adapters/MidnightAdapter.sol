@@ -414,16 +414,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
+        uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+        if (ttm > 0 && soldNetCredit > sellerAssets) {
             require(
-                (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
+                (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
                 SellRateTooHigh()
             );
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
             _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
