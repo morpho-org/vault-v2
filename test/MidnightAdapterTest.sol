@@ -2898,6 +2898,13 @@ contract MidnightAdapterTest is Test {
         adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, seller, address(adapter), "");
     }
 
+    function testOnSellNonEmptyCallbackData(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        vm.prank(address(midnight));
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, address(adapter), address(adapter), callbackData);
+    }
+
     function testDeallocateNotParentVault(address caller) public {
         vm.assume(caller != address(parentVault));
         vm.prank(caller);

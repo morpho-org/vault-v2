@@ -21,6 +21,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
+/// @dev Sell offers must set callbackData to "".
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
 /// @dev The adapter's allocation cap bounds exposure.
@@ -443,10 +444,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 sellPendingFeeDecrease,
         address seller,
         address,
-        bytes memory
+        bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+        require(callbackData.length == 0, NonEmptyCallbackData());
         updateShortfallAllowance();
 
         uint128 newNetCredit = currentNetCredit(marketId);
