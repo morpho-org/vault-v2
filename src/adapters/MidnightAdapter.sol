@@ -19,7 +19,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
-/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
@@ -191,13 +191,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
+        external
+    {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         IMidnight(midnight)
             .take(
-                offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
+                offer,
+                ratifierData,
+                units,
+                address(this),
+                offer.buy ? address(this) : address(0),
+                address(this),
+                takerCallbackData
             );
     }
 
@@ -406,10 +414,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 sellPendingFeeDecrease,
         address seller,
         address,
-        bytes memory
+        bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+        require(callbackData.length == 0, NonEmptyCallbackData());
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
