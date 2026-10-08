@@ -37,19 +37,33 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
-    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
+    event WithdrawToVault(
+        bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit, uint256 shortfallAllowance
+    );
     event ForceDeallocate(
         address indexed caller,
         bytes32 indexed marketId,
         address receiver,
         uint256 assets,
         uint256 shares,
-        int256 change
+        int256 change,
+        uint256 shortfallAllowance
     );
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
-    event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
-    event UpdateMarketShares(bytes32 indexed marketId, uint128 totalShares, uint128 vaultShares);
+    event Buy(
+        bytes32 indexed marketId,
+        uint256 paidAssets,
+        uint256 boughtNetCredit,
+        uint256 newNetCredit,
+        uint256 shortfallAllowance
+    );
+    event Sell(
+        bytes32 indexed marketId,
+        uint256 sellerAssets,
+        uint256 newNetCredit,
+        uint256 saleShortfall,
+        uint256 shortfallAllowance
+    );
+
     event RedeemClaim(
         address indexed caller, bytes32 indexed marketId, address receiver, uint256 assets, uint256 shares
     );
@@ -69,6 +83,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
+    error InvalidLength();
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotMidnight();
@@ -128,7 +143,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function durationAllocations() external view returns (uint256[] memory);
+    function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
