@@ -76,8 +76,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys.
-    uint64 public minBuyRate;
+    /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
+    uint64 public minGrowth;
 
     /* CONSTRUCTOR */
 
@@ -176,10 +176,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when buying.
-    function setMinBuyRate(uint256 newMinBuyRate) external {
+    /// @dev Also bounds the growth decrease of loss sales.
+    function setMinGrowth(uint256 newMinGrowth) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minBuyRate = newMinBuyRate.toUint64();
-        emit SetMinBuyRate(newMinBuyRate);
+        minGrowth = newMinGrowth.toUint64();
+        emit SetMinGrowth(newMinGrowth);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -350,11 +351,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
             uint256 addedAssetsWadPerSecond = (boughtNetCredit - paidAssets).mulDivDown(WAD, ttm);
-            require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
-
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
+            require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -435,6 +435,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
             _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
+            require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
