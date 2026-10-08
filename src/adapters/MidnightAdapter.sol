@@ -528,14 +528,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data.
+    /// @dev Removes the market from marketIds and clears its stored data, except forceRemovable.
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
+        bool forceRemovable = _marketData.forceRemovable;
         delete marketData[marketId];
+        _marketData.forceRemovable = forceRemovable;
     }
 
     /* VIEWS */
