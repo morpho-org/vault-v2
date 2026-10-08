@@ -607,6 +607,60 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, netCredit, "net rate accepted");
     }
 
+    function testMinBuyRateAverageAllowsLowRateTopUp() public {
+        uint256 duration = 30 days;
+        Offer memory first = buy(duration, 1e18, discountTick);
+        uint256 paidAssets = uint256(first.maxUnits).mulDivDown(TickLib.tickToPrice(first.tick), 1e18);
+        uint256 firstRate = (first.maxUnits - paidAssets) * 1e18 / (paidAssets * duration);
+        setMinBuyRate(firstRate / 2);
+
+        bytes32 marketId = _marketId(first.market);
+        uint128 netCreditBefore = adapter.marketData(marketId).netCredit;
+        Offer memory topUp = makeBuyOffer(duration, 0.1e18, MAX_TICK);
+        topUp.group = bytes32("average top up");
+        midnight.supplyCollateral(topUp.market, 0, topUp.maxUnits, taker);
+        midnight.supplyCollateral(topUp.market, 1, topUp.maxUnits, taker);
+        take(topUp);
+        assertGt(adapter.marketData(marketId).netCredit, netCreditBefore);
+
+        Offer memory freshMarketBuy = makeBuyOffer(duration - 1 days, 0.1e18, MAX_TICK);
+        midnight.supplyCollateral(freshMarketBuy.market, 0, freshMarketBuy.maxUnits, taker);
+        midnight.supplyCollateral(freshMarketBuy.market, 1, freshMarketBuy.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
+        take(freshMarketBuy);
+    }
+
+    function testMinBuyRateAverageRejectsTopUpDilutingBelowMin() public {
+        uint256 duration = 30 days;
+        Offer memory first = buy(duration, 1e18, discountTick);
+        uint256 paidAssets = uint256(first.maxUnits).mulDivDown(TickLib.tickToPrice(first.tick), 1e18);
+        uint256 firstRate = (first.maxUnits - paidAssets) * 1e18 / (paidAssets * duration);
+        setMinBuyRate(firstRate - 1);
+
+        Offer memory topUp = makeBuyOffer(duration, 1e18, MAX_TICK);
+        topUp.group = bytes32("diluting top up");
+        midnight.supplyCollateral(topUp.market, 0, topUp.maxUnits, taker);
+        midnight.supplyCollateral(topUp.market, 1, topUp.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
+        take(topUp);
+    }
+
+    function testMinBuyRateAverageRejectsHighRateTopUpOnLowPosition() public {
+        uint256 duration = 30 days;
+        buy(duration, 1e18);
+
+        Offer memory topUp = makeBuyOffer(duration, 0.1e18, discountTick);
+        topUp.group = bytes32("high rate top up");
+        uint256 paidAssets = uint256(topUp.maxUnits).mulDivDown(TickLib.tickToPrice(topUp.tick), 1e18);
+        uint256 topUpRate = (topUp.maxUnits - paidAssets) * 1e18 / (paidAssets * duration);
+        setMinBuyRate(topUpRate / 2);
+
+        midnight.supplyCollateral(topUp.market, 0, topUp.maxUnits, taker);
+        midnight.supplyCollateral(topUp.market, 1, topUp.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
+        take(topUp);
+    }
+
     function testMinBuyRateUsesRemainingDuration() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, discountTick);
         offer.expiry = offer.market.maturity;
