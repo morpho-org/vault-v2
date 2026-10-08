@@ -76,7 +76,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys.
     uint64 public minBuyRate;
 
     /* CONSTRUCTOR */
@@ -327,8 +327,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        require(block.timestamp <= market.maturity, BuyPostMaturity());
-        require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
+        require(block.timestamp < market.maturity, BuyPostMaturity());
+        uint256 ttm = market.maturity - block.timestamp;
+        require(ttm <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         // Cache corrected net credit before call to allocate
@@ -339,9 +340,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        if (block.timestamp < market.maturity && boughtNetCredit > 0) {
-            uint256 addedAssetsWadPerSecond =
-                (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+        if (newNetCredit > 0) {
+            uint256 addedAssetsWadPerSecond = (boughtNetCredit - paidAssets).mulDivDown(WAD, ttm);
             require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
@@ -372,7 +372,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256 ttm = market.maturity - block.timestamp;
         uint256 affectedDurationCount;
         while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
             affectedDurationCount++;
