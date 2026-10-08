@@ -5,3 +5,5 @@ pragma solidity 0.8.34;
 
 // forge-lint: disable-next-item(unused-import) the import is what forces compilation.
 import {Midnight} from "../../lib/midnight/src/Midnight.sol";
+// forge-lint: disable-next-item(unused-import)
+import {SetterRatifier} from "../../lib/midnight/src/ratifiers/SetterRatifier.sol";
