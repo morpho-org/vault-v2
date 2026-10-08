@@ -329,15 +329,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
-            uint256 newNetCredit;
+            uint256 netCredit;
             if (marketId == overridenMarketId) {
-                newNetCredit = overridenMarketNetCredit;
+                netCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(marketId);
+                netCredit = currentNetCredit(marketId);
             }
             uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
-            assets += newNetCredit.mulDivDown(discountFactor, WAD);
+            assets += netCredit.mulDivDown(discountFactor, WAD);
         }
         return assets;
     }
