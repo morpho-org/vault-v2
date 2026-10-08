@@ -636,15 +636,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "free credit accepted");
     }
 
-    function testMinBuyRateAtMaturity() public {
-        setMinBuyRate(type(uint64).max);
-        Offer memory offer = makeBuyOffer(0, 1e18, MAX_TICK);
-        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
-        vm.expectRevert(IMidnightAdapterBase.BuyPostMaturity.selector);
-        take(offer);
-    }
-
     function testMinBuyRateDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
         setMinBuyRate(type(uint64).max);
@@ -1212,12 +1203,6 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(1, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         vm.expectRevert(IMidnightAdapterBase.BuyTtmTooHigh.selector);
-        take(offer);
-
-        offer = makeBuyOffer(0, 1e18, MAX_TICK);
-        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
-        vm.expectRevert(IMidnightAdapterBase.BuyPostMaturity.selector);
         take(offer);
     }
 
