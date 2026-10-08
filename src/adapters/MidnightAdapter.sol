@@ -76,7 +76,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum growth of the net credit bought by maker and taker buys and of the remaining position after a loss sale.
+    /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
 
     /* CONSTRUCTOR */

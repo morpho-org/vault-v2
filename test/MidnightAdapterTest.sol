@@ -799,6 +799,24 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "free credit accepted");
     }
 
+    function testMinGrowthCapsAverageGrowth() public {
+        Offer memory offer = buyAtDiscount(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 averageGrowth = uint256(adapter.marketData(marketId).growth) * 100e18 / 150e18;
+        Offer memory freeCredit = makeBuyOffer(30 days, 50e18, MAX_TICK);
+        freeCredit.group = bytes32(vm.randomUint());
+        midnight.supplyCollateral(offer.market, 0, 50e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 50e18, taker);
+        setMinGrowth(averageGrowth + 1);
+
+        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        take(freeCredit);
+
+        setMinGrowth(averageGrowth);
+        take(freeCredit);
+        assertEq(adapter.marketData(marketId).growth, averageGrowth, "average growth accepted");
+    }
+
     function testMinGrowthDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
         setMinGrowth(type(uint64).max);
