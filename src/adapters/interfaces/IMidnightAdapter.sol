@@ -126,7 +126,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory callbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
