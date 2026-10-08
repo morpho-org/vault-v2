@@ -790,7 +790,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        setMinGrowth(1e18 / 30 days);
+        setMinGrowth(uint256(1e18) / 30 days);
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         take(offer);
