@@ -13,6 +13,8 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
+    uint128 totalShares;
+    uint128 vaultShares;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -36,10 +38,21 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
+    event ForceDeallocate(
+        address indexed caller,
+        bytes32 indexed marketId,
+        address receiver,
+        uint256 assets,
+        uint256 shares,
+        int256 change
+    );
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
     event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
+    event UpdateMarketShares(bytes32 indexed marketId, uint128 totalShares, uint128 vaultShares);
+    event RedeemClaim(
+        address indexed caller, bytes32 indexed marketId, address receiver, uint256 assets, uint256 shares
+    );
 
     /* ERRORS */
 
@@ -73,6 +86,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotIncreasing();
     error TooManyMarkets();
     error VaultNotAccrued();
+    error InsufficientVaultCredit();
+    error InsufficientClaimShares();
+    error ZeroClaimOutput();
+    error InvalidMarketShares();
 
     /* FUNCTIONS */
 
@@ -118,6 +135,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function realAssets() external view returns (uint256 assets);
+    function midnightCredit(Market memory market) external view returns (uint128 credit);
+    function claimShares(bytes32 marketId, address holder) external view returns (uint256);
+    function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256 assets);
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32);
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
@@ -152,7 +172,14 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+        returns (
+            uint128 netCredit,
+            uint64 growth,
+            uint48 maturity,
+            uint8 index,
+            uint128 totalShares,
+            uint128 vaultShares
+        );
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

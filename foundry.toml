@@ -66,7 +66,8 @@ evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 6000
+# Keep the adapter and the factory embedding its creation code deployable under EIP-170.
+optimizer_runs = 466
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
@@ -97,11 +98,6 @@ evm_version = "paris"
 name = "200-cancun"
 optimizer_runs = 200
 evm_version = "cancun"
-
-[[profile.default.additional_compiler_profiles]]
-name = "6000-osaka"
-optimizer_runs = 6000
-evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]
 name = "466-osaka"
