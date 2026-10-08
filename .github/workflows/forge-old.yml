@@ -29,6 +29,15 @@ jobs:
           echo "actual:   $actual"
           echo "expected: $EXPECTED_FORGE_SHA256"
           [ "$actual" = "$EXPECTED_FORGE_SHA256" ] || { echo "forge hash mismatch"; exit 1; }
+      - name: Install solc 0.8.37 (not shipped with forge 1.8.0)
+        run: |
+          mkdir -p "$HOME/.svm/0.8.37"
+          curl -fsSL -o "$HOME/.svm/0.8.37/solc-0.8.37" \
+            https://github.com/ethereum/solidity/releases/download/v0.8.37/solc-static-linux
+          echo "5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a  $HOME/.svm/0.8.37/solc-0.8.37" \
+            | sha256sum -c -
+          chmod +x "$HOME/.svm/0.8.37/solc-0.8.37"
+          "$HOME/.svm/0.8.37/solc-0.8.37" --version
       - name: Build with Foundry (old)
         run: forge build --force
       - name: Export bytecode manifest (old)
