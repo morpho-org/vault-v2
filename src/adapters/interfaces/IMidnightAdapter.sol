@@ -80,7 +80,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
-    error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
@@ -100,7 +99,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
-    error VaultNotAccrued();
     error InsufficientVaultCredit();
     error ZeroClaimOutput();
 

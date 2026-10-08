@@ -2950,10 +2950,14 @@ contract MidnightAdapterTest is Test {
         loanToken.approve(address(adapter), failure == 2 ? 0 : 2e18);
         uint256 assets = failure == 0 ? 2e18 : 0.5e18;
         if (failure == 1) offer.market.loanToken = address(rewardToken);
-        bytes4 errorSelector = failure == 0
-            ? IMidnightAdapterBase.InsufficientVaultCredit.selector
-            : failure == 1 ? IMidnightAdapterBase.LoanAssetMismatch.selector : ErrorsLib.TransferFromReverted.selector;
-        vm.expectRevert(errorSelector);
+        if (failure == 0) {
+            vm.expectRevert(stdError.arithmeticError);
+        } else {
+            bytes4 errorSelector = failure == 1
+                ? IMidnightAdapterBase.LoanAssetMismatch.selector
+                : ErrorsLib.TransferFromReverted.selector;
+            vm.expectRevert(errorSelector);
+        }
         parentVault.forceDeallocate(address(adapter), abi.encode(offer.market, address(this)), assets, address(this));
         MarketData memory _marketData = adapter.marketData(id);
         assertEq(_marketData.totalShares, _marketData.vaultShares);
@@ -2966,25 +2970,22 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(7 days, 4);
         bytes32 id = _marketId(offer.market);
         forceDeallocate(offer.market, 2);
-        // A loss leaves 3 credit, half owned by the vault: its exit limit is 1, not 2.
-        setMidnightCredit(id, address(adapter), 3);
-        deal(address(loanToken), address(this), 2);
-        loanToken.approve(address(adapter), 2);
-        vm.expectRevert(IMidnightAdapterBase.InsufficientVaultCredit.selector);
-        parentVault.forceDeallocate(address(adapter), claimData(offer.market, address(this)), 2, address(this));
+        // The vault's rounded-down value is 1.2e18, but 1.2e18 + 1e8 still burns exactly its 2e9 shares.
+        setMidnightCredit(id, address(adapter), 3e18);
+        deal(address(loanToken), address(this), 2e18);
+        loanToken.approve(address(adapter), 2e18);
+        vm.expectRevert(stdError.arithmeticError);
+        parentVault.forceDeallocate(
+            address(adapter), claimData(offer.market, address(this)), 1.2e18 + 1e9, address(this)
+        );
 
-        parentVault.forceDeallocate(address(adapter), claimData(offer.market, address(this)), 1, address(this));
-        uint256 shares = uint256(5e9) / 4;
+        uint256 assets = 1.2e18 + 1e8;
+        parentVault.forceDeallocate(address(adapter), claimData(offer.market, address(this)), assets, address(this));
         MarketData memory data = adapter.marketData(id);
         assertEq(data.totalShares, 4e9);
-        assertEq(data.vaultShares, 2e9 - shares);
-        assertEq(adapter.claimShares(id, address(this)), 2e9 + shares);
-        assertEq(loanToken.balanceOf(address(this)), 1);
-
-        // The remaining vault shares cannot currently fund another whole cash unit.
-        vm.expectRevert(IMidnightAdapterBase.InsufficientVaultCredit.selector);
-        parentVault.forceDeallocate(address(adapter), claimData(offer.market, address(this)), 1, address(this));
-        assertEq(adapter.marketData(id).vaultShares, data.vaultShares);
+        assertEq(data.vaultShares, 0);
+        assertEq(adapter.claimShares(id, address(this)), 4e9);
+        assertEq(loanToken.balanceOf(address(this)), 2e18 - assets);
     }
 
     function testForceDeallocateZeroAssets() public {
@@ -3214,17 +3215,17 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(offer.market, 0.5e18);
         if (makerSale) {
             vm.prank(taker);
-            vm.expectRevert(IMidnightAdapterBase.InsufficientVaultCredit.selector);
+            vm.expectRevert(stdError.arithmeticError);
             midnight.take(signedSale, signature, signedSale.maxUnits, taker, address(0), address(0), "");
         } else {
             Offer memory externalBuy = makeExternalOffer(offer.market, true, 0.75e18, MAX_TICK);
             vm.prank(signerAllocator);
-            vm.expectRevert(IMidnightAdapterBase.InsufficientVaultCredit.selector);
+            vm.expectRevert(stdError.arithmeticError);
             adapter.take(externalBuy, "", externalBuy.maxUnits);
         }
         vm.prank(taker);
         midnight.repay(offer.market, 1e18, taker, address(0), "");
-        vm.expectRevert(IMidnightAdapterBase.InsufficientVaultCredit.selector);
+        vm.expectRevert(stdError.arithmeticError);
         adapter.withdrawToVault(offer.market, 0.75e18);
         adapter.withdrawToVault(offer.market, 0.5e18);
         bytes32 id = _marketId(offer.market);
