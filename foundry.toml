@@ -114,3 +114,9 @@ optimizer_runs = 999999
 evm_version = "cancun"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+# Benchmark copies of MidnightAdapter must use its compiler settings.
+[[profile.default.compilation_restrictions]]
+paths = "test/gas/**"
+optimizer_runs = 6000
+evm_version = "osaka"
