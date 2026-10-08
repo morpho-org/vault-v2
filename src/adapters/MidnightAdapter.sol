@@ -83,7 +83,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint136 public totalNetCredit;
 
     uint64 public maxShortfallRatio;
-    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys.
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, that a market's position must earn on its amortized value after maker and taker buys.
     uint64 public minBuyRate;
     uint128 public shortfallAllowance;
 
@@ -375,10 +375,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
-            require((boughtNetCredit - paidAssets) * WAD >= minBuyRate * paidAssets * ttm, BuyRateTooLow());
-
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
+            require((newNetCredit - amortizedValue) * WAD >= minBuyRate * amortizedValue * ttm, BuyRateTooLow());
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((newNetCredit - amortizedValue) * WAD / (newNetCredit * ttm));
         }
