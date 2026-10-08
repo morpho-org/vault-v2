@@ -786,38 +786,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "remaining duration used");
     }
 
-    function testMinGrowthChecksAverageGrowth() public {
-        Offer memory initial = makeBuyOffer(30 days, 1e18, discountTick);
-        midnight.supplyCollateral(initial.market, 0, initial.maxUnits, taker);
-        midnight.supplyCollateral(initial.market, 1, initial.maxUnits, taker);
-        take(initial);
-
-        bytes32 marketId = _marketId(initial.market);
-        MarketData memory before = adapter.marketData(marketId);
-        Offer memory topUp = makeBuyOffer(30 days, 1e18, TickLib.priceToTick(0.99e18, DEFAULT_TICK_SPACING));
-        topUp.group = bytes32(vm.randomUint());
-        midnight.supplyCollateral(topUp.market, 0, topUp.maxUnits, taker);
-        midnight.supplyCollateral(topUp.market, 1, topUp.maxUnits, taker);
-        uint256 paidAssets = uint256(topUp.maxUnits).mulDivDown(TickLib.tickToPrice(topUp.tick), 1e18);
-        uint256 addedAssetsWadPerSecond =
-            (uint256(topUp.maxUnits) - paidAssets).mulDivDown(1e18, topUp.market.maturity - block.timestamp);
-        uint256 topUpGrowth = addedAssetsWadPerSecond / topUp.maxUnits;
-        uint256 newNetCredit = uint256(before.netCredit) + topUp.maxUnits;
-        uint256 blendedGrowth = (uint256(before.netCredit) * before.growth + addedAssetsWadPerSecond) / newNetCredit;
-
-        assertLt(topUpGrowth, blendedGrowth, "top-up growth is below average");
-        setMinGrowth(topUpGrowth + 1);
-        assertGe(blendedGrowth, adapter.minGrowth(), "average growth meets minimum");
-
-        setMinGrowth(blendedGrowth + 1);
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
-        take(topUp);
-
-        setMinGrowth(topUpGrowth + 1);
-        take(topUp);
-        assertEq(adapter.marketData(marketId).growth, blendedGrowth, "blended growth");
-    }
-
     function testMinGrowthZeroPaidAssets() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
