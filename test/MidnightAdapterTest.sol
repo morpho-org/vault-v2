@@ -34,7 +34,7 @@ import {
     CBP
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
-import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
+import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -3988,7 +3988,8 @@ contract MidnightAdapterTest is Test {
         returns (Offer memory offer, bytes32 root_)
     {
         address buyer = makeAddr("buyer");
-        SetterRatifier approvalRatifier = new SetterRatifier(address(midnight));
+        ISetterRatifier approvalRatifier =
+            ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
         offer = storedOffer;
         offer.market = market;
@@ -4960,11 +4961,11 @@ contract MidnightAdapterTest is Test {
 
     // What a buyer callback can and cannot do while the adapter sells to it through forceDeallocate.
 
-    SetterRatifier internal buyerRatifier;
+    ISetterRatifier internal buyerRatifier;
 
     function newBuyer() internal returns (ForceDeallocateBuyer buyer) {
         buyer = new ForceDeallocateBuyer(address(midnight));
-        buyerRatifier = new SetterRatifier(address(midnight));
+        buyerRatifier = ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
         deal(address(loanToken), address(buyer), 100e18);
         buyer.exec(address(loanToken), abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
         buyer.exec(address(loanToken), abi.encodeCall(IERC20.approve, (address(adapter), type(uint256).max)));
@@ -5000,7 +5001,7 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32(vm.randomUint());
         bytes32 root_ = HashLib.hashOffer(offer);
         buyer.exec(
-            address(buyerRatifier), abi.encodeCall(SetterRatifier.setIsRootRatified, (address(buyer), root_, true))
+            address(buyerRatifier), abi.encodeCall(ISetterRatifier.setIsRootRatified, (address(buyer), root_, true))
         );
         ratifierData_ = abi.encode(root_, uint256(0), new bytes32[](0));
     }
@@ -5274,7 +5275,7 @@ contract MidnightAdapterTest is Test {
         offer.callback = address(adapter);
         bytes32 root_ = HashLib.hashOffer(offer);
         buyer.exec(
-            address(buyerRatifier), abi.encodeCall(SetterRatifier.setIsRootRatified, (address(buyer), root_, true))
+            address(buyerRatifier), abi.encodeCall(ISetterRatifier.setIsRootRatified, (address(buyer), root_, true))
         );
         ratifierData_ = abi.encode(root_, uint256(0), new bytes32[](0));
 
