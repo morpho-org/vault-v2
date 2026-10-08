@@ -47,6 +47,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable midnight;
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
+    /// @dev A duration of 0 can effectively always be used, through to adapterId, since it means capping all midnight markets.
     /// @dev Sorted in ascending order.
     /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
     /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
