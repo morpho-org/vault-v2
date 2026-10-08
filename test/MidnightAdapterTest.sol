@@ -564,7 +564,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
     }
 
-    function testLossSaleRespectsMinBuyRate(uint256 elapsed, uint256 sold, uint256 price, uint256 minRate) public {
+    function testLossSaleRespectsMinRate(uint256 elapsed, uint256 sold, uint256 price, uint256 minRate) public {
         elapsed = bound(elapsed, 0, 20 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
@@ -576,7 +576,7 @@ contract MidnightAdapterTest is Test {
         uint256 maxRate = growth * 1e18 / (1e18 - growth * ttm);
         if (maxRate > type(uint64).max) maxRate = type(uint64).max;
         minRate = bound(minRate, 1, maxRate);
-        setMinBuyRate(minRate);
+        setMinRate(minRate);
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
         uint256 maxSold = (100e18 * (1e18 - discountFactor) - 1e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
@@ -592,10 +592,10 @@ contract MidnightAdapterTest is Test {
         }
     }
 
-    function testGainSaleIgnoresMinBuyRate() public {
+    function testGainSaleIgnoresMinRate() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMinBuyRate(type(uint64).max);
+        setMinRate(type(uint64).max);
         deal(address(loanToken), taker, 100e18);
         uint256 growth = adapter.marketData(marketId).growth;
 
@@ -698,46 +698,46 @@ contract MidnightAdapterTest is Test {
 
     /* MIN RATE */
 
-    function testSetMinBuyRateNotAuthorized(address caller, uint256 newMinBuyRate) public {
+    function testSetMinRateNotAuthorized(address caller, uint256 newMinRate) public {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setMinBuyRate(newMinBuyRate);
+        adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinBuyRateAuthorized(uint256 oldMinBuyRate, uint256 newMinBuyRate) public {
-        oldMinBuyRate = bound(oldMinBuyRate, 0, type(uint64).max);
-        newMinBuyRate = bound(newMinBuyRate, 0, type(uint64).max);
+    function testSetMinRateAuthorized(uint256 oldMinRate, uint256 newMinRate) public {
+        oldMinRate = bound(oldMinRate, 0, type(uint64).max);
+        newMinRate = bound(newMinRate, 0, type(uint64).max);
         vm.prank(curator);
-        adapter.setMinBuyRate(oldMinBuyRate);
+        adapter.setMinRate(oldMinRate);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMinBuyRate(newMinBuyRate);
+        emit IMidnightAdapterBase.SetMinRate(newMinRate);
         vm.prank(curator);
-        adapter.setMinBuyRate(newMinBuyRate);
-        assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate");
+        adapter.setMinRate(newMinRate);
+        assertEq(adapter.minRate(), newMinRate, "minRate");
     }
 
-    function testSetMinBuyRateOverflow(uint256 newMinBuyRate) public {
-        newMinBuyRate = bound(newMinBuyRate, uint256(type(uint64).max) + 1, type(uint256).max);
+    function testSetMinRateOverflow(uint256 newMinRate) public {
+        newMinRate = bound(newMinRate, uint256(type(uint64).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
-        adapter.setMinBuyRate(newMinBuyRate);
+        adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinBuyRateDecrease(uint256 oldMinBuyRate, uint256 newMinBuyRate) public {
-        oldMinBuyRate = bound(oldMinBuyRate, 0, type(uint64).max);
-        newMinBuyRate = bound(newMinBuyRate, 0, oldMinBuyRate);
-        setMinBuyRate(oldMinBuyRate);
-        setMinBuyRate(newMinBuyRate);
-        assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate decreased");
+    function testSetMinRateDecrease(uint256 oldMinRate, uint256 newMinRate) public {
+        oldMinRate = bound(oldMinRate, 0, type(uint64).max);
+        newMinRate = bound(newMinRate, 0, oldMinRate);
+        setMinRate(oldMinRate);
+        setMinRate(newMinRate);
+        assertEq(adapter.minRate(), newMinRate, "minRate decreased");
     }
 
-    function testMinBuyRateRejectsPreviouslyRatifiedZeroRateOffer() public {
+    function testMinRateRejectsPreviouslyRatifiedZeroRateOffer() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         bytes memory data = ratify([offer], signerAllocator);
-        assertEq(adapter.minBuyRate(), 0, "default minBuyRate");
-        setMinBuyRate(1);
+        assertEq(adapter.minRate(), 0, "default minRate");
+        setMinRate(1);
 
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
@@ -745,12 +745,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "failed buy leaves no assets");
         assertEq(midnight.consumed(address(adapter), offer.group), 0, "offer not consumed");
 
-        setMinBuyRate(0);
+        setMinRate(0);
         take(offer);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "zero rate accepted");
     }
 
-    function testMinBuyRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
+    function testMinRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
         duration = bound(duration, 1, 365 days);
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
@@ -762,23 +762,23 @@ contract MidnightAdapterTest is Test {
         uint256 pendingFee = uint256(offer.maxUnits).mulDivDown(continuousFee * duration, 1e18);
         uint256 netCredit = offer.maxUnits - pendingFee;
         uint256 rate = (netCredit - paidAssets) * 1e18 / (paidAssets * duration);
-        setMinBuyRate(rate + 1);
+        setMinRate(rate + 1);
 
         vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         take(offer);
 
-        setMinBuyRate(rate);
+        setMinRate(rate);
         take(offer);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, netCredit, "net rate accepted");
     }
 
-    function testMinBuyRateUsesRemainingDuration() public {
+    function testMinRateUsesRemainingDuration() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, discountTick);
         offer.expiry = offer.market.maturity;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         uint256 paidAssets = uint256(offer.maxUnits).mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
         uint256 rate = (offer.maxUnits - paidAssets) * 1e18 / (paidAssets * 15 days);
-        setMinBuyRate(rate);
+        setMinRate(rate);
 
         vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         take(offer);
@@ -788,11 +788,11 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "remaining duration used");
     }
 
-    function testMinBuyRateZeroPaidAssets() public {
+    function testMinRateZeroPaidAssets() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        setMinBuyRate(type(uint64).max);
+        setMinRate(type(uint64).max);
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         take(offer);
@@ -801,25 +801,25 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "free credit accepted");
     }
 
-    function testMinBuyRateAtMaturity() public {
-        setMinBuyRate(type(uint64).max);
+    function testMinRateAtMaturity() public {
+        setMinRate(type(uint64).max);
         Offer memory offer = buy(0, 1e18);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "matured credit accepted");
     }
 
-    function testMinBuyRateDoesNotRestrictSells() public {
+    function testMinRateDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
-        setMinBuyRate(type(uint64).max);
+        setMinRate(type(uint64).max);
         sell(offer.market, offer.maxUnits);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "sell accepted");
     }
 
     /// forge-config: default.isolate = true
-    function testMinBuyRateAllocatorTakeRealVault() public {
+    function testMinRateAllocatorTakeRealVault() public {
         setUpRealVault();
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, 1e18, MAX_TICK);
-        setMinBuyRate(1);
+        setMinRate(1);
 
         vm.prank(signerAllocator);
         vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
@@ -827,14 +827,14 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "failed buy leaves no allocation");
         assertEq(loanToken.balanceOf(address(realVault)), 10e18, "failed buy leaves vault funds unchanged");
 
-        setMinBuyRate(0);
+        setMinRate(0);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits);
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "buy accepted");
     }
 
     /// forge-config: default.isolate = true
-    function testMinBuyRateAllocatorTakeNetRate() public {
+    function testMinRateAllocatorTakeNetRate() public {
         setUpRealVault();
         uint256 duration = 7 days;
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
@@ -850,13 +850,13 @@ contract MidnightAdapterTest is Test {
         uint256 pendingFee = uint256(offer.maxUnits).mulDivDown(uint256(MAX_CONTINUOUS_FEE) * duration, 1e18);
         uint256 netCredit = offer.maxUnits - pendingFee;
         uint256 rate = (netCredit - paidAssets) * 1e18 / (paidAssets * duration);
-        setMinBuyRate(rate + 1);
+        setMinRate(rate + 1);
 
         vm.prank(signerAllocator);
         vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         adapter.take(offer, "", offer.maxUnits);
 
-        setMinBuyRate(rate);
+        setMinRate(rate);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits);
         assertEq(adapter.marketData(marketId).netCredit, netCredit, "net rate accepted");
@@ -3670,15 +3670,15 @@ contract MidnightAdapterTest is Test {
     /* SALE SHORTFALL */
 
     function testStoragePacking() public {
-        setMinBuyRate(type(uint64).max);
+        setMinRate(type(uint64).max);
         setUpMaxTtm(type(uint32).max);
 
         vm.record();
         assertEq(adapter.maxTtm(), type(uint32).max);
-        assertEq(adapter.minBuyRate(), type(uint64).max);
+        assertEq(adapter.minRate(), type(uint64).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         assertEq(reads.length, 2);
-        assertEq(reads[0], reads[1], "maxTtm and minBuyRate share one slot");
+        assertEq(reads[0], reads[1], "maxTtm and minRate share one slot");
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {
@@ -3917,9 +3917,9 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxSellRate(collateralParamsHash, newMaxSellRate);
     }
 
-    function setMinBuyRate(uint256 newMinBuyRate) internal {
+    function setMinRate(uint256 newMinRate) internal {
         vm.prank(curator);
-        adapter.setMinBuyRate(newMinBuyRate);
+        adapter.setMinRate(newMinRate);
     }
 
     function take(Offer memory offer) internal {
