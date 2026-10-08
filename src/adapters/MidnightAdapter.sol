@@ -374,7 +374,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        if (boughtNetCredit > 0) {
+        if (newNetCredit > 0) {
             require((boughtNetCredit - paidAssets) * WAD >= minBuyRate * paidAssets * ttm, BuyRateTooLow());
 
             uint256 amortizedValue =
