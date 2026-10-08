@@ -2923,6 +2923,34 @@ contract MidnightAdapterTest is Test {
         adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, seller, address(adapter), "");
     }
 
+    function testOnSellNonEmptyCallbackData(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        vm.prank(address(midnight));
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, address(adapter), address(adapter), callbackData);
+    }
+
+    function testSellOfferNonEmptyCallbackDataReverts(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory sellOffer = makeSellOffer(offer.market, offer.maxUnits, MAX_TICK);
+        sellOffer.callbackData = callbackData;
+        deal(address(loanToken), taker, offer.maxUnits);
+
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        this.takeWithAccrual(sellOffer, "", taker, address(0));
+    }
+
+    function testTakeSellNonEmptyCallbackDataReverts(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, offer.maxUnits, MAX_TICK);
+
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", offer.maxUnits, callbackData);
+    }
+
     function testDeallocateNotParentVault(address caller) public {
         vm.assume(caller != address(parentVault));
         vm.prank(caller);

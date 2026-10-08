@@ -451,10 +451,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 sellPendingFeeDecrease,
         address seller,
         address,
-        bytes memory
+        bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+        require(callbackData.length == 0, NonEmptyCallbackData());
         updateShortfallAllowance();
 
         uint128 newNetCredit = currentNetCredit(marketId);
