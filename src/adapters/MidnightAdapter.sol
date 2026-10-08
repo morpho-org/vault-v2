@@ -39,8 +39,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
-    /// @dev Shares and credit are bounded to uint128, so their products fit uint256.
-    uint256 public constant INITIAL_SHARE_SCALE = 1e9;
+    /// @dev One virtual credit unit and 1e9 virtual shares provide precision for ownership conversions.
+    uint256 public constant VIRTUAL_SHARES = 1e9;
 
     /* IMMUTABLES */
 
@@ -261,12 +261,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 credit = midnightCredit(market);
         if (withdrawnAssets > 0) {
             MarketData storage _marketData = marketData[marketId];
-            require(withdrawnAssets <= credit && _marketData.totalShares > 0, InsufficientVaultCredit());
+            require(withdrawnAssets <= credit, InsufficientVaultCredit());
             // Round up against gross credit so withdrawals cannot consume claim holders' credit or fee refunds.
-            uint128 shares = withdrawnAssets.mulDivUp(_marketData.totalShares, credit).toUint128();
+            uint128 shares = withdrawnAssets.mulDivUp(
+                    uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + 1
+                )
+                .toUint128();
             require(shares <= _marketData.vaultShares, InsufficientVaultCredit());
-            // Keep one share backing residual credit if rounding would otherwise burn every share.
-            if (shares == _marketData.totalShares && withdrawnAssets < credit) shares--;
             _marketData.totalShares -= shares;
             _marketData.vaultShares -= shares;
         }
@@ -329,15 +330,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IVaultV2(parentVault).accrueInterest();
             updateShortfallAllowance();
             MarketData storage _marketData = marketData[marketId];
-            require(_marketData.totalShares > 0, ZeroClaimOutput());
             uint128 credit = midnightCredit(market);
-            require(credit > 0, ZeroClaimOutput());
             // Rounding down can leave residual vault shares that cannot currently be force-deallocated.
             require(
-                assets <= credit.mulDivDown(_marketData.vaultShares, _marketData.totalShares), InsufficientVaultCredit()
+                assets
+                    <= (uint256(credit) + 1)
+                    .mulDivDown(_marketData.vaultShares, uint256(_marketData.totalShares) + VIRTUAL_SHARES),
+                InsufficientVaultCredit()
             );
-            uint256 shares = assets.mulDivDown(_marketData.totalShares, credit);
-            require(shares > 0, ZeroClaimOutput());
+            uint256 shares = assets.mulDivDown(uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + 1);
             _marketData.vaultShares -= shares.toUint128();
             claimShares[marketId][receiver] += shares;
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -359,20 +360,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Pays directly from Midnight, independently of vault roles, gates, or registration.
     /// @dev Liquidity is first come, first served. Failed withdrawals revert the share burn.
-    function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256 assets) {
+    function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256) {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
-        require(shares <= _marketData.totalShares, InsufficientClaimShares());
-        uint128 credit = midnightCredit(market);
-        if (_marketData.totalShares > 0) assets = uint256(credit).mulDivDown(shares, _marketData.totalShares);
-        require(assets > 0, ZeroClaimOutput());
-        require(shares <= claimShares[marketId][msg.sender], InsufficientClaimShares());
+
+        uint256 assets =
+            (uint256(midnightCredit(market)) + 1).mulDivDown(shares, uint256(_marketData.totalShares) + VIRTUAL_SHARES);
         claimShares[marketId][msg.sender] -= shares;
         _marketData.totalShares -= shares.toUint128();
+
         IMidnight(midnight).withdraw(market, assets, address(this), receiver);
         // Keep marketData.netCredit as the last value reported to the parent vault.
         emit RedeemClaim(msg.sender, marketId, receiver, assets, shares);
+        return assets;
     }
 
     /* MIDNIGHT CALLBACKS */
@@ -416,13 +417,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
-        mintVaultShares(marketId, market, boughtCredit, boughtNetCredit, previousNetCredit);
+
+        MarketData storage _marketData = marketData[marketId];
+        uint256 shares = boughtNetCredit.mulDivDown(_marketData.totalShares + VIRTUAL_SHARES, previousNetCredit + 1);
+        _marketData.totalShares = (_marketData.totalShares + shares).toUint128();
+        _marketData.vaultShares = (_marketData.vaultShares + shares).toUint128();
+
         uint128 newNetCredit = vaultNetCredit(marketId, rawNetCredit).toUint128();
         uint256 addedVaultNetCredit = newNetCredit - previousVaultNetCredit;
         require(addedVaultNetCredit >= paidAssets, BuyAtLoss());
         require(boughtCredit == 0 || addedVaultNetCredit > 0, ZeroClaimOutput());
 
-        MarketData storage _marketData = marketData[marketId];
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (addedVaultNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -506,12 +511,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 credit = midnightCredit(market);
         MarketData storage _marketData = marketData[marketId];
         if (soldCredit > 0) {
-            require(_marketData.totalShares > 0, InsufficientVaultCredit());
             // Midnight already deducted the sale. Round up against pre-sale gross credit to protect claims.
-            uint128 shares = soldCredit.mulDivUp(_marketData.totalShares, uint256(credit) + soldCredit).toUint128();
+            uint128 shares = soldCredit.mulDivUp(
+                    uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + soldCredit + 1
+                )
+                .toUint128();
             require(shares <= _marketData.vaultShares, InsufficientVaultCredit());
-            // Keep one share backing residual credit if rounding would otherwise burn every share.
-            if (shares == _marketData.totalShares && credit > 0) shares--;
             _marketData.totalShares -= shares;
             _marketData.vaultShares -= shares;
         }
@@ -575,39 +580,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function vaultNetCredit(bytes32 marketId, uint256 credit) internal view returns (uint256) {
         MarketData storage _marketData = marketData[marketId];
-        return _marketData.totalShares == 0 ? 0 : credit.mulDivDown(_marketData.vaultShares, _marketData.totalShares);
-    }
-
-    function mintVaultShares(
-        bytes32 marketId,
-        Market memory market,
-        uint256 boughtCredit,
-        uint256 boughtNetCredit,
-        uint256 previousNetCredit
-    ) internal {
-        if (boughtCredit == 0) return;
-        require(boughtNetCredit > 0, ZeroClaimOutput());
-        MarketData storage _marketData = marketData[marketId];
-        if (previousNetCredit == 0) {
-            uint128 credit = midnightCredit(market);
-            require(credit == boughtCredit, InvalidMarketShares());
-        }
-        // If losses round the position's credit to zero, outstanding claim balances survive this reset.
-        // Accepted limitation: those old claims can redeem newly purchased vault credit, leaving vault
-        // shares above total shares. No protection against reusing such a depleted position is provided.
-        if (previousNetCredit == 0 || _marketData.totalShares == _marketData.vaultShares) {
-            // Initialize an empty position or rescale vault-only ownership to preserve the full native credit range.
-            uint128 shares =
-                MathLib.min((previousNetCredit + boughtNetCredit) * INITIAL_SHARE_SCALE, type(uint128).max).toUint128();
-            _marketData.totalShares = shares;
-            _marketData.vaultShares = shares;
-        } else {
-            require(_marketData.totalShares > 0, InvalidMarketShares());
-            uint256 shares = boughtNetCredit.mulDivDown(_marketData.totalShares, previousNetCredit);
-            require(shares > 0, ZeroClaimOutput());
-            _marketData.totalShares = (uint256(_marketData.totalShares) + shares).toUint128();
-            _marketData.vaultShares = (uint256(_marketData.vaultShares) + shares).toUint128();
-        }
+        return (credit + 1).mulDivDown(_marketData.vaultShares, uint256(_marketData.totalShares) + VIRTUAL_SHARES);
     }
 
     /// @dev Uses stored totalNetCredit; newly recognized losses affect the next update.
@@ -620,7 +593,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     allowanceCap,
                     shortfallAllowance
                         + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
-                ).toUint128();
+                )
+                .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 

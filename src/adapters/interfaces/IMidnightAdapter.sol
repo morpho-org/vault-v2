@@ -102,9 +102,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TooManyMarkets();
     error VaultNotAccrued();
     error InsufficientVaultCredit();
-    error InsufficientClaimShares();
     error ZeroClaimOutput();
-    error InvalidMarketShares();
 
     /* FUNCTIONS */
 
