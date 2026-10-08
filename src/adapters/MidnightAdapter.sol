@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev The adapter's allocation cap bounds exposure.
-/// @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales proceeds.
+/// @dev A shortfall is the negative delta, if any, between the amortized value of sold credit and the actual sales proceeds.
 /// @dev The shortfall allowance refill rounds down, and anyone can trigger a refresh (e.g. with a no-op withdrawToVault). Refreshing every block stops the allowance from growing when allowanceCap.mulDivDown(blockTime, shortfallRefillPeriod) rounds to 0. This can only reduce adapter max sell losses.
 ///
 /// TIMELOCKS
