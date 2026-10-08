@@ -14,8 +14,8 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Approximates held assets by discounting the net credit of each market at a constant simple yield to maturity.
-/// @dev The rate is rounded down. Interest excluded from the rate is realized immediately.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant yield to maturity.
+/// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets. The sale reverts if the rate would become negative.
+/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
