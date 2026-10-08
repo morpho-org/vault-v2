@@ -424,9 +424,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-        uint256 amortizedSoldNetCredit = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        if (amortizedSoldNetCredit > sellerAssets) {
-            _marketData.growth -= (amortizedSoldNetCredit - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
+        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
+        if (amortizedValue > sellerAssets) {
+            _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
