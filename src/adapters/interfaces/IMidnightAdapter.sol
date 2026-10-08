@@ -9,7 +9,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev WAD-scaled simple interest rate per second on the amortized value: netCredit = amortizedValue * (WAD + rate * ttm) / WAD.
+    /// @dev WAD-scaled simple interest rate per second.
     uint64 rate;
     uint48 maturity;
     uint8 index;
