@@ -14,8 +14,8 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Approximates held assets by linearly accounting for interest per market.
-/// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant simple yield to maturity.
+/// @dev The rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets. The sale reverts if the rate would become negative.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
@@ -76,8 +76,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
-    uint64 public minGrowth;
+    /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
+    uint64 public minRate;
 
     /* CONSTRUCTOR */
 
@@ -176,11 +176,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when buying.
-    /// @dev Also bounds the growth decrease of loss sales.
-    function setMinGrowth(uint256 newMinGrowth) external {
+    /// @dev Also bounds the rate decrease of loss sales.
+    function setMinRate(uint256 newMinRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minGrowth = newMinGrowth.toUint64();
-        emit SetMinGrowth(newMinGrowth);
+        minRate = newMinRate.toUint64();
+        emit SetMinRate(newMinRate);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -325,6 +325,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
+    /// @dev Can revert on extremely high rates.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -350,11 +351,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
-            uint256 addedAssetsWadPerSecond = (boughtNetCredit - paidAssets).mulDivDown(WAD, ttm);
-            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
-            // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
-            require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
+            uint256 amortizedValue =
+                (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + _marketData.rate * ttm) + paidAssets;
+            _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            require(_marketData.rate >= minRate, BuyRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -432,10 +432,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
+        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
         if (amortizedValue > sellerAssets) {
-            _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
-            require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
+            uint256 newAmortizedValue =
+                uint256(newNetCredit).mulDivDown(WAD, WAD + _marketData.rate * ttm) + amortizedValue - sellerAssets;
+            _marketData.rate = (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
+            require(_marketData.rate >= minRate, RemainingRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -449,7 +451,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, newNetCredit, _marketData.growth);
+        emit Sell(marketId, sellerAssets, newNetCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
 
@@ -545,7 +547,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 newNetCredit = currentNetCredit(marketId);
             }
             assets += newNetCredit.mulDivDown(
-                WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp), WAD
+                WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)
             );
         }
         return assets;
