@@ -564,6 +564,46 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
     }
 
+    function testLossSaleRespectsMinBuyRate(uint256 elapsed, uint256 sold, uint256 price, uint256 minRate) public {
+        elapsed = bound(elapsed, 0, 20 days);
+        Offer memory offer = buyAtDiscount(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        setMaxSellRate(offer.market, type(uint256).max);
+        skip(elapsed);
+        uint256 ttm = 30 days - elapsed;
+        uint256 growth = adapter.marketData(marketId).growth;
+        uint256 discountFactor = 1e18 - growth * ttm;
+        uint256 maxRate = growth * 1e18 / (1e18 - growth * ttm);
+        if (maxRate > type(uint64).max) maxRate = type(uint64).max;
+        minRate = bound(minRate, 1, maxRate);
+        setMinBuyRate(minRate);
+        uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
+        uint256 maxSold = (100e18 * (1e18 - discountFactor) - 1e18) / (1e18 - TickLib.tickToPrice(tick));
+        sold = bound(sold, 1, maxSold);
+        uint256 shortfall = sold.mulDivUp(discountFactor, 1e18) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
+        uint256 newGrowth = growth - shortfall.mulDivUp(1e18, (100e18 - sold) * ttm);
+
+        if (newGrowth * (1e18 + minRate * ttm) < minRate * 1e18) {
+            vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
+            sellUnits(offer.market, sold, tick);
+        } else {
+            sellUnits(offer.market, sold, tick);
+            assertEq(adapter.marketData(marketId).growth, newGrowth, "growth decreases");
+        }
+    }
+
+    function testGainSaleIgnoresMinBuyRate() public {
+        Offer memory offer = buyAtDiscount(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        setMinBuyRate(type(uint64).max);
+        deal(address(loanToken), taker, 100e18);
+        uint256 growth = adapter.marketData(marketId).growth;
+
+        sellUnits(offer.market, 1e18, MAX_TICK);
+
+        assertEq(adapter.marketData(marketId).growth, growth, "growth unchanged");
+    }
+
     function testGainSaleKeepsGrowth(uint256 elapsed, uint256 sold) public {
         elapsed = bound(elapsed, 0, 30 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);

@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets. The sale reverts if growth would become negative.
+/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets. The sale reverts if growth would become negative or if the remaining position would earn less than minBuyRate on its amortized value.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
@@ -176,6 +176,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when buying.
+    /// @dev Also bounds the growth decrease of loss sales.
     function setMinBuyRate(uint256 newMinBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minBuyRate = newMinBuyRate.toUint64();
@@ -427,6 +428,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
             _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
+            require(_marketData.growth * (WAD + minBuyRate * ttm) >= minBuyRate * WAD, RemainingRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
