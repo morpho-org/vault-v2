@@ -801,12 +801,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "free credit accepted");
     }
 
-    function testMinRateAtMaturity() public {
-        setMinRate(type(uint64).max);
-        Offer memory offer = buy(0, 1e18);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "matured credit accepted");
-    }
-
     function testMinRateDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
         setMinRate(type(uint64).max);
@@ -1312,7 +1306,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMaxTtmBoundary(uint256 maxTtm, bool takerBuy) public {
-        maxTtm = bound(maxTtm, 0, 365 days);
+        maxTtm = bound(maxTtm, 1, 365 days);
         setUpMaxTtm(maxTtm);
         Offer memory offer = makeBuyOffer(maxTtm + 1, 1e18, MAX_TICK);
         if (takerBuy) {
@@ -1349,8 +1343,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMaxTtmBelowLimit(uint256 maxTtm, uint256 duration) public {
-        maxTtm = bound(maxTtm, 1, 365 days);
-        duration = bound(duration, 0, maxTtm - 1);
+        maxTtm = bound(maxTtm, 2, 365 days);
+        duration = bound(duration, 1, maxTtm - 1);
         setUpMaxTtm(maxTtm);
 
         Offer memory offer = buy(duration, 1e18);
@@ -1374,9 +1368,6 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         vm.expectRevert(IMidnightAdapterBase.BuyTtmTooHigh.selector);
         take(offer);
-
-        offer = buy(0, 1e18);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "at-maturity buy accepted");
     }
 
     function testMaxTtmDoesNotRestrictSells(uint256 maxTtm, bool takerSale) public {
@@ -2501,9 +2492,9 @@ contract MidnightAdapterTest is Test {
         address oracleC = address(new OracleMock());
         OracleMock(oracleC).setPrice(ORACLE_PRICE_SCALE);
 
-        Offer memory offerA = buy(0, assetsA);
+        Offer memory offerA = buy(1, assetsA);
 
-        Offer memory offerB = makeBuyOffer(0, assetsB, MAX_TICK);
+        Offer memory offerB = makeBuyOffer(1, assetsB, MAX_TICK);
         offerB.market.collateralParams[0].oracle = oracleC;
         offerB.group = bytes32("B");
         midnight.supplyCollateral(offerB.market, 0, assetsB / 2, taker);
@@ -2860,7 +2851,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testRealAssetsSeesLossesAcrossMaturities() public {
-        Offer[3] memory offers = [buy(0, 1e18), buy(7 days, 1e18), buy(30 days, 1e18)];
+        Offer[3] memory offers = [buy(1, 1e18), buy(7 days, 1e18), buy(30 days, 1e18)];
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         skip(1);
@@ -2933,7 +2924,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testBuyPostMaturityReverts(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 365 days);
+        elapsed = bound(elapsed, 0, 365 days);
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.expiry = type(uint256).max;
         // The taker needs credit to sell: Midnight itself refuses new debt after maturity.
