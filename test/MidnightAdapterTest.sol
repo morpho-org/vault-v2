@@ -635,9 +635,8 @@ contract MidnightAdapterTest is Test {
         uint256 backingBefore = backing();
         this.sellWithShortfall(initial.market, 0.1e18);
         assertGe(backing(), backingBefore, "loss is deferred");
-        assertLe(backing() - backingBefore, adapter.totalNetCredit() * 7 days / 1e18 + 2, "rounding");
+        assertLe(backing() - backingBefore, realVault.allocation(adapter.adapterId()) * 7 days / 1e18 + 2, "rounding");
         assertEq(realVault.totalAssets(), 10e18);
-        assertEq(realVault.allocation(adapter.adapterId()), adapter.totalNetCredit());
     }
 
     function testBuyAfterLossSale() public {
@@ -1916,7 +1915,6 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0)));
-        assertEq(adapter.totalNetCredit(), 2e18);
         assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
         assertMarkets([_marketId(first.market), _marketId(last.market)]);
     }
@@ -2498,7 +2496,6 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0)));
-        assertEq(adapter.totalNetCredit(), 1e18);
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -3546,31 +3543,6 @@ contract MidnightAdapterTest is Test {
 
     /* NET CREDIT BOUNDS */
 
-    function testTotalNetCreditBounds() public {
-        uint256 maxMarkets = adapter.MAX_MARKETS();
-        uint256 maxTotalNetCredit = maxMarkets * type(uint128).max;
-        assertLe(maxTotalNetCredit, type(uint136).max);
-        assertLe((maxMarkets + 1) * type(uint128).max, type(uint136).max);
-        deal(address(loanToken), address(parentVault), maxTotalNetCredit);
-        deal(storedCollaterals[0].token, address(this), maxTotalNetCredit + type(uint128).max);
-        deal(storedCollaterals[1].token, address(this), maxTotalNetCredit + type(uint128).max);
-
-        Offer memory offer;
-        for (uint256 i = 1; i <= maxMarkets; i++) {
-            offer = buy(i, type(uint128).max);
-            assertEq(adapter.totalNetCredit(), i * type(uint128).max);
-        }
-        assertEq(adapter.marketIdsLength(), maxMarkets);
-
-        sellUnits(offer.market, type(uint128).max, MAX_TICK);
-        assertEq(adapter.totalNetCredit(), maxTotalNetCredit - type(uint128).max);
-        assertEq(adapter.marketIdsLength(), maxMarkets - 1);
-
-        buy(maxMarkets + 1, type(uint128).max);
-        assertEq(adapter.totalNetCredit(), maxTotalNetCredit);
-        assertEq(adapter.marketIdsLength(), maxMarkets);
-    }
-
     function testOnBuyNetCreditSumAboveUint128() public {
         Offer memory offer = buyMaxNetCredit();
         bytes32 marketId = _marketId(offer.market);
@@ -3656,18 +3628,15 @@ contract MidnightAdapterTest is Test {
     /* SALE SHORTFALL */
 
     function testStoragePacking() public {
-        buyMaxNetCredit();
         setMinBuyRate(type(uint64).max);
         setUpMaxTtm(type(uint32).max);
 
         vm.record();
         assertEq(adapter.maxTtm(), type(uint32).max);
-        assertEq(adapter.totalNetCredit(), type(uint128).max);
         assertEq(adapter.minBuyRate(), type(uint64).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 3);
-        assertEq(reads[0], reads[1], "maxTtm and totalNetCredit share one slot");
-        assertEq(reads[0], reads[2], "maxTtm and minBuyRate share one slot");
+        assertEq(reads.length, 2);
+        assertEq(reads[0], reads[1], "maxTtm and minBuyRate share one slot");
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {
