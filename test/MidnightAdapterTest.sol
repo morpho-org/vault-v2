@@ -572,16 +572,19 @@ contract MidnightAdapterTest is Test {
         skip(elapsed);
         uint256 ttm = 30 days - elapsed;
         uint256 rate = adapter.marketData(marketId).rate;
-        minRate = bound(minRate, 1, rate);
+        minRate = bound(minRate, 0, rate);
         setMinRate(minRate);
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
         uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 newAmortizedValue = (100e18 - sold).mulDivDown(1e18, 1e18 + rate * ttm) + shortfall;
-        uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
+        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        bool remainingRateTooLow = newAmortizedValue > 100e18 - sold;
+        uint256 newRate = shortfall == 0
+            ? rate
+            : remainingRateTooLow ? 0 : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
 
-        if (newRate < minRate) {
+        if (remainingRateTooLow || newRate < minRate) {
             vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
             sellUnits(offer.market, sold, tick);
         } else {
@@ -641,6 +644,7 @@ contract MidnightAdapterTest is Test {
     function testLossSaleCanUseAllRemainingInterest() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
+        setMinRate(0);
         uint256 rate = adapter.marketData(marketId).rate;
         uint256 low;
         uint256 high = 100e18 - adapter.realAssets();
@@ -654,7 +658,7 @@ contract MidnightAdapterTest is Test {
             else high = mid;
         }
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         this.sellWithShortfall(offer.market, low + 1);
         this.sellWithShortfall(offer.market, low);
         assertEq(adapter.marketData(marketId).rate, 0, "all remaining interest is used");
@@ -666,7 +670,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);
         skip(bound(elapsed, 0, 30 days));
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - DEFAULT_TICK_SPACING);
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 99e18);
@@ -2195,7 +2199,7 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 5, "");
 
         setMaxSellRate(offer.market, maxSellRate);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
     }
@@ -2209,7 +2213,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 10, discountTick);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 10, "");
 
@@ -2379,7 +2383,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "par sale accepted before maturity");
 
         skip(afterMaturity ? 2 : 1);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "below-par sale rejected from maturity");
         sellUnits(offer.market, 1e18, MAX_TICK);
@@ -2398,7 +2402,7 @@ contract MidnightAdapterTest is Test {
         skip(30 days + bound(elapsed, 0, 365 days));
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
-        if (tick < MAX_TICK) vm.expectRevert(stdError.arithmeticError);
+        if (tick < MAX_TICK) vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18, "");
@@ -3537,7 +3541,7 @@ contract MidnightAdapterTest is Test {
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
         bytes memory data = ratify([sellOffer], signerAllocator);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         this.takeWithAccrual(sellOffer, data, buyer, address(0));
 
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "adapter credit unchanged");
@@ -3765,7 +3769,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 200e18);
         assertGt(adapter.realAssets(), 100e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
         sellUnits(offer.market, 200e18, MAX_TICK / 2);
 
         uint256 tick = TickLib.priceToTick(0.6e18, DEFAULT_TICK_SPACING);
@@ -3813,10 +3817,12 @@ contract MidnightAdapterTest is Test {
         uint256 rate = adapter.marketData(marketId).rate;
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm).zeroFloorSub(proceeds);
-        uint256 newAmortizedValue = (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm) + shortfall;
+        uint256 newAmortizedValue = (netCredit - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
         bool interestExhausted = shortfall > 0 && newAmortizedValue > netCredit - sold;
 
-        if (interestExhausted) vm.expectRevert(stdError.arithmeticError);
+        if (interestExhausted) {
+            vm.expectRevert(IMidnightAdapterBase.RemainingRateTooLow.selector);
+        }
         sellUnits(offer.market, sold, tick);
 
         if (interestExhausted) {
