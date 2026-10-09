@@ -496,14 +496,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function removeMarket(bytes32 marketId) internal {
-        MarketData storage _marketData = marketData[marketId];
+        MarketData memory _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        bool uncappedLoss = _marketData.uncappedLoss;
         delete marketData[marketId];
-        if (uncappedLoss) _marketData.uncappedLoss = true;
+        marketData[marketId].uncappedLoss = _marketData.uncappedLoss;
     }
 
     /* VIEWS */
