@@ -18,10 +18,10 @@ jobs:
       - name: Install Foundry (old)
         uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
-          version: v1.8.0
+          version: v1.8.3
       - name: Verify forge executable hash
         env:
-          EXPECTED_FORGE_SHA256: c0fbe3ba32d7f498507042dbb94f5954be51126a76ce84e37d71749e7c9c571f
+          EXPECTED_FORGE_SHA256: deb412a722e873e11e60051deb9d403b584a2d7e49d8b9ee68441edfea215e9c
         run: |
           forge_path="$(which forge)"
           echo "forge path: $forge_path"
