@@ -441,23 +441,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
-        if (!_marketData.uncappedLoss && ttm > 0 && soldNetCredit > sellerAssets) {
-            require(
-                (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
-                    <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
-                SellRateTooHigh()
-            );
-        }
+        if (!_marketData.uncappedLoss) {
+            if (ttm > 0 && soldNetCredit > sellerAssets) {
+                require(
+                    (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
+                        <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
+                    SellRateTooHigh()
+                );
+            }
 
-        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        if (!_marketData.uncappedLoss && amortizedValue > sellerAssets) {
-            uint256 shortfall = amortizedValue - sellerAssets;
-            require(
-                shortfall * WAD <= newNetCredit * ttm * uint256(_marketData.growth).zeroFloorSub(minGrowth),
-                RemainingGrowthTooLow()
-            );
-            // forge-lint: disable-next-item(unsafe-typecast) the decrease is at most growth - minGrowth.
-            _marketData.growth -= uint64(shortfall.mulDivUp(WAD, newNetCredit * ttm));
+            uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
+            if (amortizedValue > sellerAssets) {
+                uint256 shortfall = amortizedValue - sellerAssets;
+                require(
+                    shortfall * WAD <= newNetCredit * ttm * uint256(_marketData.growth).zeroFloorSub(minGrowth),
+                    RemainingGrowthTooLow()
+                );
+                // forge-lint: disable-next-item(unsafe-typecast) the decrease is at most growth - minGrowth.
+                _marketData.growth -= uint64(shortfall.mulDivUp(WAD, newNetCredit * ttm));
+            }
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
