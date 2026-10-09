@@ -25,6 +25,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall, decreasing to zero at maturity.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
 /// TIMELOCKS
