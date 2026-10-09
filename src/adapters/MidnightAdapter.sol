@@ -435,7 +435,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
         if (amortizedValue > sellerAssets) {
             uint256 newAmortizedValue =
-                uint256(newNetCredit).mulDivDown(WAD, WAD + _marketData.rate * ttm) + amortizedValue - sellerAssets;
+                uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + amortizedValue - sellerAssets;
             _marketData.rate = (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
             require(_marketData.rate >= minRate, RemainingRateTooLow());
         }

@@ -648,7 +648,7 @@ contract MidnightAdapterTest is Test {
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
             uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivDown(1e18, 1e18 + rate * 30 days)
+            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
                 + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
             if (newAmortizedValue <= 100e18 - units) low = mid;
             else high = mid;
@@ -2180,7 +2180,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0);
     }
 
-    function testTakeRoundingShortfallFailsMaxSellRate() public {
+    function testTakeRoundingShortfallRevertsWhenRemainingInterestRoundsAway() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
@@ -2195,13 +2195,9 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 5, "");
 
         setMaxSellRate(offer.market, maxSellRate);
+        vm.expectRevert(stdError.arithmeticError);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
-
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 5);
-        assertEq(adapter.marketData(_marketId(offer.market)).rate, 0, "rounding shortfall uses all remaining interest");
-        assertEq(adapter.realAssets(), 5);
-        assertEq(loanToken.balanceOf(address(parentVault)), 5);
     }
 
     function testTakeSaleRoundsValueUp() public {
