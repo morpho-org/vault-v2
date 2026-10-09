@@ -114,8 +114,8 @@ contract DurationAllocationsGasTest is Test {
                 padLeft(vm.toString(gasUsed[0]), 10),
                 padLeft(vm.toString(gasUsed[1]), 10),
                 padLeft(vm.toString(gasUsed[2]), 10),
-                padLeft(signedDelta(gasUsed[2], gasUsed[0]), 14),
-                padLeft(signedDelta(gasUsed[2], gasUsed[1]), 14)
+                padLeft(signedDelta(gasUsed[2], gasUsed[1]), 14),
+                padLeft(signedDelta(gasUsed[0], gasUsed[2]), 14)
             )
         );
     }
@@ -123,7 +123,7 @@ contract DurationAllocationsGasTest is Test {
     function benchmarkAllDurationsAndProfiles(uint256 marketsCount) internal {
         console.log("");
         console.log(string.concat("=== ", vm.toString(marketsCount), " markets ==="));
-        console.log("durations  profile       for_loop      main  main_unch  unch-for_loop     unch-main");
+        console.log("durations  profile       for_loop      main  main_unch      unch-main  for_loop-unch");
 
         uint256[4] memory durationsCounts = [uint256(1), 2, 5, 8];
 
