@@ -6,9 +6,6 @@ import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
-    bytes32 private constant CREATE_MIDNIGHT_ADAPTER_EVENT_SIGNATURE =
-        0x0905e98509183cd5c4924773be2ae01631be2473c0e305a506ee61df1dc02b96;
-
     /* IMMUTABLES */
 
     address public immutable midnight;
@@ -31,10 +28,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* GETTERS */
 
     function durationsLength() external view returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0, sload(durations.slot))
-            return(0, 32)
-        }
+        return durations.length;
     }
 
     /* FUNCTIONS */
@@ -43,10 +37,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
         midnightAdapter[parentVault][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        assembly ("memory-safe") {
-            mstore(0, salt)
-            log3(0, 32, CREATE_MIDNIGHT_ADAPTER_EVENT_SIGNATURE, parentVault, _midnightAdapter)
-        }
+        emit CreateMidnightAdapter(parentVault, salt, _midnightAdapter);
         return _midnightAdapter;
     }
 }
