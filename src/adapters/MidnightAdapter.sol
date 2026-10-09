@@ -26,6 +26,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev A shortfall decreases the growth of markets in marketIds order, down to minGrowth, so the amortized value of the adapter decreases only by the received assets.
 /// @dev Markets with a sale in progress do not absorb shortfalls.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall, decreasing to zero at maturity.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
 /// TIMELOCKS
@@ -367,10 +368,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
-            uint256 addedAssetsWadPerSecond = (boughtNetCredit - paidAssets).mulDivDown(WAD, ttm);
-            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
+            uint256 amortizedValue =
+                (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
+            _marketData.growth = uint64((newNetCredit - amortizedValue).mulDivDown(WAD, newNetCredit * ttm));
             require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
         }
 
