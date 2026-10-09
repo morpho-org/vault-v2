@@ -537,25 +537,83 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate)));
+    }
+
+    function testSetMinBuyRateNotTimelocked(address caller, uint256 newMinBuyRate) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
         adapter.setMinBuyRate(newMinBuyRate);
     }
 
     function testSetMinBuyRateAuthorized(uint256 oldMinBuyRate, uint256 newMinBuyRate) public {
         oldMinBuyRate = bound(oldMinBuyRate, 0, type(uint64).max);
         newMinBuyRate = bound(newMinBuyRate, 0, type(uint64).max);
+        setMinBuyRate(oldMinBuyRate);
         vm.prank(curator);
-        adapter.setMinBuyRate(oldMinBuyRate);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate)));
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetMinBuyRate(newMinBuyRate);
-        vm.prank(curator);
         adapter.setMinBuyRate(newMinBuyRate);
         assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate");
     }
 
     function testSetMinBuyRateOverflow(uint256 newMinBuyRate) public {
         newMinBuyRate = bound(newMinBuyRate, uint256(type(uint64).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        adapter.setMinBuyRate(newMinBuyRate);
+    }
+
+    function testSetMinBuyRateTimelocked(uint256 newMinBuyRate, uint256 duration) public {
+        newMinBuyRate = bound(newMinBuyRate, 0, type(uint64).max);
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setMinBuyRate.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setMinBuyRate(newMinBuyRate);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setMinBuyRate.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMinBuyRate(newMinBuyRate);
+        adapter.setMinBuyRate(newMinBuyRate);
+        assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate");
+        assertEq(adapter.executableAt(data), 0, "executableAt");
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setMinBuyRate(newMinBuyRate);
+    }
+
+    function testSetMinBuyRateRevoked(uint256 newMinBuyRate) public {
+        newMinBuyRate = bound(newMinBuyRate, 0, type(uint64).max);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate));
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.prank(curator);
+        adapter.revoke(data);
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setMinBuyRate(newMinBuyRate);
+    }
+
+    function testSetMinBuyRateAbdicated(uint256 newMinBuyRate) public {
+        newMinBuyRate = bound(newMinBuyRate, 0, type(uint64).max);
+        bytes4 selector = IMidnightAdapterBase.setMinBuyRate.selector;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (selector)));
+        adapter.abdicate(selector);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate)));
+        vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
         adapter.setMinBuyRate(newMinBuyRate);
     }
 
@@ -4632,6 +4690,7 @@ contract MidnightAdapterTest is Test {
 
     function setMinBuyRate(uint256 newMinBuyRate) internal {
         vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinBuyRate, (newMinBuyRate)));
         adapter.setMinBuyRate(newMinBuyRate);
     }
 

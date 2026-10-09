@@ -201,7 +201,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Help prevent operational errors when buying.
     function setMinBuyRate(uint256 newMinBuyRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        timelocked();
         minBuyRate = newMinBuyRate.toUint64();
         emit SetMinBuyRate(newMinBuyRate);
     }
