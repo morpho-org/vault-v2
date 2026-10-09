@@ -171,19 +171,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function enableUncappedLoss(bytes32 marketId) external {
+    function setForceSellable(bytes32 marketId) external {
         timelocked();
-        marketData[marketId].uncappedLoss = true;
-        emit EnableUncappedLoss(marketId);
+        marketData[marketId].forceSellable = true;
+        emit SetForceSellable(marketId);
     }
 
-    function disableUncappedLoss(bytes32 marketId) external {
+    function unsetForceSellable(bytes32 marketId) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-        marketData[marketId].uncappedLoss = false;
-        emit DisableUncappedLoss(marketId);
+        marketData[marketId].forceSellable = false;
+        emit UnsetForceSellable(marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -365,7 +365,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.uncappedLoss, UnauthorizedBuy());
+        require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
@@ -441,7 +441,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
-        if (!_marketData.uncappedLoss) {
+        if (!_marketData.forceSellable) {
             if (ttm > 0 && soldNetCredit > sellerAssets) {
                 require(
                     (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
@@ -502,7 +502,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
-        marketData[marketId].uncappedLoss = _marketData.uncappedLoss;
+        marketData[marketId].forceSellable = _marketData.forceSellable;
     }
 
     /* VIEWS */
