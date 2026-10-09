@@ -552,6 +552,53 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate");
     }
 
+    function testSetSalesDisabledNotAuthorized(address caller, bool newSalesDisabled) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.setSalesDisabled(newSalesDisabled);
+    }
+
+    function testSetSalesDisabledAuthorized(bool newSalesDisabled) public {
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetSalesDisabled(newSalesDisabled);
+        vm.prank(curator);
+        adapter.setSalesDisabled(newSalesDisabled);
+        assertEq(adapter.salesDisabled(), newSalesDisabled, "salesDisabled");
+    }
+
+    function testSalesDisabledBlocksTakerSale() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+
+        vm.prank(curator);
+        adapter.setSalesDisabled(true);
+        vm.expectRevert(IMidnightAdapterBase.SalesDisabled.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18, "");
+    }
+
+    function testSalesDisabledBlocksMakerSale() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, MAX_TICK);
+        deal(address(loanToken), taker, 1e18);
+
+        vm.prank(curator);
+        adapter.setSalesDisabled(true);
+        vm.expectRevert(IMidnightAdapterBase.SalesDisabled.selector);
+        take(sellOffer);
+    }
+
+    function testSalesDisabledDoesNotBlockForceDeallocate() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        deal(address(loanToken), address(this), 0.25e18);
+
+        vm.prank(curator);
+        adapter.setSalesDisabled(true);
+        forceDeallocate(initial.market, 0.25e18);
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
+    }
+
     function testSetMinBuyRateOverflow(uint256 newMinBuyRate) public {
         newMinBuyRate = bound(newMinBuyRate, uint256(type(uint64).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);

@@ -34,6 +34,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
     event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
+    event SetSalesDisabled(bool newSalesDisabled);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(
@@ -80,6 +81,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyRateTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
+    error SalesDisabled();
     error SellRateTooHigh();
     error MaxShortfallExceeded();
     error MaxShortfallRatioTooHigh();
@@ -108,6 +110,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint64);
+    function salesDisabled() external view returns (bool);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -118,6 +121,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setMinBuyRate(uint256 newMinBuyRate) external;
+    function setSalesDisabled(bool newSalesDisabled) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
