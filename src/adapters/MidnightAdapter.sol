@@ -171,12 +171,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    /// @dev The curator can disable uncappedLoss without timelock.
-    function setUncappedLoss(bytes32 marketId, bool newUncappedLoss) external {
-        if (newUncappedLoss) timelocked();
-        else require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        marketData[marketId].uncappedLoss = newUncappedLoss;
-        emit SetUncappedLoss(marketId, newUncappedLoss);
+    function enableUncappedLoss(bytes32 marketId) external {
+        timelocked();
+        marketData[marketId].uncappedLoss = true;
+        emit EnableUncappedLoss(marketId);
+    }
+
+    function disableUncappedLoss(bytes32 marketId) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        marketData[marketId].uncappedLoss = false;
+        emit DisableUncappedLoss(marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
