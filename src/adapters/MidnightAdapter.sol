@@ -352,7 +352,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
             uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + _marketData.rate * ttm) + paidAssets;
+                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + paidAssets;
             _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
             require(_marketData.rate >= minRate, BuyRateTooLow());
         }
