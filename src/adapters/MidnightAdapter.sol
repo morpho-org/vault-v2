@@ -199,7 +199,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetShortfallRefillPeriod(newShortfallRefillPeriod, shortfallAllowance);
     }
 
-    /// @dev Help prevent operational errors when buying.
+    /// @dev Set the min buy rate to avoid drop in real assets value.
     function setMinBuyRate(uint256 newMinBuyRate) external {
         timelocked();
         minBuyRate = newMinBuyRate.toUint64();
