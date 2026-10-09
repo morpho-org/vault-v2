@@ -577,7 +577,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(length <= durationsLength, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
-        // Safe: marketIds.length <= MAX_MARKETS, length <= MAX_DURATIONS, length > 0, j > 0 where decremented, and sums of at most MAX_MARKETS uint128 values fit in uint256.
+        // Safe unchecked block: marketIds.length <= MAX_MARKETS, length <= MAX_DURATIONS, length > 0, j > 0 where decremented, and sums of at most MAX_MARKETS uint128 values fit in uint256.
         unchecked {
             for (uint256 i; i < marketIds.length; i++) {
                 MarketData storage _marketData = marketData[marketIds[i]];
