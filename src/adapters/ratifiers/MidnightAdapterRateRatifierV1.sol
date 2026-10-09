@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Morpho Association
-pragma solidity 0.8.34;
+pragma solidity 0.8.37;
 
 import {
     IMidnightAdapterRateRatifierV1,
