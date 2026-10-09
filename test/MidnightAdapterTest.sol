@@ -574,20 +574,22 @@ contract MidnightAdapterTest is Test {
         uint256 ttm = 30 days - elapsed;
         uint256 growth = adapter.marketData(marketId).growth;
         uint256 discountFactor = 1e18 - growth * ttm;
-        minGrowth = bound(minGrowth, 1, growth);
+        minGrowth = bound(minGrowth, 0, growth);
         setMinGrowth(minGrowth);
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
         uint256 maxSold = (100e18 * (1e18 - discountFactor) - 1e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 shortfall = sold.mulDivUp(discountFactor, 1e18) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 newGrowth = growth - shortfall.mulDivUp(1e18, (100e18 - sold) * ttm);
+        uint256 denominator = (100e18 - sold) * ttm;
+        uint256 growthDecrease = shortfall.mulDivUp(1e18, denominator);
+        bool remainingGrowthTooLow = shortfall * 1e18 > denominator * uint256(growth).zeroFloorSub(minGrowth);
 
-        if (newGrowth < minGrowth) {
+        if (remainingGrowthTooLow) {
             vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
             sellUnits(offer.market, sold, tick);
         } else {
             sellUnits(offer.market, sold, tick);
-            assertEq(adapter.marketData(marketId).growth, newGrowth, "growth decreases");
+            assertEq(adapter.marketData(marketId).growth, growth - growthDecrease, "growth decreases");
         }
     }
 
@@ -625,6 +627,7 @@ contract MidnightAdapterTest is Test {
     function testLossSaleCanUseAllRemainingInterest() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
+        setMinGrowth(0);
         uint256 growth = adapter.marketData(marketId).growth;
         uint256 discountFactor = 1e18 - growth * 30 days;
         uint256 low;
