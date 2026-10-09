@@ -2812,6 +2812,34 @@ contract MidnightAdapterTest is Test {
         adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, seller, address(adapter), "");
     }
 
+    function testOnSellNonEmptyCallbackData(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        vm.prank(address(midnight));
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, address(adapter), address(adapter), callbackData);
+    }
+
+    function testSellOfferNonEmptyCallbackDataReverts(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory sellOffer = makeSellOffer(offer.market, offer.maxUnits, MAX_TICK);
+        sellOffer.callbackData = callbackData;
+        deal(address(loanToken), taker, offer.maxUnits);
+
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        this.takeWithAccrual(sellOffer, "", taker, address(0));
+    }
+
+    function testTakeSellNonEmptyCallbackDataReverts(bytes memory callbackData) public {
+        vm.assume(callbackData.length > 0);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, offer.maxUnits, MAX_TICK);
+
+        vm.expectRevert(IMidnightAdapterBase.NonEmptyCallbackData.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", offer.maxUnits, callbackData);
+    }
+
     function testDeallocateNotParentVault(address caller) public {
         vm.assume(caller != address(parentVault));
         vm.prank(caller);
@@ -4102,7 +4130,6 @@ contract MidnightAdapterTest is Test {
         offset = bound(offset, 0, 1 days - 1);
         vm.warp(10 days + offset);
         Offer memory offer = buy(30 days, 100e18);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.maxShortfallRatio(), 0.005e18);
         assertEq(adapter.shortfallRefillPeriod(), 1 days);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -4300,7 +4327,6 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
         sellAndRebuyWithShortfall(offer.market, 0.25e18);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.shortfallAllowance(), 0.25e18);
 
         skip(6 hours);
@@ -4335,7 +4361,6 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 900e18, 900e18, 1000e18, 0.25e18);
         take(additionalOffer);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "elapsed time uses old credit");
 
         skip(1 hours);
@@ -4365,7 +4390,6 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(12 hours);
         buyAdditionalCredit(offer.market, 900e18);
-        bytes32 marketId = _marketId(offer.market);
 
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.25e18 + 1), MAX_TICK / 2);
