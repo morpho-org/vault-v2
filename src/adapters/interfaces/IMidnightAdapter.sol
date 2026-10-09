@@ -33,7 +33,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMinGrowth(uint256 newMinGrowth);
     event SetMaxTtm(uint256 newMaxTtm);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
-    event SetForceReevaluationAllowed(bytes32 indexed marketId, bool newForceReevaluationAllowed);
+    event AllowForceReevaluation(bytes32 indexed marketId);
+    event DisallowForceReevaluation(address indexed sender, bytes32 indexed marketId);
     event ForceReevaluateMarket(address indexed sender, bytes32 indexed marketId, uint256 newGrowth);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
@@ -103,7 +104,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinGrowth(uint256 newMinGrowth) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
-    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external;
+    function allowForceReevaluation(bytes32 marketId) external;
+    function disallowForceReevaluation(bytes32 marketId) external;
     function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;

@@ -171,10 +171,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external {
+    function allowForceReevaluation(bytes32 marketId) external {
         timelocked();
-        marketData[marketId].forceReevaluationAllowed = newForceReevaluationAllowed;
-        emit SetForceReevaluationAllowed(marketId, newForceReevaluationAllowed);
+        marketData[marketId].forceReevaluationAllowed = true;
+        emit AllowForceReevaluation(marketId);
+    }
+
+    /// @dev The sentinel can also disallow.
+    function disallowForceReevaluation(bytes32 marketId) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        marketData[marketId].forceReevaluationAllowed = false;
+        emit DisallowForceReevaluation(msg.sender, marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
