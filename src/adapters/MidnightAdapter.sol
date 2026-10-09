@@ -46,6 +46,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable midnight;
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
+    /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all midnight markets.
     /// @dev Sorted in ascending order.
     /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
     /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
@@ -342,7 +343,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(ttm <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        // Cache corrected net credit before call to allocate
         uint128 newNetCredit = currentNetCredit(marketId);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
@@ -507,7 +507,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the durations that can be capped.
     /// @dev A position counts toward every duration <= its current remaining time to maturity.
-    function durations() public view returns (uint256[] memory) {
+    function durations() external view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
             _durations[i] = packedDurations.get(i);
@@ -539,14 +539,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
-            uint256 newNetCredit;
+            uint256 netCredit;
             if (marketId == overridenMarketId) {
-                newNetCredit = overridenMarketNetCredit;
+                netCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(marketId);
+                netCredit = currentNetCredit(marketId);
             }
-            assets += newNetCredit.mulDivDown(
+            assets += netCredit.mulDivDown(
                 WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)
             );
         }
