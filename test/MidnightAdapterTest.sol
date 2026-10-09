@@ -3935,6 +3935,35 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(absorberId).growth, newGrowth, "later market absorbs the shortfall");
     }
 
+    function testNestedSaleSkipsMarketWithSaleInProgress() public {
+        Offer memory outer = buy(30 days, 100e18, MAX_TICK / 2);
+        Offer memory inner = buy(60 days, 100e18, MAX_TICK / 2);
+        Offer memory absorber = buy(90 days, 100e18, MAX_TICK / 2);
+        setMaxSellRate(inner.market, type(uint256).max);
+        skip(1 days);
+        adapter.withdrawToVault(outer.market, 0);
+        adapter.withdrawToVault(inner.market, 0);
+        adapter.withdrawToVault(absorber.market, 0);
+
+        uint256 outerGrowth = adapter.marketData(_marketId(outer.market)).growth;
+        uint256 absorberGrowth = adapter.marketData(_marketId(absorber.market)).growth;
+        uint256 outerSold = assertNestedSaleCapacity(outer.market, inner.market, absorber.market);
+
+        EagerLossCallback callback = new EagerLossCallback(address(midnight), address(loanToken), address(parentVault));
+        deal(address(loanToken), address(callback), 1_000e18);
+        pushNestedSell(callback, inner.market);
+
+        callbackSale(makeSellOffer(outer.market, outerSold, MAX_TICK), callback);
+
+        assertEq(
+            adapter.marketData(_marketId(outer.market)).growth, outerGrowth, "market with sale in progress is unchanged"
+        );
+        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, 0, "nested sale completes");
+        assertLt(
+            adapter.marketData(_marketId(absorber.market)).growth, absorberGrowth, "third market absorbs the inner loss"
+        );
+    }
+
     function testShortfallUsesAmortizedValue() public {
         Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
         setMaxSellRate(offer.market, type(uint256).max);
@@ -4037,6 +4066,52 @@ contract MidnightAdapterTest is Test {
     }
 
     /* HELPERS */
+
+    function assertNestedSaleCapacity(Market memory outer, Market memory inner, Market memory absorber)
+        internal
+        view
+        returns (uint256 outerSold)
+    {
+        MarketData memory outerData = adapter.marketData(_marketId(outer));
+        MarketData memory innerData = adapter.marketData(_marketId(inner));
+        MarketData memory absorberData = adapter.marketData(_marketId(absorber));
+        outerSold = uint256(outerData.netCredit) / 10;
+        uint256 outerTtm = outerData.maturity - block.timestamp;
+        uint256 innerTtm = innerData.maturity - block.timestamp;
+        uint256 absorberTtm = absorberData.maturity - block.timestamp;
+        uint256 innerTick = TickLib.priceToTick(0.4e18, DEFAULT_TICK_SPACING);
+        uint256 innerLoss = uint256(innerData.netCredit).mulDivUp(WAD - innerData.growth * innerTtm, WAD)
+            - uint256(innerData.netCredit).mulDivUp(TickLib.tickToPrice(innerTick), WAD);
+        uint256 outerCapacity = (uint256(outerData.netCredit) - outerSold)
+        .mulDivDown((outerData.growth - adapter.minGrowth()) * outerTtm, WAD);
+        uint256 absorberCapacity =
+            uint256(absorberData.netCredit).mulDivDown((absorberData.growth - adapter.minGrowth()) * absorberTtm, WAD);
+        assertEq(adapter.marketIds(0), _marketId(outer), "outer market is first");
+        assertGt(innerLoss, 0, "nested sale has a shortfall");
+        assertLt(innerLoss, outerCapacity, "outer market could absorb the inner loss");
+        assertLt(innerLoss, absorberCapacity, "third market can absorb the inner loss");
+    }
+
+    function pushNestedSell(EagerLossCallback callback, Market memory market) internal {
+        uint256 tick = TickLib.priceToTick(0.4e18, DEFAULT_TICK_SPACING);
+        Offer memory sellOffer = makeSellOffer(market, adapter.marketData(_marketId(market)).netCredit, tick);
+        callback.push(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    sellOffer,
+                    ratify([sellOffer], signerAllocator),
+                    sellOffer.maxUnits,
+                    address(callback),
+                    address(0),
+                    address(0),
+                    ""
+                )
+            ),
+            bytes4(0)
+        );
+    }
 
     function buyShortfallMarkets() internal returns (Offer memory offerA, Offer memory offerB) {
         offerA = buy(30 days, 100e18, MAX_TICK / 2);
