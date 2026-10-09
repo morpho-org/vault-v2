@@ -351,7 +351,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (newNetCredit > 0) {
             uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivDown(WAD - _marketData.growth * ttm, WAD) + paidAssets;
+                (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
             _marketData.growth = uint64((newNetCredit - amortizedValue).mulDivDown(WAD, newNetCredit * ttm));
             require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
