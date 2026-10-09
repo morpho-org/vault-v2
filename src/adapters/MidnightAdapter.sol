@@ -493,7 +493,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketIds.pop();
         bool uncappedLoss = _marketData.uncappedLoss;
         delete marketData[marketId];
-        _marketData.uncappedLoss = uncappedLoss;
+        if (uncappedLoss) _marketData.uncappedLoss = true;
     }
 
     /* VIEWS */
