@@ -10,6 +10,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     /// @dev Each unit of growth represents 1/WAD of the net credit accrued per second, until maturity.
+    /// @dev Growth is interest relative to the net credit, not to the paid assets.
     uint64 growth;
     uint48 maturity;
     uint8 index;
@@ -29,20 +30,17 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed sender, address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetMinBuyRate(uint256 newMinBuyRate);
+    event SetMinGrowth(uint256 newMinGrowth);
     event SetMaxTtm(uint256 newMaxTtm);
-    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio, uint256 shortfallAllowance);
-    event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod, uint256 shortfallAllowance);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetForceReevaluationAllowed(bytes32 indexed marketId, bool newForceReevaluationAllowed);
     event ForceReevaluateMarket(address indexed sender, bytes32 indexed marketId, uint256 newGrowth);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
-    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
-    event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
+    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 newNetCredit, uint256 newGrowth);
 
     /* ERRORS */
 
@@ -60,26 +58,26 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
+    error InvalidLength();
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
+    error NonEmptyCallbackData();
     error OtherSellInProgress();
     error GrowthNotIncreasing();
     error GrowthTooHigh();
     error ForceReevaluationNotAllowed();
-    error BuyRateTooLow();
+    error BuyGrowthTooLow();
+    error RemainingGrowthTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
-    error MaxShortfallExceeded();
-    error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
-    error VaultNotAccrued();
 
     /* FUNCTIONS */
 
@@ -91,15 +89,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
-    function totalNetCredit() external view returns (uint136);
-    function maxShortfallRatio() external view returns (uint64);
-    function shortfallRefillPeriod() external view returns (uint40);
-    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
-    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
-    function shortfallAllowance() external view returns (uint128);
-    function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
-    function minBuyRate() external view returns (uint64);
+    function minGrowth() external view returns (uint64);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -109,7 +100,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setMinBuyRate(uint256 newMinBuyRate) external;
+    function setMinGrowth(uint256 newMinGrowth) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function setForceReevaluationAllowed(bytes32 marketId, bool newForceReevaluationAllowed) external;
@@ -120,9 +111,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function durationAllocations() external view returns (uint256[] memory);
+    function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
