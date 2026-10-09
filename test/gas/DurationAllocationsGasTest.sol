@@ -7,9 +7,9 @@ import {IERC20} from "../../src/interfaces/IERC20.sol";
 import {IMidnightAdapter} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {VaultV2Mock} from "../mocks/VaultV2Mock.sol";
-import {MidnightAdapterCurrent} from "./MidnightAdapterCurrent.sol";
-import {MidnightAdapterCached} from "./MidnightAdapterCached.sol";
+import {MidnightAdapterForLoopUnchecked} from "./MidnightAdapterForLoopUnchecked.sol";
 import {MidnightAdapterMain} from "./MidnightAdapterMain.sol";
+import {MidnightAdapterMainUnchecked} from "./MidnightAdapterMainUnchecked.sol";
 
 /// @dev Measures from a fresh call frame so the test contract's memory does not leak into the measurement.
 contract GasProber {
@@ -26,8 +26,8 @@ contract GasProber {
     }
 }
 
-/// @dev Benchmarks three implementations of durationAllocations: current with unchecked arithmetic, main as is, and main
-/// with unchecked arithmetic (in MidnightAdapterCached.sol to keep the file diffs readable).
+/// @dev Benchmarks three implementations of durationAllocations: the for-loop version with unchecked arithmetic, main as
+/// is, and main with unchecked arithmetic.
 /// @dev Run with `FOUNDRY_ISOLATE=false forge test --match-contract DurationAllocationsGasTest -vv`.
 /// @dev Isolate mode must be off: it makes every external call its own transaction, so storage is always cold.
 /// @dev Storage is warmed first, as the vault's accrueInterest does through realAssets before the buy callback runs.
@@ -92,9 +92,9 @@ contract DurationAllocationsGasTest is Test {
         }
 
         address[3] memory variants = [
-            address(new MidnightAdapterCurrent(address(parentVault), address(midnight), durations)),
+            address(new MidnightAdapterForLoopUnchecked(address(parentVault), address(midnight), durations)),
             address(new MidnightAdapterMain(address(parentVault), address(midnight), durations)),
-            address(new MidnightAdapterCached(address(parentVault), address(midnight), durations))
+            address(new MidnightAdapterMainUnchecked(address(parentVault), address(midnight), durations))
         ];
 
         uint256[3] memory gasUsed;
@@ -123,7 +123,7 @@ contract DurationAllocationsGasTest is Test {
     function benchmarkAllDurationsAndProfiles(uint256 marketsCount) internal {
         console.log("");
         console.log(string.concat("=== ", vm.toString(marketsCount), " markets ==="));
-        console.log("durations  profile        current      main  main_unch  unch-current     unch-main");
+        console.log("durations  profile       for_loop      main  main_unch  unch-for_loop     unch-main");
 
         uint256[4] memory durationsCounts = [uint256(1), 2, 5, 8];
 
