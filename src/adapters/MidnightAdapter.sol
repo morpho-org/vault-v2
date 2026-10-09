@@ -16,7 +16,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() by reducing the discount applied to the remaining interest to be earned.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
@@ -452,21 +452,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 loss = amortizedValue.zeroFloorSub(sellerAssets);
         for (uint256 i; i < marketIds.length && loss > 0; i++) {
             bytes32 id = marketIds[i];
-            MarketData storage marketData_i = marketData[id];
+            MarketData storage otherMarketData = marketData[id];
             uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
-            uint256 ttm_i = uint256(marketData_i.maturity).zeroFloorSub(block.timestamp);
-            uint256 growth = marketData_i.growth;
-            if (ttm_i == 0 || netCredit == 0 || growth <= minGrowth) continue;
+            uint256 otherTtm = uint256(otherMarketData.maturity).zeroFloorSub(block.timestamp);
+            uint256 growth = otherMarketData.growth;
+            if (otherTtm == 0 || netCredit == 0 || growth <= minGrowth) continue;
 
-            uint256 capacity = uint256(netCredit).mulDivDown((growth - minGrowth) * ttm_i, WAD);
+            uint256 capacity = uint256(netCredit).mulDivDown((growth - minGrowth) * otherTtm, WAD);
             if (loss <= capacity) {
-                marketData_i.growth = (growth - loss.mulDivUp(WAD, netCredit * ttm_i)).toUint64();
+                otherMarketData.growth = (growth - loss.mulDivUp(WAD, netCredit * otherTtm)).toUint64();
                 loss = 0;
             } else {
-                marketData_i.growth = minGrowth;
+                otherMarketData.growth = minGrowth;
                 loss -= capacity;
             }
-            emit ReduceGrowth(id, marketData_i.growth);
+            emit ReduceGrowth(id, otherMarketData.growth);
         }
         require(loss == 0, RemainingGrowthTooLow());
 
