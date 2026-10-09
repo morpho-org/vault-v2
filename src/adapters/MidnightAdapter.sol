@@ -171,20 +171,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function allowForceReevaluation(bytes32 marketId) external {
+    function enableForceReevaluation(bytes32 marketId) external {
         timelocked();
-        marketData[marketId].forceReevaluationAllowed = true;
-        emit AllowForceReevaluation(marketId);
+        marketData[marketId].forceReevaluationEnabled = true;
+        emit EnableForceReevaluation(marketId);
     }
 
-    /// @dev The sentinel can also disallow.
-    function disallowForceReevaluation(bytes32 marketId) external {
+    /// @dev The sentinel can also disable.
+    function disableForceReevaluation(bytes32 marketId) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-        marketData[marketId].forceReevaluationAllowed = false;
-        emit DisallowForceReevaluation(msg.sender, marketId);
+        marketData[marketId].forceReevaluationEnabled = false;
+        emit DisableForceReevaluation(msg.sender, marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -250,23 +250,23 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
     }
 
-    /* OPERATIONS */
-
     /// @dev Reduces current value without changing maturity value.
     function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
         MarketData storage _marketData = marketData[marketId];
-        require(_marketData.forceReevaluationAllowed, ForceReevaluationNotAllowed());
+        require(_marketData.forceReevaluationEnabled, ForceReevaluationNotEnabled());
         require(newGrowth >= _marketData.growth, GrowthNotIncreasing());
         require(newGrowth <= WAD / (_marketData.maturity - block.timestamp), GrowthTooHigh());
 
         // forge-lint: disable-next-item(unsafe-typecast) newGrowth <= WAD < 2**64.
         _marketData.growth = uint64(newGrowth);
-        _marketData.forceReevaluationAllowed = false;
+        _marketData.forceReevaluationEnabled = false;
         emit ForceReevaluateMarket(msg.sender, marketId, newGrowth);
     }
+
+    /* OPERATIONS */
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
@@ -381,8 +381,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
-        require(!marketData[marketId].forceReevaluationAllowed, UnauthorizedBuy());
         MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceReevaluationEnabled, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
@@ -510,14 +510,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data.
+    /// @dev Removes the market from marketIds and clears its stored data except forceReevaluationEnabled.
     function removeMarket(bytes32 marketId) internal {
-        MarketData storage _marketData = marketData[marketId];
+        MarketData memory _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
+        marketData[marketId].forceReevaluationEnabled = _marketData.forceReevaluationEnabled;
     }
 
     /* VIEWS */

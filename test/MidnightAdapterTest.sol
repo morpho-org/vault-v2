@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
+import {Vm} from "../lib/forge-std/src/Vm.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -532,50 +533,50 @@ contract MidnightAdapterTest is Test {
 
     /* REEVALUATION */
 
-    function testForceReevaluationAllowedDefault(bytes32 marketId) public view {
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+    function testForceReevaluationEnabledDefault(bytes32 marketId) public view {
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
-    function testAllowForceReevaluationNotTimelocked(address caller, bytes32 marketId) public {
+    function testEnableForceReevaluationNotTimelocked(address caller, bytes32 marketId) public {
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(caller);
-        adapter.allowForceReevaluation(marketId);
+        adapter.enableForceReevaluation(marketId);
     }
 
-    function testAllowForceReevaluationTimelocked(bytes32 marketId, uint256 duration) public {
+    function testEnableForceReevaluationTimelocked(bytes32 marketId, uint256 duration) public {
         duration = bound(duration, 1, 3650 days);
-        submitTimelock(IMidnightAdapterBase.allowForceReevaluation.selector, duration);
+        submitTimelock(IMidnightAdapterBase.enableForceReevaluation.selector, duration);
 
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.allowForceReevaluation, (marketId));
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.enableForceReevaluation, (marketId));
         vm.prank(curator);
         adapter.submit(data);
         assertEq(adapter.executableAt(data), block.timestamp + duration, "execution delay");
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed, "unchanged before execution");
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled, "unchanged before execution");
 
         skip(duration - 1);
         vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
-        adapter.allowForceReevaluation(marketId);
+        adapter.enableForceReevaluation(marketId);
 
         skip(1);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.allowForceReevaluation.selector, data);
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.enableForceReevaluation.selector, data);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.AllowForceReevaluation(marketId);
-        adapter.allowForceReevaluation(marketId);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed, "setting updated");
+        emit IMidnightAdapterBase.EnableForceReevaluation(marketId);
+        adapter.enableForceReevaluation(marketId);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled, "setting updated");
         assertEq(adapter.executableAt(data), 0, "pending call consumed");
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.allowForceReevaluation(marketId);
+        adapter.enableForceReevaluation(marketId);
     }
 
-    function testAllowForceReevaluationRevokedOrAbdicated(bytes32 marketId, bool abdicate_) public {
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.allowForceReevaluation, (marketId));
+    function testEnableForceReevaluationRevokedOrAbdicated(bytes32 marketId, bool abdicate_) public {
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.enableForceReevaluation, (marketId));
         vm.prank(curator);
         adapter.submit(data);
 
         if (abdicate_) {
-            bytes4 selector = IMidnightAdapterBase.allowForceReevaluation.selector;
+            bytes4 selector = IMidnightAdapterBase.enableForceReevaluation.selector;
             vm.prank(curator);
             adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (selector)));
             adapter.abdicate(selector);
@@ -585,79 +586,80 @@ contract MidnightAdapterTest is Test {
             adapter.revoke(data);
             vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         }
-        adapter.allowForceReevaluation(marketId);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+        adapter.enableForceReevaluation(marketId);
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
-    function testSetForceReevaluationAllowedPreservesMarketData(bool newForceReevaluationAllowed) public {
+    function testSetForceReevaluationEnabledPreservesMarketData(bool newForceReevaluationEnabled) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
         MarketData memory before = adapter.marketData(marketId);
 
-        allowForceReevaluation(marketId);
-        if (newForceReevaluationAllowed) allowForceReevaluation(marketId);
-        else disallowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
+        if (newForceReevaluationEnabled) enableForceReevaluation(marketId);
+        else disableForceReevaluation(marketId);
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, before.netCredit, "netCredit unchanged");
         assertEq(after_.growth, before.growth, "growth unchanged");
         assertEq(after_.maturity, before.maturity, "maturity unchanged");
         assertEq(after_.index, before.index, "index unchanged");
-        assertEq(after_.forceReevaluationAllowed, newForceReevaluationAllowed, "setting updated");
+        assertEq(after_.forceReevaluationEnabled, newForceReevaluationEnabled, "setting updated");
 
         sell(first.market, 1e18);
         assertEq(adapter.marketData(marketId).index, 0, "updated index");
         assertEq(
-            adapter.marketData(marketId).forceReevaluationAllowed, newForceReevaluationAllowed, "setting unchanged"
+            adapter.marketData(marketId).forceReevaluationEnabled, newForceReevaluationEnabled, "setting unchanged"
         );
     }
 
-    function testDisallowForceReevaluation(address caller, bytes32 marketId) public {
-        address sentinel = makeAddr("reevaluationSentinel");
-        vm.assume(sentinel != curator);
-        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+    function testDisableForceReevaluation(address caller, bytes32 marketId, bool sentinel) public {
         vm.assume(caller != curator && !parentVault.isSentinel(caller));
+        enableForceReevaluation(marketId);
 
-        allowForceReevaluation(marketId);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.DisallowForceReevaluation(curator, marketId);
-        vm.prank(curator);
-        adapter.disallowForceReevaluation(marketId);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
-
-        allowForceReevaluation(marketId);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.DisallowForceReevaluation(sentinel, marketId);
-        vm.prank(sentinel);
-        adapter.disallowForceReevaluation(marketId);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
-
-        allowForceReevaluation(marketId);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.disallowForceReevaluation(marketId);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        adapter.disableForceReevaluation(marketId);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled, "unauthorized caller cannot disable");
+
+        address authorizedCaller = curator;
+        if (sentinel) {
+            authorizedCaller = makeAddr("reevaluationSentinel");
+            stdstore.target(address(parentVault))
+                .sig("isSentinel(address)")
+                .with_key(authorizedCaller)
+                .checked_write(true);
+        }
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DisableForceReevaluation(authorizedCaller, marketId);
+        vm.recordLogs();
+        vm.prank(authorizedCaller);
+        adapter.disableForceReevaluation(marketId);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "no Accept event");
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled, "setting updated");
     }
 
-    function testDisallowForceReevaluationAfterAbdicatingAllow(bytes32 marketId) public {
-        allowForceReevaluation(marketId);
-        bytes4 selector = IMidnightAdapterBase.allowForceReevaluation.selector;
+    function testDisableForceReevaluationAfterAbdicatingEnable(bytes32 marketId) public {
+        enableForceReevaluation(marketId);
+        bytes4 selector = IMidnightAdapterBase.enableForceReevaluation.selector;
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.allowForceReevaluation, (marketId)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.enableForceReevaluation, (marketId)));
         bytes memory data = abi.encodeCall(IMidnightAdapterBase.abdicate, (selector));
         vm.prank(curator);
         adapter.submit(data);
         adapter.abdicate(selector);
 
         vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
-        adapter.allowForceReevaluation(marketId);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        adapter.enableForceReevaluation(marketId);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled);
 
-        disallowForceReevaluation(marketId);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+        disableForceReevaluation(marketId);
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
-    function testForceReevaluationAllowedPreventsBuys(bool takerBuy) public {
+    function testForceReevaluationEnabledPreventsBuys(bool takerBuy) public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
         bytes memory data;
@@ -669,7 +671,7 @@ contract MidnightAdapterTest is Test {
             data = ratify([offer], signerAllocator);
         }
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
 
         vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
         if (takerBuy) {
@@ -684,7 +686,7 @@ contract MidnightAdapterTest is Test {
         Offer memory otherOffer = buy(7 days, 1e18);
         assertEq(adapter.marketData(_marketId(otherOffer.market)).netCredit, 1e18, "other market unaffected");
 
-        disallowForceReevaluation(marketId);
+        disableForceReevaluation(marketId);
         if (takerBuy) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", offer.maxUnits, "");
@@ -692,6 +694,45 @@ contract MidnightAdapterTest is Test {
             this.takeWithAccrual(offer, data, taker, address(0));
         }
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
+    }
+
+    function testForceReevaluationEnabledSurvivesMarketRemoval(uint256 exitType, bool lastMarket) public {
+        exitType = bound(exitType, 0, 2);
+        Offer memory first = buy(1 days, 1e18, discountTick);
+        Offer memory second = buy(7 days, 1e18, discountTick);
+        Offer memory offer = lastMarket ? second : first;
+        bytes32 marketId = _marketId(offer.market);
+        bytes32 otherMarketId = _marketId(lastMarket ? first.market : second.market);
+        enableForceReevaluation(marketId);
+        enableForceReevaluation(otherMarketId);
+
+        if (exitType == 0) {
+            sell(offer.market, offer.maxUnits);
+        } else if (exitType == 1) {
+            vm.prank(taker);
+            midnight.repay(offer.market, offer.maxUnits, taker, address(0), "");
+            adapter.withdrawToVault(offer.market, offer.maxUnits);
+        } else {
+            forceDeallocate(offer.market, offer.maxUnits);
+        }
+
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, true)));
+        assertEq(adapter.marketIdsLength(), 1, "market removed");
+        assertEq(adapter.marketIds(0), otherMarketId, "other market retained");
+        assertEq(adapter.marketData(otherMarketId).index, 0, "other market index updated");
+        assertTrue(adapter.marketData(otherMarketId).forceReevaluationEnabled, "other setting unchanged");
+
+        Offer memory next = makeBuyOffer(offer.market.maturity - block.timestamp, 1e18, MAX_TICK);
+        next.group = bytes32("buy after full exit");
+        midnight.supplyCollateral(next.market, 0, next.maxUnits, taker);
+        midnight.supplyCollateral(next.market, 1, next.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        take(next);
+
+        disableForceReevaluation(marketId);
+        take(next);
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled, "setting disabled");
     }
 
     function testReevaluationDoesNotOverrideMaxSellRate(bool takerSale, bool zeroProceeds, bool zeroRate) public {
@@ -714,7 +755,7 @@ contract MidnightAdapterTest is Test {
             take(offer);
         }
 
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         uint256 newGrowth = (1e18 - TickLib.tickToPrice(offer.tick)) / 30 days;
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceReevaluateMarket(signerAllocator, marketId, newGrowth);
@@ -734,7 +775,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18, "allocation unchanged");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "no sale proceeds");
         assertEq(adapter.realAssets(), 1e18 - newGrowth * 30 days, "valuation reduced");
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed, "authorization consumed");
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled, "authorization consumed");
         assertEq(adapter.maxSellRate(keccak256(abi.encode(offer.market.collateralParams))), maxSellRate);
     }
 
@@ -743,27 +784,27 @@ contract MidnightAdapterTest is Test {
         Offer memory second = buy(1 days, 1e18);
         bytes32 firstMarketId = _marketId(first.market);
         bytes32 secondMarketId = _marketId(second.market);
-        allowForceReevaluation(firstMarketId);
+        enableForceReevaluation(firstMarketId);
 
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        disallowForceReevaluation(firstMarketId);
-        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotAllowed.selector);
+        disableForceReevaluation(firstMarketId);
+        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotEnabled.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(firstMarketId, 1);
-        assertFalse(adapter.marketData(firstMarketId).forceReevaluationAllowed, "override disabled");
+        assertFalse(adapter.marketData(firstMarketId).forceReevaluationEnabled, "override disabled");
 
-        allowForceReevaluation(firstMarketId);
+        enableForceReevaluation(firstMarketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(firstMarketId, 1);
         assertEq(adapter.realAssets(), 3e18 - 2 * 2 days);
         assertEq(adapter.marketData(firstMarketId).netCredit, 2e18);
-        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotAllowed.selector);
+        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotEnabled.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(secondMarketId, 1);
         vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
-        assertFalse(adapter.marketData(secondMarketId).forceReevaluationAllowed, "other market protected");
+        assertFalse(adapter.marketData(secondMarketId).forceReevaluationEnabled, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
     }
 
@@ -771,19 +812,19 @@ contract MidnightAdapterTest is Test {
         vm.assume(!parentVault.isAllocator(caller));
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
 
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
         adapter.forceReevaluateMarket(marketId, 1);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled);
         assertEq(adapter.realAssets(), 1e18);
     }
 
     function testForceReevaluationRequiresAuthorization() public {
         Offer memory offer = buy(30 days, 1e18);
         extraAssetsAdapter.setRealAssets(100e18);
-        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotAllowed.selector);
+        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotEnabled.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(_marketId(offer.market), 1);
         assertEq(adapter.realAssets(), 1e18);
@@ -792,39 +833,39 @@ contract MidnightAdapterTest is Test {
     function testForceReevaluationGrowthUpOnlyAndOneTime(uint256 decrease) public {
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 10);
         assertEq(adapter.marketData(marketId).growth, 10);
         assertEq(adapter.realAssets(), 1e18 - 10 * 30 days);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
 
-        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotAllowed.selector);
+        vm.expectRevert(IMidnightAdapterBase.ForceReevaluationNotEnabled.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 20);
 
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.expectRevert(IMidnightAdapterBase.GrowthNotIncreasing.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, bound(decrease, 0, 9));
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed, "failed call keeps authorization");
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled, "failed call keeps authorization");
         assertEq(adapter.marketData(marketId).growth, 10);
 
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 20);
         assertEq(adapter.marketData(marketId).growth, 20);
         assertEq(adapter.realAssets(), 1e18 - 20 * 30 days);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
     function testForceReevaluationNoOpConsumesAuthorization() public {
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 0);
         assertEq(adapter.realAssets(), 1e18);
-        assertFalse(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertFalse(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
     function testForceReevaluationLowersValueAndPreservesMaturity(uint256 newGrowth, uint256 elapsed) public {
@@ -837,7 +878,7 @@ contract MidnightAdapterTest is Test {
         uint256 assetsBefore = adapter.realAssets();
         uint256[] memory durationsBefore = storedDurationAllocations(adapter);
         bytes32[] memory marketIds = adapter.ids(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, newGrowth);
 
@@ -878,13 +919,13 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(7 days, 1e18, discountTick);
         skip(7 days + bound(elapsed, 0, 365 days));
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         uint256 growth = adapter.marketData(marketId).growth;
         vm.expectRevert(block.timestamp == offer.market.maturity ? stdError.divisionError : stdError.arithmeticError);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, growth + 1);
         assertEq(adapter.marketData(marketId).growth, growth);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled);
         assertEq(adapter.realAssets(), offer.maxUnits);
     }
 
@@ -893,14 +934,14 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
         skip(30 days - remaining);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         uint256 maxGrowth = uint256(1e18) / remaining;
         newGrowth = bound(newGrowth, maxGrowth + 1, type(uint256).max);
         vm.expectRevert(IMidnightAdapterBase.GrowthTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, newGrowth);
         assertEq(adapter.marketData(marketId).growth, 0);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled);
 
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, maxGrowth);
@@ -915,7 +956,7 @@ contract MidnightAdapterTest is Test {
         Offer memory first = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(first.market);
         newGrowth = bound(newGrowth, adapter.marketData(marketId).growth, uint256(1e18) / 30 days);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, newGrowth);
         skip(elapsed);
@@ -946,7 +987,7 @@ contract MidnightAdapterTest is Test {
     function testSaleAfterReevaluationKeepsGrowth() public {
         Offer memory offer = buy(30 days, 2e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 1);
         sellUnits(offer.market, 1e18, MAX_TICK);
@@ -968,7 +1009,7 @@ contract MidnightAdapterTest is Test {
     function testWithdrawalAfterReevaluation() public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 1);
         vm.prank(taker);
@@ -984,7 +1025,7 @@ contract MidnightAdapterTest is Test {
     function testDefaultAfterReevaluation(bool fullLoss) public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 1);
         this.realizeDefault(offer.market, fullLoss ? 0 : ORACLE_PRICE_SCALE / 4);
@@ -1003,7 +1044,7 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         uint256 totalAssetsBefore = realVault.totalAssets();
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 1);
@@ -1016,7 +1057,7 @@ contract MidnightAdapterTest is Test {
         newGrowth = bound(newGrowth, 0, uint256(1e18) / 7 days);
         Offer memory offer = buyMaxNetCredit();
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, newGrowth);
         assertEq(adapter.realAssets(), uint256(type(uint128).max).mulDivDown(1e18 - newGrowth * 7 days, 1e18));
@@ -1027,7 +1068,7 @@ contract MidnightAdapterTest is Test {
     function testDustBuyAfterZeroValuation() public {
         Offer memory first = buy(1, 1e24);
         bytes32 marketId = _marketId(first.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         vm.prank(signerAllocator);
         adapter.forceReevaluateMarket(marketId, 1e18);
         assertEq(adapter.realAssets(), 0);
@@ -1050,7 +1091,7 @@ contract MidnightAdapterTest is Test {
     function testForceReevaluationDuringSaleReverts() public {
         Offer memory offer = freshPosition(MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
         EagerLossCallback callback = newCallback();
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(callback), true)));
         callback.push(
@@ -1060,7 +1101,7 @@ contract MidnightAdapterTest is Test {
         );
         this.accruedCallbackSale(makeSellOffer(offer.market, 4e18, MAX_TICK), callback);
         assertEq(adapter.marketData(marketId).growth, 0);
-        assertTrue(adapter.marketData(marketId).forceReevaluationAllowed);
+        assertTrue(adapter.marketData(marketId).forceReevaluationEnabled);
     }
 
     /* SALES BELOW AMORTIZED VALUE */
@@ -2905,7 +2946,7 @@ contract MidnightAdapterTest is Test {
 
     function testSellFromMaturityRejectsLoss(
         bool takerSale,
-        bool forceReevaluationAllowed,
+        bool forceReevaluationEnabled,
         uint256 tick,
         uint256 elapsed
     ) public {
@@ -2920,7 +2961,7 @@ contract MidnightAdapterTest is Test {
         skip(30 days + bound(elapsed, 0, 365 days));
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
-        if (forceReevaluationAllowed) allowForceReevaluation(_marketId(boughtOffer.market));
+        if (forceReevaluationEnabled) enableForceReevaluation(_marketId(boughtOffer.market));
         if (tick < MAX_TICK) vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
@@ -4050,7 +4091,7 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
-        allowForceReevaluation(marketId);
+        enableForceReevaluation(marketId);
 
         skip(7 days);
         vm.mockCallRevert(storedCollaterals[0].oracle, abi.encodeWithSignature("price()"), bytes("dead oracle"));
@@ -4535,15 +4576,15 @@ contract MidnightAdapterTest is Test {
         adapter.setMinGrowth(newMinGrowth);
     }
 
-    function allowForceReevaluation(bytes32 marketId) internal {
+    function enableForceReevaluation(bytes32 marketId) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.allowForceReevaluation, (marketId)));
-        adapter.allowForceReevaluation(marketId);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.enableForceReevaluation, (marketId)));
+        adapter.enableForceReevaluation(marketId);
     }
 
-    function disallowForceReevaluation(bytes32 marketId) internal {
+    function disableForceReevaluation(bytes32 marketId) internal {
         vm.prank(curator);
-        adapter.disallowForceReevaluation(marketId);
+        adapter.disableForceReevaluation(marketId);
     }
 
     function take(Offer memory offer) internal {
@@ -5388,7 +5429,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), bound(fee, 0, MAX_CONTINUOUS_FEE));
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
-        if (block.timestamp >= initial.market.maturity) allowForceReevaluation(_marketId(initial.market));
+        if (block.timestamp >= initial.market.maturity) enableForceReevaluation(_marketId(initial.market));
         (uint128 credit, uint128 pendingFee,) =
             midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
@@ -5424,7 +5465,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), fee);
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
-        if (block.timestamp >= initial.market.maturity) allowForceReevaluation(_marketId(initial.market));
+        if (block.timestamp >= initial.market.maturity) enableForceReevaluation(_marketId(initial.market));
         if (loss) this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         (uint128 credit,,) = midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
