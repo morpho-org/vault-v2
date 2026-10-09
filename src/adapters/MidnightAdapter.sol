@@ -486,7 +486,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data, except uncappedLoss.
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
