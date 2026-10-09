@@ -6,13 +6,16 @@ import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
+    bytes32 private constant CREATE_MIDNIGHT_ADAPTER_EVENT_SIGNATURE =
+        0x0905e98509183cd5c4924773be2ae01631be2473c0e305a506ee61df1dc02b96;
+
     /* IMMUTABLES */
 
     address public immutable midnight;
 
     /* STORAGE */
 
-    mapping(address parentVault => address) public midnightAdapter;
+    mapping(address parentVault => mapping(bytes32 salt => address)) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
     uint256[] public durations;
 
@@ -28,16 +31,22 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* GETTERS */
 
     function durationsLength() external view returns (uint256) {
-        return durations.length;
+        assembly ("memory-safe") {
+            mstore(0, sload(durations.slot))
+            return(0, 32)
+        }
     }
 
     /* FUNCTIONS */
 
-    function createMidnightAdapter(address parentVault) external returns (address) {
-        address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations));
-        midnightAdapter[parentVault] = _midnightAdapter;
+    function createMidnightAdapter(address parentVault, bytes32 salt) external returns (address) {
+        address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
+        midnightAdapter[parentVault][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, _midnightAdapter);
+        assembly ("memory-safe") {
+            mstore(0, salt)
+            log3(0, 32, CREATE_MIDNIGHT_ADAPTER_EVENT_SIGNATURE, parentVault, _midnightAdapter)
+        }
         return _midnightAdapter;
     }
 }
