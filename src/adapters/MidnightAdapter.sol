@@ -260,7 +260,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS uint128 values are summed.
-totalNetCredit = uint136(totalNetCredit - oldNetCredit + newNetCredit);
+        totalNetCredit = uint136(totalNetCredit - oldNetCredit + newNetCredit);
 
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
