@@ -16,14 +16,14 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Losses are immediately accounted in realAssets() by reducing the discount applied to the remaining interest to be earned.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall decreases the growth of markets in marketIds order, down to minGrowth, so the amortized value of the adapter decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
@@ -192,6 +192,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* ALLOCATOR FUNCTIONS */
+
+    /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
+    function swapMarkets(uint256 i, uint256 j) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+
+        bytes32 marketIdI = marketIds[i];
+        bytes32 marketIdJ = marketIds[j];
+        marketIds[i] = marketIdJ;
+        marketIds[j] = marketIdI;
+        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+        marketData[marketIdI].index = uint8(j);
+        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+        marketData[marketIdJ].index = uint8(i);
+
+        emit SwapMarkets(msg.sender, i, j);
+    }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
         external
@@ -433,10 +449,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        if (amortizedValue > sellerAssets) {
-            _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
-            require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
+        uint256 loss = amortizedValue.zeroFloorSub(sellerAssets);
+        for (uint256 i; i < marketIds.length && loss > 0; i++) {
+            bytes32 id = marketIds[i];
+            MarketData storage marketData_i = marketData[id];
+            uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+            uint256 ttm_i = uint256(marketData_i.maturity).zeroFloorSub(block.timestamp);
+            uint256 growth = marketData_i.growth;
+            if (ttm_i == 0 || netCredit == 0 || growth <= minGrowth) continue;
+
+            uint256 capacity = uint256(netCredit).mulDivDown((growth - minGrowth) * ttm_i, WAD);
+            if (loss <= capacity) {
+                marketData_i.growth = (growth - loss.mulDivUp(WAD, netCredit * ttm_i)).toUint64();
+                loss = 0;
+            } else {
+                marketData_i.growth = minGrowth;
+                loss -= capacity;
+            }
+            emit ReduceGrowth(id, marketData_i.growth);
         }
+        require(loss == 0, RemainingGrowthTooLow());
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;

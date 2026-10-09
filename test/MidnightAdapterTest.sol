@@ -20,6 +20,7 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
+import {WAD} from "../src/libraries/ConstantsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -636,7 +637,7 @@ contract MidnightAdapterTest is Test {
             else high = mid;
         }
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         this.sellWithShortfall(offer.market, low + 1);
         this.sellWithShortfall(offer.market, low);
         assertEq(adapter.marketData(marketId).growth, 0, "all remaining interest is used");
@@ -648,7 +649,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);
         skip(bound(elapsed, 0, 30 days));
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - DEFAULT_TICK_SPACING);
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 99e18);
@@ -2172,7 +2173,7 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 5, "");
 
         setMaxSellRate(offer.market, maxSellRate);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
 
@@ -2190,7 +2191,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 10, discountTick);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 10, "");
 
@@ -2360,7 +2361,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "par sale accepted before maturity");
 
         skip(afterMaturity ? 2 : 1);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "below-par sale rejected from maturity");
         sellUnits(offer.market, 1e18, MAX_TICK);
@@ -2379,7 +2380,7 @@ contract MidnightAdapterTest is Test {
         skip(30 days + bound(elapsed, 0, 365 days));
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
-        if (tick < MAX_TICK) vm.expectRevert(stdError.arithmeticError);
+        if (tick < MAX_TICK) vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18, "");
@@ -3185,6 +3186,38 @@ contract MidnightAdapterTest is Test {
         this.takeWithAccrual(offer, data, taker, address(0));
     }
 
+    function testSwapMarketsNotAuthorizedAndRemovalKeepsIndices() public {
+        Offer memory offerA = buy(1 days, 1e18);
+        Offer memory offerB = buy(2 days, 1e18);
+        Offer memory offerC = buy(3 days, 1e18);
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        bytes32 marketIdC = _marketId(offerC.market);
+
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.swapMarkets(0, 1);
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SwapMarkets(signerAllocator, 0, 2);
+        vm.prank(signerAllocator);
+        adapter.swapMarkets(0, 2);
+        assertEq(adapter.marketIds(0), marketIdC, "market C swapped to index zero");
+        assertEq(adapter.marketData(marketIdC).index, 0, "market C index");
+        assertEq(adapter.marketData(marketIdB).index, 1, "market B index");
+        assertEq(adapter.marketData(marketIdA).index, 2, "market A index");
+
+        setMaxSellRate(offerC.market, type(uint256).max);
+        deal(address(loanToken), taker, 10e18);
+        sellUnits(offerC.market, adapter.marketData(marketIdC).netCredit, MAX_TICK);
+        assertEq(adapter.marketIdsLength(), 2, "market C removed");
+        assertEq(adapter.marketIds(0), marketIdA, "last market moved into market C's slot");
+        assertEq(adapter.marketData(marketIdA).index, 0, "moved market index updated");
+        assertEq(adapter.marketIds(1), marketIdB, "market B remains in place");
+        assertEq(adapter.marketData(marketIdB).index, 1, "market B index remains");
+        assertEq(abi.encode(adapter.marketData(marketIdC)), abi.encode(MarketData(0, 0, 0, 0)));
+    }
+
     /* TAKE */
 
     function testTakeLoanAssetMismatch() public {
@@ -3520,7 +3553,7 @@ contract MidnightAdapterTest is Test {
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
         bytes memory data = ratify([sellOffer], signerAllocator);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         this.takeWithAccrual(sellOffer, data, buyer, address(0));
 
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "adapter credit unchanged");
@@ -3748,7 +3781,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 200e18);
         assertGt(adapter.realAssets(), 100e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         sellUnits(offer.market, 200e18, MAX_TICK / 2);
 
         uint256 tick = TickLib.priceToTick(0.6e18, DEFAULT_TICK_SPACING);
@@ -3758,6 +3791,148 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0)));
+    }
+
+    function testFullSaleBelowAmortizedValueUsesOtherMarketGrowth() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmB = dataB.maturity - block.timestamp;
+        uint256 amortizedValueA = uint256(dataA.netCredit).mulDivUp(WAD - dataA.growth * ttmA, WAD);
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
+        uint256 proceeds = uint256(dataA.netCredit).mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 loss = amortizedValueA - proceeds;
+        uint256 capacityB = uint256(dataB.netCredit).mulDivDown((dataB.growth - adapter.minGrowth()) * ttmB, WAD);
+        uint256 newGrowthB = dataB.growth - loss.mulDivUp(WAD, uint256(dataB.netCredit) * ttmB);
+        assertGt(loss, 0, "sale has a shortfall");
+        assertLt(loss, capacityB, "market B can absorb the shortfall");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceGrowth(marketIdB, newGrowthB);
+        sellUnits(offerA.market, dataA.netCredit, tick);
+
+        assertEq(adapter.marketData(marketIdB).growth, newGrowthB, "market B growth decreased");
+        assertEq(adapter.marketIdsLength(), 1, "market A removed");
+        assertEq(adapter.marketIds(0), marketIdB, "market B remains");
+        assertApproxEqAbs(
+            adapter.realAssets(),
+            assetsBefore - proceeds,
+            uint256(dataB.netCredit) * ttmB / WAD + 3,
+            "only the received assets decrease realAssets"
+        );
+    }
+
+    function testShortfallSpillsToNextMarketWhenFirstMarketCapacityIsExhausted() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmB = dataB.maturity - block.timestamp;
+        uint256 sold = uint256(dataA.netCredit) * 4 / 5;
+        uint256 remainingA = dataA.netCredit - sold;
+        uint256 tick = TickLib.priceToTick(0.2e18, DEFAULT_TICK_SPACING);
+        uint256 amortizedValue = sold.mulDivUp(WAD - dataA.growth * ttmA, WAD);
+        uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 loss = amortizedValue - proceeds;
+        uint256 capacityA = remainingA.mulDivDown((dataA.growth - adapter.minGrowth()) * ttmA, WAD);
+        uint256 remainingLoss = loss - capacityA;
+        uint256 newGrowthB = dataB.growth - remainingLoss.mulDivUp(WAD, uint256(dataB.netCredit) * ttmB);
+        uint256 capacityB = uint256(dataB.netCredit).mulDivDown((dataB.growth - adapter.minGrowth()) * ttmB, WAD);
+        assertGt(loss, capacityA, "market A cannot absorb the full shortfall");
+        assertLt(remainingLoss, capacityB, "market B absorbs the rest");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceGrowth(marketIdA, adapter.minGrowth());
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceGrowth(marketIdB, newGrowthB);
+        sellUnits(offerA.market, sold, tick);
+
+        assertEq(adapter.marketData(marketIdA).growth, adapter.minGrowth(), "market A at minGrowth");
+        assertEq(adapter.marketData(marketIdB).growth, newGrowthB, "market B absorbs remaining shortfall");
+    }
+
+    function testSwapMarketsChangesWhichMarketAbsorbsShortfallFirst() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmB = dataB.maturity - block.timestamp;
+        uint256 sold = uint256(dataA.netCredit) / 5;
+        uint256 remainingA = dataA.netCredit - sold;
+        uint256 tick = TickLib.priceToTick(0.4e18, DEFAULT_TICK_SPACING);
+        uint256 loss = sold.mulDivUp(WAD - dataA.growth * ttmA, WAD) - sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 capacityA = remainingA.mulDivDown((dataA.growth - adapter.minGrowth()) * ttmA, WAD);
+        uint256 newGrowthB = dataB.growth - loss.mulDivUp(WAD, uint256(dataB.netCredit) * ttmB);
+        assertLt(loss, capacityA, "market A can absorb the shortfall");
+
+        vm.prank(signerAllocator);
+        adapter.swapMarkets(0, 1);
+        assertEq(adapter.marketIds(0), marketIdB, "market B moved first");
+        assertEq(adapter.marketData(marketIdB).index, 0, "market B index updated");
+        assertEq(adapter.marketData(marketIdA).index, 1, "market A index updated");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceGrowth(marketIdB, newGrowthB);
+        sellUnits(offerA.market, sold, tick);
+
+        assertEq(adapter.marketData(marketIdB).growth, newGrowthB, "market B absorbs the shortfall first");
+        assertEq(adapter.marketData(marketIdA).growth, dataA.growth, "market A growth unchanged");
+    }
+
+    function testShortfallRevertsWhenAllMarketCapacityIsInsufficient() public {
+        (Offer memory offerA,) = buyShortfallMarkets();
+        setMinGrowth(type(uint64).max);
+
+        uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
+        uint256 sold = adapter.marketData(_marketId(offerA.market)).netCredit;
+        vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
+        sellUnits(offerA.market, sold, tick);
+    }
+
+    function testShortfallSkipsMaturedAndMinimumGrowthMarkets() public {
+        Offer memory offerA = buy(60 days, 100e18, MAX_TICK / 2);
+        Offer memory matured = buy(1 days, 100e18, MAX_TICK / 2);
+        Offer memory minimum = buy(30 days, 100e18, MAX_TICK);
+        Offer memory absorber = buy(90 days, 100e18, MAX_TICK / 2);
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 maturedId = _marketId(matured.market);
+        bytes32 minimumId = _marketId(minimum.market);
+        bytes32 absorberId = _marketId(absorber.market);
+        uint256 maturedGrowth = adapter.marketData(maturedId).growth;
+        setMinGrowth(adapter.marketData(minimumId).growth);
+        setMaxSellRate(offerA.market, type(uint256).max);
+        deal(address(loanToken), taker, 1_000e18);
+        skip(2 days);
+        adapter.withdrawToVault(offerA.market, 0);
+        adapter.withdrawToVault(absorber.market, 0);
+
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataAbsorber = adapter.marketData(absorberId);
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmAbsorber = dataAbsorber.maturity - block.timestamp;
+        uint256 amortizedValue = uint256(dataA.netCredit).mulDivUp(WAD - dataA.growth * ttmA, WAD);
+        uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
+        uint256 proceeds = uint256(dataA.netCredit).mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 loss = amortizedValue - proceeds;
+        uint256 newGrowth = dataAbsorber.growth - loss.mulDivUp(WAD, uint256(dataAbsorber.netCredit) * ttmAbsorber);
+        assertEq(adapter.marketData(maturedId).maturity, block.timestamp - 1 days, "market B has matured");
+        assertEq(adapter.marketData(minimumId).growth, adapter.minGrowth(), "market C is at minGrowth");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceGrowth(absorberId, newGrowth);
+        sellUnits(offerA.market, dataA.netCredit, tick);
+
+        assertEq(adapter.marketData(maturedId).growth, maturedGrowth, "matured market skipped");
+        assertEq(adapter.marketData(minimumId).growth, adapter.minGrowth(), "minimum-growth market skipped");
+        assertEq(adapter.marketData(absorberId).growth, newGrowth, "later market absorbs the shortfall");
     }
 
     function testShortfallUsesAmortizedValue() public {
@@ -3799,15 +3974,7 @@ contract MidnightAdapterTest is Test {
         uint256 shortfall = sold.mulDivUp(discountFactor, 1e18).zeroFloorSub(proceeds);
         bool interestExhausted = shortfall * 1e18 > growth * (netCredit - sold) * ttm;
 
-        if (interestExhausted) {
-            uint256 newNetCredit = netCredit - sold;
-            uint256 denominator = newNetCredit * ttm;
-            if (denominator > 0 && shortfall.mulDivUp(1e18, denominator) > type(uint64).max) {
-                vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            } else {
-                vm.expectRevert(stdError.arithmeticError);
-            }
-        }
+        if (interestExhausted) vm.expectRevert(IMidnightAdapterBase.RemainingGrowthTooLow.selector);
         sellUnits(offer.market, sold, tick);
 
         if (interestExhausted) {
@@ -3870,6 +4037,16 @@ contract MidnightAdapterTest is Test {
     }
 
     /* HELPERS */
+
+    function buyShortfallMarkets() internal returns (Offer memory offerA, Offer memory offerB) {
+        offerA = buy(30 days, 100e18, MAX_TICK / 2);
+        offerB = buy(60 days, 100e18, MAX_TICK / 2);
+        setMaxSellRate(offerA.market, type(uint256).max);
+        deal(address(loanToken), taker, 1_000e18);
+        skip(1 days);
+        adapter.withdrawToVault(offerA.market, 0);
+        adapter.withdrawToVault(offerB.market, 0);
+    }
 
     /// @dev Buys exactly `units` of net credit at discountTick, so the market has interest to accrue.
     function buyAtDiscount(uint256 duration, uint256 units) internal returns (Offer memory offer) {
