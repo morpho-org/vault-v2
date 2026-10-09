@@ -16,6 +16,7 @@ struct MarketData {
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market.
     /// @dev When activated, growth isn't reduced on losses due to selling.
+    /// @dev When activated, buying is prevented.
     bool uncappedLoss;
 }
 
