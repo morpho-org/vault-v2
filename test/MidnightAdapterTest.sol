@@ -571,8 +571,8 @@ contract MidnightAdapterTest is Test {
         adapter.enableUncappedLoss(marketId);
     }
 
-    function testDisableUncappedLoss(address caller, bytes32 marketId) public {
-        vm.assume(caller != curator);
+    function testDisableUncappedLoss(address caller, bytes32 marketId, bool sentinel) public {
+        vm.assume(caller != curator && !parentVault.isSentinel(caller));
         enableUncappedLoss(marketId);
 
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
@@ -580,10 +580,19 @@ contract MidnightAdapterTest is Test {
         adapter.disableUncappedLoss(marketId);
         assertTrue(adapter.marketData(marketId).uncappedLoss, "unauthorized caller cannot disable");
 
+        address authorizedCaller = curator;
+        if (sentinel) {
+            authorizedCaller = makeAddr("uncappedLossSentinel");
+            stdstore.target(address(parentVault))
+                .sig("isSentinel(address)")
+                .with_key(authorizedCaller)
+                .checked_write(true);
+        }
+
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.DisableUncappedLoss(marketId);
         vm.recordLogs();
-        vm.prank(curator);
+        vm.prank(authorizedCaller);
         adapter.disableUncappedLoss(marketId);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1, "no Accept event");

@@ -178,7 +178,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function disableUncappedLoss(bytes32 marketId) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
         marketData[marketId].uncappedLoss = false;
         emit DisableUncappedLoss(marketId);
     }
