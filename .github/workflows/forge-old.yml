@@ -18,10 +18,10 @@ jobs:
       - name: Install Foundry (old)
         uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
-          version: v1.8.0
+          version: v1.8.3
       - name: Verify forge executable hash
         env:
-          EXPECTED_FORGE_SHA256: c0fbe3ba32d7f498507042dbb94f5954be51126a76ce84e37d71749e7c9c571f
+          EXPECTED_FORGE_SHA256: deb412a722e873e11e60051deb9d403b584a2d7e49d8b9ee68441edfea215e9c
         run: |
           forge_path="$(which forge)"
           echo "forge path: $forge_path"
@@ -29,15 +29,6 @@ jobs:
           echo "actual:   $actual"
           echo "expected: $EXPECTED_FORGE_SHA256"
           [ "$actual" = "$EXPECTED_FORGE_SHA256" ] || { echo "forge hash mismatch"; exit 1; }
-      - name: Install solc 0.8.37 (not shipped with forge 1.8.0)
-        run: |
-          mkdir -p "$HOME/.svm/0.8.37"
-          curl -fsSL -o "$HOME/.svm/0.8.37/solc-0.8.37" \
-            https://github.com/ethereum/solidity/releases/download/v0.8.37/solc-static-linux
-          echo "5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a  $HOME/.svm/0.8.37/solc-0.8.37" \
-            | sha256sum -c -
-          chmod +x "$HOME/.svm/0.8.37/solc-0.8.37"
-          "$HOME/.svm/0.8.37/solc-0.8.37" --version
       - name: Build with Foundry (old)
         run: forge build --force
       - name: Export bytecode manifest (old)
