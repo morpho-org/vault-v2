@@ -214,7 +214,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
-    /// @dev Help prevent operational errors when selling.
+    /// @dev Blocks maker and taker sales, but not forceDeallocate.
     function setSalesDisabled(bool newSalesDisabled) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         salesDisabled = newSalesDisabled;
