@@ -24,7 +24,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
-/// @dev Bad debt that is visible in onSell is applied before the shortfall.
+/// @dev A shortfall is spread over the stored net credit minus the sold net credit, so bad debt realized during the sale does not reduce the base. Unseen bad debt realized before the sale makes the reduction smaller, which is conservative.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
 /// TIMELOCKS
@@ -432,13 +432,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
-            _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
+            _marketData.growth -= (amortizedValue - sellerAssets)
+                .mulDivUp(WAD, (oldNetCredit - soldNetCredit) * ttm)
+                .toUint64();
             require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.

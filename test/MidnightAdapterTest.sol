@@ -4499,6 +4499,66 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
+    function testShortfallSpreadBeforeDefaultDuringSale() public {
+        Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
+        setMaxSellRate(initial.market, type(uint256).max);
+        skip(1 days);
+
+        bytes32 marketId = _marketId(initial.market);
+        uint256 storedNetCredit = adapter.marketData(marketId).netCredit;
+        uint256 growth = adapter.marketData(marketId).growth;
+        uint256 ttm = initial.market.maturity - block.timestamp;
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(initial.market, marketId, address(adapter));
+        uint256 soldUnits = 2e18;
+        uint256 soldNetCredit = soldUnits - uint256(pendingFee).mulDivUp(soldUnits, credit);
+        uint256 n0 = storedNetCredit - soldNetCredit;
+        uint256 sellTick = TickLib.priceToTick(0.85e18, DEFAULT_TICK_SPACING);
+        uint256 proceeds = soldUnits.mulDivUp(TickLib.tickToPrice(sellTick), 1e18);
+        uint256 amortizedValue = soldNetCredit.mulDivUp(1e18 - growth * ttm, 1e18);
+        uint256 shortfall = amortizedValue - proceeds;
+        assertGt(shortfall, 0);
+
+        EagerLossCallback callback = newCallback();
+        callback.push(
+            address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
+        );
+        callbackSale(makeSellOffer(initial.market, soldUnits, sellTick), callback);
+
+        uint256 newGrowth = adapter.marketData(marketId).growth;
+        uint256 expectedGrowth = growth - shortfall.mulDivUp(1e18, n0 * ttm);
+        uint256 n1BasedGrowth = growth - shortfall.mulDivUp(1e18, uint256(adapter.marketData(marketId).netCredit) * ttm);
+        assertEq(newGrowth, expectedGrowth);
+        assertGt(newGrowth, n1BasedGrowth);
+    }
+
+    /// forge-config: default.isolate = true
+    function testShortfallAfterUnseenDefaultIsConservative() public {
+        Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
+        setMaxSellRate(initial.market, type(uint256).max);
+        skip(1 days);
+        this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
+
+        bytes32 marketId = _marketId(initial.market);
+        uint256 storedNetCredit = adapter.marketData(marketId).netCredit;
+        uint256 growth = adapter.marketData(marketId).growth;
+        uint256 ttm = initial.market.maturity - block.timestamp;
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(initial.market, marketId, address(adapter));
+        uint256 soldUnits = 2e18;
+        uint256 soldNetCredit = soldUnits - uint256(pendingFee).mulDivUp(soldUnits, credit);
+        uint256 sellTick = TickLib.priceToTick(0.85e18, DEFAULT_TICK_SPACING);
+        uint256 proceeds = soldUnits.mulDivUp(TickLib.tickToPrice(sellTick), 1e18);
+        uint256 amortizedValue = soldNetCredit.mulDivUp(1e18 - growth * ttm, 1e18);
+        uint256 shortfall = amortizedValue - proceeds;
+        uint256 expectedGrowth = growth - shortfall.mulDivUp(1e18, (storedNetCredit - soldNetCredit) * ttm);
+        uint256 assetsBefore = adapter.realAssets();
+
+        sellUnits(initial.market, soldUnits, sellTick);
+
+        assertEq(adapter.marketData(marketId).growth, expectedGrowth);
+        assertLe(adapter.realAssets(), assetsBefore - proceeds);
+    }
+
+    /// forge-config: default.isolate = true
     function testEagerLossDefaultDuringDiscountedSaleReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
         setMaxSellRate(initial.market, 1);
