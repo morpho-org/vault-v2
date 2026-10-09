@@ -3892,7 +3892,6 @@ contract MidnightAdapterTest is Test {
         offset = bound(offset, 0, 1 days - 1);
         vm.warp(10 days + offset);
         Offer memory offer = buy(30 days, 100e18);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.maxShortfallRatio(), 0.005e18);
         assertEq(adapter.shortfallRefillPeriod(), 1 days);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -4084,7 +4083,6 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
         sellAndRebuyWithShortfall(offer.market, 0.25e18);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.shortfallAllowance(), 0.25e18);
 
         skip(6 hours);
@@ -4119,7 +4117,6 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 900e18, 900e18, 1000e18, 0.25e18);
         take(additionalOffer);
-        bytes32 marketId = _marketId(offer.market);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "elapsed time uses old credit");
 
         skip(1 hours);
@@ -4149,7 +4146,6 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(12 hours);
         buyAdditionalCredit(offer.market, 900e18);
-        bytes32 marketId = _marketId(offer.market);
 
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.25e18 + 1), MAX_TICK / 2);
