@@ -571,12 +571,18 @@ contract MidnightAdapterCached is IMidnightAdapterStaticTyping {
         require(length <= durationsLength, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
-        for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
-            uint256 netCredit = _marketData.netCredit;
-            for (uint256 j = 0; j < length && ttm >= packedDurations.get(j); j++) {
-                allocations[j] += netCredit;
+        // Safe: i < MAX_MARKETS, bucket <= length <= MAX_DURATIONS, length > 0, j > 0 where decremented, and sums of at
+        // most MAX_MARKETS uint128 values fit in uint256.
+        unchecked {
+            for (uint256 i; i < marketIds.length; i++) {
+                MarketData storage _marketData = marketData[marketIds[i]];
+                uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+                uint256 bucket;
+                while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
+                if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+            }
+            for (uint256 j = length - 1; j > 0; j--) {
+                allocations[j - 1] += allocations[j];
             }
         }
     }

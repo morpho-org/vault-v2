@@ -26,11 +26,12 @@ contract GasProber {
     }
 }
 
-/// @dev Benchmarks three implementations of durationAllocations.
+/// @dev Benchmarks three implementations of durationAllocations: current with unchecked arithmetic, main as is, and main
+/// with unchecked arithmetic (in MidnightAdapterCached.sol to keep the file diffs readable).
 /// @dev Run with `FOUNDRY_ISOLATE=false forge test --match-contract DurationAllocationsGasTest -vv`.
 /// @dev Isolate mode must be off: it makes every external call its own transaction, so storage is always cold.
 /// @dev Storage is warmed first, as the vault's accrueInterest does through realAssets before the buy callback runs.
-/// @dev Prints one table per market count, with the gas of each variant and the deltas against the current code.
+/// @dev Prints one table per market count, with the gas of each variant and the deltas against unchecked main.
 contract DurationAllocationsGasTest is Test {
     IMidnight internal midnight;
     VaultV2Mock internal parentVault;
@@ -92,8 +93,8 @@ contract DurationAllocationsGasTest is Test {
 
         address[3] memory variants = [
             address(new MidnightAdapterCurrent(address(parentVault), address(midnight), durations)),
-            address(new MidnightAdapterCached(address(parentVault), address(midnight), durations)),
-            address(new MidnightAdapterMain(address(parentVault), address(midnight), durations))
+            address(new MidnightAdapterMain(address(parentVault), address(midnight), durations)),
+            address(new MidnightAdapterCached(address(parentVault), address(midnight), durations))
         ];
 
         uint256[3] memory gasUsed;
@@ -113,8 +114,8 @@ contract DurationAllocationsGasTest is Test {
                 padLeft(vm.toString(gasUsed[0]), 10),
                 padLeft(vm.toString(gasUsed[1]), 10),
                 padLeft(vm.toString(gasUsed[2]), 10),
-                padLeft(signedDelta(gasUsed[1], gasUsed[0]), 16),
-                padLeft(signedDelta(gasUsed[2], gasUsed[0]), 14)
+                padLeft(signedDelta(gasUsed[2], gasUsed[0]), 14),
+                padLeft(signedDelta(gasUsed[2], gasUsed[1]), 14)
             )
         );
     }
@@ -122,7 +123,7 @@ contract DurationAllocationsGasTest is Test {
     function benchmarkAllDurationsAndProfiles(uint256 marketsCount) internal {
         console.log("");
         console.log(string.concat("=== ", vm.toString(marketsCount), " markets ==="));
-        console.log("durations  profile        current    cached      main  cached-current  main-current");
+        console.log("durations  profile        current      main  main_unch  unch-current     unch-main");
 
         uint256[4] memory durationsCounts = [uint256(1), 2, 5, 8];
 
