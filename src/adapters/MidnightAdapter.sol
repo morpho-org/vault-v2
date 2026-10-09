@@ -591,8 +591,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function realAssets() external view returns (uint256) {
         uint256 assets;
-        uint256 length = marketIds.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
