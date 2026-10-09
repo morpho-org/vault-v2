@@ -2958,6 +2958,13 @@ contract MidnightAdapterTest is Test {
         adapter.deallocate("", 0, bytes4(0), caller);
     }
 
+    function testAllocateNotParentVault(address caller) public {
+        vm.assume(caller != address(parentVault));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.allocate("", 0, bytes4(0), caller);
+    }
+
     /// @dev Only the adapter can allocate and deallocate through the vault, so it cannot be a liquidity adapter.
     function testVaultAllocateAndDeallocateRevert() public {
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
@@ -3612,6 +3619,24 @@ contract MidnightAdapterTest is Test {
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallRefillPeriod, (period)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         adapter.setShortfallRefillPeriod(period);
+    }
+
+    function testShortfallUpdatedAtOverflow(uint256 timestamp) public {
+        timestamp = bound(timestamp, uint256(type(uint48).max) + 1, type(uint64).max);
+        vm.warp(timestamp);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (0)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        adapter.setMaxShortfallRatio(0);
+    }
+
+    function testBuyMaturityOverflow() public {
+        vm.warp(uint256(type(uint48).max) - 1 days);
+        Offer memory offer = makeBuyOffer(2 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
     }
 
     function testShortfallStoragePacking() public {
