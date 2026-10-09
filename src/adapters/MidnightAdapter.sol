@@ -24,7 +24,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
-/// @dev Bad debt that is visible in onSell is applied before the shortfall.
+/// @dev A shortfall is spread over the net credit left by the sale before any bad debt realized in the buyer's onBuy (unless the adapter's position is updated there).
 /// @dev The adapter's allocation cap bounds exposure.
 ///
 /// TIMELOCKS
@@ -434,7 +434,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
         if (amortizedValue > sellerAssets) {
-            _marketData.growth -= (amortizedValue - sellerAssets).mulDivUp(WAD, newNetCredit * ttm).toUint64();
+            (uint128 credit, uint128 pendingFee,,,,) = IMidnight(midnight).position(marketId, address(this));
+            _marketData.growth -= (amortizedValue - sellerAssets)
+                .mulDivUp(WAD, uint256(credit - pendingFee) * ttm)
+                .toUint64();
             require(_marketData.growth >= minGrowth, RemainingGrowthTooLow());
         }
 
