@@ -1943,7 +1943,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 1e18, 1e18, 1e18);
+        emit IMidnightAdapterBase.Buy(marketId, 1e18, 1e18, 1e18, 0);
         take(offer);
 
         uint128 netCredit = adapter.marketData(marketId).netCredit;
@@ -1962,7 +1962,7 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("zero buy");
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0);
+        emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0);
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
@@ -2557,7 +2557,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
     }
 
@@ -3675,7 +3675,7 @@ contract MidnightAdapterTest is Test {
         offer.maxUnits = uint128(boughtNetCredit);
         offer.group = bytes32("second buy");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit);
+        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit, 0);
         take(offer);
 
         assertEq(adapter.marketData(marketId).netCredit, expectedNetCredit, "market netCredit");
@@ -3840,7 +3840,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18, 0);
         take(offer);
         setMaxSellRate(offer.market, type(uint256).max);
 
@@ -3876,7 +3876,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18);
+        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0);
         take(roll);
 
         assertEq(adapter.marketData(marketId).netCredit, 100e18);
