@@ -433,9 +433,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        if (amortizedValue > sellerAssets) {
-            uint256 shortfall = amortizedValue - sellerAssets;
+        uint256 soldAmortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
+        if (soldAmortizedValue > sellerAssets) {
+            uint256 shortfall = soldAmortizedValue - sellerAssets;
             require(
                 shortfall * WAD <= newNetCredit * ttm * uint256(_marketData.growth).zeroFloorSub(minGrowth),
                 RemainingGrowthTooLow()
