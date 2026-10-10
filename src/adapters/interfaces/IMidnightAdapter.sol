@@ -33,6 +33,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxTtm(uint256 newMaxTtm);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
+    event SwapMarkets(address indexed caller, uint256 i, uint256 j);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
@@ -42,6 +43,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Sell(
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newGrowth
     );
+    event ReduceGrowth(bytes32 indexed marketId, uint256 newGrowth);
 
     /* ERRORS */
 
@@ -110,6 +112,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
+    function swapMarkets(uint256 i, uint256 j) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function realAssets() external view returns (uint256 assets);

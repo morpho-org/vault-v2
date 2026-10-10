@@ -23,7 +23,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall decreases the growth of markets in marketIds order, down to minGrowth, so the amortized value of the adapter decreases only by the received assets.
+/// @dev Markets with a sale in progress do not absorb shortfalls.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall, decreasing to zero at maturity.
 /// @dev The adapter's allocation cap bounds exposure.
@@ -194,6 +195,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* ALLOCATOR FUNCTIONS */
+
+    /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
+    function swapMarkets(uint256 i, uint256 j) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+
+        bytes32 marketIdI = marketIds[i];
+        bytes32 marketIdJ = marketIds[j];
+        marketIds[i] = marketIdJ;
+        marketIds[j] = marketIdI;
+        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+        marketData[marketIdI].index = uint8(j);
+        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+        marketData[marketIdJ].index = uint8(i);
+
+        emit SwapMarkets(msg.sender, i, j);
+    }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
         external
@@ -435,12 +452,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
-        if (shortfall > 0) {
-            uint256 maxShortfall = (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
-            require(shortfall <= maxShortfall, ShortfallTooHigh());
+        for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
+            bytes32 id = marketIds[i];
+            if (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this))) continue;
+            MarketData storage otherMarketData = marketData[id];
+            uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+            uint256 otherTtm = uint256(otherMarketData.maturity).zeroFloorSub(block.timestamp);
+            uint256 growth = otherMarketData.growth;
+            if (otherTtm == 0 || netCredit == 0 || growth <= minGrowth) continue;
 
-            _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
+            uint256 capacity = uint256(netCredit).mulDivDown((growth - minGrowth) * otherTtm, WAD);
+            if (shortfall <= capacity) {
+                otherMarketData.growth = (growth - shortfall.mulDivUp(WAD, netCredit * otherTtm)).toUint64();
+                shortfall = 0;
+            } else {
+                otherMarketData.growth = minGrowth;
+                shortfall -= capacity;
+            }
+            emit ReduceGrowth(id, otherMarketData.growth);
         }
+        require(shortfall == 0, ShortfallTooHigh());
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
