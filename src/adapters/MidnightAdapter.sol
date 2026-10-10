@@ -33,6 +33,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
+    using MathLib for uint64;
     using MathLib for uint48;
     using DurationsLib for bytes32;
 
@@ -420,7 +421,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit);
+        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.growth);
         return CALLBACK_SUCCESS;
     }
 
@@ -450,9 +451,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        uint256 loss = amortizedValue.zeroFloorSub(sellerAssets);
-        for (uint256 i; i < marketIds.length && loss > 0; i++) {
+        uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
+        for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
             bytes32 id = marketIds[i];
             if (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this))) continue;
             MarketData storage otherMarketData = marketData[id];
@@ -462,16 +462,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (otherTtm == 0 || netCredit == 0 || growth <= minGrowth) continue;
 
             uint256 capacity = uint256(netCredit).mulDivDown((growth - minGrowth) * otherTtm, WAD);
-            if (loss <= capacity) {
-                otherMarketData.growth = (growth - loss.mulDivUp(WAD, netCredit * otherTtm)).toUint64();
-                loss = 0;
+            if (shortfall <= capacity) {
+                otherMarketData.growth = (growth - shortfall.mulDivUp(WAD, netCredit * otherTtm)).toUint64();
+                shortfall = 0;
             } else {
                 otherMarketData.growth = minGrowth;
-                loss -= capacity;
+                shortfall -= capacity;
             }
             emit ReduceGrowth(id, otherMarketData.growth);
         }
-        require(loss == 0, RemainingGrowthTooLow());
+        require(shortfall == 0, ShortfallTooHigh());
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
@@ -484,7 +484,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, newNetCredit, _marketData.growth);
+        emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.growth);
         return CALLBACK_SUCCESS;
     }
 
