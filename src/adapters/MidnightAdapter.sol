@@ -32,6 +32,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
+    using MathLib for uint64;
     using MathLib for uint48;
     using DurationsLib for bytes32;
 
@@ -433,15 +434,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 soldAmortizedValue = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD);
-        if (soldAmortizedValue > sellerAssets) {
-            uint256 shortfall = soldAmortizedValue - sellerAssets;
-            require(
-                shortfall * WAD <= newNetCredit * ttm * uint256(_marketData.growth).zeroFloorSub(minGrowth),
-                RemainingGrowthTooLow()
-            );
-            // forge-lint: disable-next-item(unsafe-typecast) the decrease is at most growth - minGrowth.
-            _marketData.growth -= uint64(shortfall.mulDivUp(WAD, newNetCredit * ttm));
+        uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
+        if (shortfall > 0) {
+            uint256 maxShortfall = (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
+            require(shortfall <= maxShortfall, ShortfallTooHigh());
+
+            _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
