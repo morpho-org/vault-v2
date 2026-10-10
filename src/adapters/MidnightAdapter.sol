@@ -433,13 +433,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 soldAmortizedValue = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
-        if (soldAmortizedValue > sellerAssets) {
-            uint256 newAmortizedValue =
-                uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + soldAmortizedValue - sellerAssets;
-            require(newAmortizedValue <= newNetCredit, RemainingRateTooLow());
+        uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
+        if (shortfall > 0) {
+            uint256 newAmortizedValue = uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
+            require(newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm), ShortfallTooHigh());
             _marketData.rate = (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
-            require(_marketData.rate >= minRate, RemainingRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
