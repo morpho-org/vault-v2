@@ -3171,6 +3171,13 @@ contract MidnightAdapterTest is Test {
         adapter.deallocate("", 0, bytes4(0), caller);
     }
 
+    function testAllocateNotParentVault(address caller) public {
+        vm.assume(caller != address(parentVault));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.allocate("", 0, bytes4(0), caller);
+    }
+
     /// @dev Only the adapter can allocate and deallocate through the vault, so it cannot be a liquidity adapter.
     function testVaultAllocateAndDeallocateRevert() public {
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
@@ -3749,6 +3756,15 @@ contract MidnightAdapterTest is Test {
     }
 
     /* SALE SHORTFALL */
+
+    function testBuyMaturityOverflow() public {
+        vm.warp(uint256(type(uint48).max) - 1 days);
+        Offer memory offer = makeBuyOffer(2 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
+    }
 
     function testStoragePacking() public {
         setMinRate(type(uint64).max);
