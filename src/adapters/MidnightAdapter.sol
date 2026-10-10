@@ -69,6 +69,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ADAPTER STORAGE */
 
     address public skimRecipient;
+    bool public salesDisabled;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -191,6 +192,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         maxSellRate[collateralParamsHash] = newMaxSellRate;
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+    }
+
+    /// @dev Blocks maker and taker sales, but not forceDeallocate.
+    function setSalesDisabled(bool newSalesDisabled) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        salesDisabled = newSalesDisabled;
+        emit SetSalesDisabled(newSalesDisabled);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -421,6 +429,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
         require(callbackData.length == 0, NonEmptyCallbackData());
+        require(!salesDisabled, SalesDisabled());
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
