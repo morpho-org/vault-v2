@@ -419,7 +419,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit);
+        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.growth);
         return CALLBACK_SUCCESS;
     }
 
