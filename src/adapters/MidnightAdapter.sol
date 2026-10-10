@@ -171,6 +171,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
+    function enableForceReevaluation(bytes32 marketId) external {
+        timelocked();
+        marketData[marketId].forceReevaluationEnabled = true;
+        emit EnableForceReevaluation(marketId);
+    }
+
+    /// @dev The sentinel can also disable.
+    function disableForceReevaluation(bytes32 marketId) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        marketData[marketId].forceReevaluationEnabled = false;
+        emit DisableForceReevaluation(msg.sender, marketId);
+    }
+
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
@@ -232,6 +248,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         );
         isSubRatifier[subRatifier] = newIsSubRatifier;
         emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
+    }
+
+    /// @dev Reduces current value without changing maturity value.
+    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+
+        MarketData storage _marketData = marketData[marketId];
+        require(_marketData.forceReevaluationEnabled, ForceReevaluationNotEnabled());
+        require(newGrowth >= _marketData.growth, GrowthNotIncreasing());
+        require(newGrowth <= WAD / (_marketData.maturity - block.timestamp), GrowthTooHigh());
+
+        // forge-lint: disable-next-item(unsafe-typecast) newGrowth <= WAD < 2**64.
+        _marketData.growth = uint64(newGrowth);
+        _marketData.forceReevaluationEnabled = false;
+        emit ForceReevaluateMarket(msg.sender, marketId, newGrowth);
     }
 
     /* OPERATIONS */
@@ -350,6 +382,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceReevaluationEnabled, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
@@ -477,14 +510,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data.
+    /// @dev Removes the market from marketIds and clears its stored data except forceReevaluationEnabled.
     function removeMarket(bytes32 marketId) internal {
-        MarketData storage _marketData = marketData[marketId];
+        MarketData memory _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
+        marketData[marketId].forceReevaluationEnabled = _marketData.forceReevaluationEnabled;
     }
 
     /* VIEWS */

@@ -14,6 +14,10 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
+    /// @dev Enables one forced reevaluation of the market.
+    /// @dev When enabled, buying is prevented.
+    /// @dev Preserved when the market is removed; cleared by reevaluation or disableForceReevaluation.
+    bool forceReevaluationEnabled;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -32,6 +36,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMinGrowth(uint256 newMinGrowth);
     event SetMaxTtm(uint256 newMaxTtm);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
+    event EnableForceReevaluation(bytes32 indexed marketId);
+    event DisableForceReevaluation(address indexed sender, bytes32 indexed marketId);
+    event ForceReevaluateMarket(address indexed sender, bytes32 indexed marketId, uint256 newGrowth);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
@@ -52,6 +59,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error BuyAtLoss();
+    error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
@@ -65,6 +73,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotSelf();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
+    error GrowthNotIncreasing();
+    error GrowthTooHigh();
+    error ForceReevaluationNotEnabled();
     error BuyGrowthTooLow();
     error RemainingGrowthTooLow();
     error SelfAllocationOnly();
@@ -100,6 +111,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinGrowth(uint256 newMinGrowth) external;
     function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
+    function enableForceReevaluation(bytes32 marketId) external;
+    function disableForceReevaluation(bytes32 marketId) external;
+    function forceReevaluateMarket(bytes32 marketId, uint256 newGrowth) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
@@ -147,7 +161,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, bool forceReevaluationEnabled);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
