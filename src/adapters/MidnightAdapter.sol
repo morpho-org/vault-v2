@@ -433,10 +433,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         MarketData storage _marketData = marketData[marketId];
-        uint256 amortizedValue = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
-        if (amortizedValue > sellerAssets) {
+        uint256 soldAmortizedValue = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
+        if (soldAmortizedValue > sellerAssets) {
             uint256 newAmortizedValue =
-                uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + amortizedValue - sellerAssets;
+                uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + soldAmortizedValue - sellerAssets;
             require(newAmortizedValue <= newNetCredit, RemainingRateTooLow());
             _marketData.rate = (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
             require(_marketData.rate >= minRate, RemainingRateTooLow());
@@ -537,8 +537,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function realAssets() external view returns (uint256) {
         uint256 assets;
-        uint256 length = marketIds.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
