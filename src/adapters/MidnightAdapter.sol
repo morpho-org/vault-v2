@@ -78,7 +78,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
-    bool public noShortfall;
+    bool public noSalesWithShortfall;
     bool public noSalesBelowPar;
 
     /* CONSTRUCTOR */
@@ -201,10 +201,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setNoShortfall(bool newNoShortfall) external {
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noShortfall = newNoShortfall;
-        emit SetNoShortfall(newNoShortfall);
+        noSalesWithShortfall = newNoSalesWithShortfall;
+        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
     function setNoSalesBelowPar(bool newNoSalesBelowPar) external {
@@ -451,8 +451,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (!_marketData.forceSellable) {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 maxShortfall =
-                    noShortfall ? 0 : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
+                uint256 maxShortfall = noSalesWithShortfall
+                    ? 0
+                    : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
                 require(shortfall <= maxShortfall, ShortfallTooHigh());
 
                 _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();

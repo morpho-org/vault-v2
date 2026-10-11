@@ -35,7 +35,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinGrowth(uint256 newMinGrowth);
     event SetMaxTtm(uint256 newMaxTtm);
-    event SetNoShortfall(bool newNoShortfall);
+    event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetNoSalesBelowPar(bool newNoSalesBelowPar);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
@@ -96,7 +96,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minGrowth() external view returns (uint64);
-    function noShortfall() external view returns (bool);
+    function noSalesWithShortfall() external view returns (bool);
     function noSalesBelowPar() external view returns (bool);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -108,7 +108,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinGrowth(uint256 newMinGrowth) external;
     function setMaxTtm(uint256 newMaxTtm) external;
-    function setNoShortfall(bool newNoShortfall) external;
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setNoSalesBelowPar(bool newNoSalesBelowPar) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
