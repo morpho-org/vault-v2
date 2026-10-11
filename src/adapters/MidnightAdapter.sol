@@ -79,7 +79,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
     bool public noSalesWithShortfall;
-    bool public noSalesBelowPar;
+    bool public noSalesBelowFaceValue;
 
     /* CONSTRUCTOR */
 
@@ -207,10 +207,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
-    function setNoSalesBelowPar(bool newNoSalesBelowPar) external {
+    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesBelowPar = newNoSalesBelowPar;
-        emit SetNoSalesBelowPar(newNoSalesBelowPar);
+        noSalesBelowFaceValue = newNoSalesBelowFaceValue;
+        emit SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -445,7 +445,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        require(!noSalesBelowPar || sellerAssets >= soldNetCredit, SaleBelowPar());
+        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
