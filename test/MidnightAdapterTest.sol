@@ -1176,7 +1176,6 @@ contract MidnightAdapterTest is Test {
         Offer memory initial = buy(30 days, 1e18, discountTick);
         uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
         Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, tick);
-        setMaxSellRate(initial.market, type(uint256).max);
 
         vm.prank(curator);
         adapter.setSalesDisabled(true);
@@ -1189,7 +1188,6 @@ contract MidnightAdapterTest is Test {
         Offer memory initial = buy(30 days, 1e18, discountTick);
         uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
         Offer memory sellOffer = makeSellOffer(initial.market, 1e18, tick);
-        setMaxSellRate(initial.market, type(uint256).max);
         deal(address(loanToken), taker, 1e18);
 
         vm.prank(curator);
