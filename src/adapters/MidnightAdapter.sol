@@ -443,6 +443,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
         require(callbackData.length == 0, NonEmptyCallbackData());
+
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         require(!salesDisabled || sellerAssets >= soldNetCredit, SalesDisabled());
