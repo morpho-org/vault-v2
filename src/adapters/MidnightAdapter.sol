@@ -171,6 +171,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
+    function setForceSellable(bytes32 marketId) external {
+        timelocked();
+        marketData[marketId].forceSellable = true;
+        emit SetForceSellable(marketId);
+    }
+
+    function unsetForceSellable(bytes32 marketId) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        marketData[marketId].forceSellable = false;
+        emit UnsetForceSellable(marketId);
+    }
+
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
@@ -351,6 +366,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + paidAssets;
@@ -424,20 +440,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-        if (ttm > 0 && soldNetCredit > sellerAssets) {
-            require(
-                (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
-                    <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
-                SellRateTooHigh()
-            );
-        }
-
         MarketData storage _marketData = marketData[marketId];
-        uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
-        if (shortfall > 0) {
-            uint256 newAmortizedValue = uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
-            require(newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm), ShortfallTooHigh());
-            _marketData.rate = (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
+        if (!_marketData.forceSellable) {
+            if (ttm > 0 && soldNetCredit > sellerAssets) {
+                require(
+                    (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
+                        <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
+                    SellRateTooHigh()
+                );
+            }
+
+            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
+            if (shortfall > 0) {
+                uint256 newAmortizedValue =
+                    uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
+                require(
+                    newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm), ShortfallTooHigh()
+                );
+                _marketData.rate =
+                    (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
+            }
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -473,14 +495,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
-    /// @dev Removes the market from marketIds and clears its stored data.
     function removeMarket(bytes32 marketId) internal {
-        MarketData storage _marketData = marketData[marketId];
+        MarketData memory _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
+        marketData[marketId].forceSellable = _marketData.forceSellable;
     }
 
     /* VIEWS */
