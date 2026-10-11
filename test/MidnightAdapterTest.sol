@@ -883,7 +883,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
 
-    function testParPurchaseCannotSellAtDiscount(uint256 elapsed) public {
+    function testParPurchaseCannotSellBelowPar(uint256 elapsed) public {
         Offer memory offer = buy(30 days, 100e18);
         skip(bound(elapsed, 0, 30 days));
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
