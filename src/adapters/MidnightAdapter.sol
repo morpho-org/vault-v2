@@ -71,9 +71,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public skimRecipient;
     bool public salesDisabled;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
-    /// @dev Enforced on maker and taker sales before maturity only.
-    mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -82,6 +79,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
+    bool public noShortfall;
 
     /* CONSTRUCTOR */
 
@@ -203,10 +201,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+    function setNoShortfall(bool newNoShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxSellRate[collateralParamsHash] = newMaxSellRate;
-        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+        noShortfall = newNoShortfall;
+        emit SetNoShortfall(newNoShortfall);
     }
 
     /// @dev Blocks maker and taker sales below 1, but not forceDeallocate.
@@ -451,17 +449,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            if (ttm > 0 && soldNetCredit > sellerAssets) {
-                require(
-                    (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
-                        <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
-                    SellRateTooHigh()
-                );
-            }
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 maxShortfall = (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
+                uint256 maxShortfall =
+                    noShortfall ? 0 : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
                 require(shortfall <= maxShortfall, ShortfallTooHigh());
 
                 _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
