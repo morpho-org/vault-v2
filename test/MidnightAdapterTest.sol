@@ -3846,10 +3846,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), type(uint32).max);
         assertEq(adapter.minGrowth(), type(uint64).max);
         assertFalse(adapter.noShortfall());
+        assertFalse(adapter.noSalesBelowPar());
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 3);
+        assertEq(reads.length, 4);
         assertEq(reads[0], reads[1], "maxTtm and minGrowth share one slot");
         assertEq(reads[1], reads[2], "noShortfall shares the same slot");
+        assertEq(reads[2], reads[3], "noSalesBelowPar shares the same slot");
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {

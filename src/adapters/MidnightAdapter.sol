@@ -207,6 +207,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetNoShortfall(newNoShortfall);
     }
 
+    /// @dev Blocks maker and taker sales below par, but not forceDeallocate.
     function setNoSalesBelowPar(bool newNoSalesBelowPar) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         noSalesBelowPar = newNoSalesBelowPar;
