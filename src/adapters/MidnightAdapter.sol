@@ -77,7 +77,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minRate;
-    bool public noShortfall;
+    bool public noSalesWithShortfall;
+    bool public noSalesBelowFaceValue;
 
     /* CONSTRUCTOR */
 
@@ -199,10 +200,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setNoShortfall(bool newNoShortfall) external {
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noShortfall = newNoShortfall;
-        emit SetNoShortfall(newNoShortfall);
+        noSalesWithShortfall = newNoSalesWithShortfall;
+        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
+    }
+
+    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        noSalesBelowFaceValue = newNoSalesBelowFaceValue;
+        emit SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -437,6 +444,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
@@ -445,7 +453,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 newAmortizedValue =
                     uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 require(
-                    !noShortfall && newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm),
+                    !noSalesWithShortfall
+                        && newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm),
                     ShortfallTooHigh()
                 );
                 _marketData.rate =

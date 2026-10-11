@@ -34,7 +34,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinRate(uint256 newMinRate);
     event SetMaxTtm(uint256 newMaxTtm);
-    event SetNoShortfall(bool newNoShortfall);
+    event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
+    event SetNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -75,6 +76,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
+    error SaleBelowFaceValue();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -93,7 +95,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minRate() external view returns (uint64);
-    function noShortfall() external view returns (bool);
+    function noSalesWithShortfall() external view returns (bool);
+    function noSalesBelowFaceValue() external view returns (bool);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -104,7 +107,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinRate(uint256 newMinRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
-    function setNoShortfall(bool newNoShortfall) external;
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
+    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
