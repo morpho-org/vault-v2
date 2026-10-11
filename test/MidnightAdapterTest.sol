@@ -490,7 +490,7 @@ contract MidnightAdapterTest is Test {
         adapter.setSkimRecipient(recipient);
     }
 
-    /* NO SHORTFALL. */
+    /* NO SHORTFALL */
 
     function testNoShortfallDefault() public view {
         assertFalse(adapter.noShortfall());
