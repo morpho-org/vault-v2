@@ -12,7 +12,7 @@ contract DurationsLibTest is Test {
     /// forge-config: default.allow_internal_expect_revert = true
     function testPackInvalidLength() public {
         uint256[] memory durations = new uint256[](MAX_DURATIONS + 1);
-        vm.expectRevert(DurationsLib.IndexOutOfBounds.selector);
+        vm.expectRevert(DurationsLib.TooManyDurations.selector);
         durations.pack();
     }
 
@@ -22,7 +22,7 @@ contract DurationsLibTest is Test {
         uint256[] memory durations = new uint256[](1);
         durations[0] = value;
 
-        vm.expectRevert(DurationsLib.ValueOutOfBounds.selector);
+        vm.expectRevert(DurationsLib.DurationTooHigh.selector);
         durations.pack();
     }
 
@@ -30,7 +30,7 @@ contract DurationsLibTest is Test {
     function testPackZeroDuration() public {
         uint256[] memory durations = new uint256[](1);
 
-        vm.expectRevert(DurationsLib.IncorrectDuration.selector);
+        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
         durations.pack();
     }
 
@@ -43,7 +43,7 @@ contract DurationsLibTest is Test {
         durations[0] = first;
         durations[1] = second;
 
-        vm.expectRevert(DurationsLib.IncorrectDuration.selector);
+        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
         durations.pack();
     }
 

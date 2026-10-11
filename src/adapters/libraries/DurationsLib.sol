@@ -5,9 +5,9 @@ pragma solidity ^0.8.0;
 uint256 constant MAX_DURATIONS = 8;
 
 library DurationsLib {
-    error IndexOutOfBounds();
-    error IncorrectDuration();
-    error ValueOutOfBounds();
+    error TooManyDurations();
+    error DurationsNotIncreasing();
+    error DurationTooHigh();
 
     /// @dev Assumes index < MAX_DURATIONS. Otherwise the return value is unspecified.
     function get(bytes32 durations, uint256 index) internal pure returns (uint256) {
@@ -18,14 +18,14 @@ library DurationsLib {
     }
 
     function pack(uint256[] memory durations) internal pure returns (bytes32) {
-        require(durations.length <= MAX_DURATIONS, IndexOutOfBounds());
+        require(durations.length <= MAX_DURATIONS, TooManyDurations());
         unchecked {
             bytes32 packedDurations;
             uint256 currentDuration;
             for (uint256 i = 0; i < durations.length; i++) {
                 uint256 duration = durations[i];
-                require(duration > currentDuration, IncorrectDuration());
-                require(duration <= type(uint32).max, ValueOutOfBounds());
+                require(duration > currentDuration, DurationsNotIncreasing());
+                require(duration <= type(uint32).max, DurationTooHigh());
 
                 currentDuration = duration;
                 packedDurations |= bytes32(duration << (32 * i));
