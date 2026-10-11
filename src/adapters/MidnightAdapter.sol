@@ -451,11 +451,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (!_marketData.forceSellable) {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 newAmortizedValue =
-                    newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
+                uint256 newAmortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 require(
-                    !noSalesWithShortfall
-                        && newAmortizedValue <= newNetCredit.mulDivDown(WAD, WAD + minRate * ttm),
+                    !noSalesWithShortfall && newAmortizedValue <= newNetCredit.mulDivDown(WAD, WAD + minRate * ttm),
                     ShortfallTooHigh()
                 );
                 _marketData.rate =
@@ -546,7 +544,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+            uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
             while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
