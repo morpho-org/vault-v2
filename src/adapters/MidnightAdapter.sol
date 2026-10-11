@@ -454,7 +454,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 require(
                     !noSalesWithShortfall
-                        && newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm),
+                        && newAmortizedValue <= newNetCredit.mulDivDown(WAD, WAD + minRate * ttm),
                     ShortfallTooHigh()
                 );
                 _marketData.rate =
