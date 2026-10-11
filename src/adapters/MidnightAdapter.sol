@@ -11,7 +11,12 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapterBase,
+    IMidnightAdapterStaticTyping,
+    MarketData,
+    SellRestriction
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -70,9 +75,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     address public skimRecipient;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
-    /// @dev Enforced on maker and taker sales before maturity only.
-    mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -81,6 +83,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
+    SellRestriction public sellRestriction;
 
     /* CONSTRUCTOR */
 
@@ -202,10 +205,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+    function setSellRestriction(SellRestriction newSellRestriction) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxSellRate[collateralParamsHash] = newMaxSellRate;
-        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+        sellRestriction = newSellRestriction;
+        emit SetSellRestriction(newSellRestriction);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -440,20 +443,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(
+            sellRestriction != SellRestriction.NoSell
+                && (sellRestriction != SellRestriction.NoSellBelowPar || sellerAssets >= soldNetCredit),
+            SellTooLow()
+        );
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            if (ttm > 0 && soldNetCredit > sellerAssets) {
-                require(
-                    (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
-                        <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
-                    SellRateTooHigh()
-                );
-            }
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 maxShortfall = (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
+                uint256 maxShortfall = sellRestriction == SellRestriction.NoShortfall
+                    ? 0
+                    : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
                 require(shortfall <= maxShortfall, ShortfallTooHigh());
 
                 _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
