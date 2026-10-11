@@ -32,6 +32,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
+    using MathLib for uint128;
     using MathLib for uint48;
     using DurationsLib for bytes32;
 
