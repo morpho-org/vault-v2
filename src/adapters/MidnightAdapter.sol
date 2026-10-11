@@ -69,7 +69,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ADAPTER STORAGE */
 
     address public skimRecipient;
-    bool public salesDisabled;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
@@ -80,6 +79,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
     bool public noShortfall;
+    bool public noSalesBelowPar;
 
     /* CONSTRUCTOR */
 
@@ -208,10 +208,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Blocks maker and taker sales below 1, but not forceDeallocate.
-    function setSalesDisabled(bool newSalesDisabled) external {
+    function setNoSalesBelowPar(bool newNoSalesBelowPar) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        salesDisabled = newSalesDisabled;
-        emit SetSalesDisabled(newSalesDisabled);
+        noSalesBelowPar = newNoSalesBelowPar;
+        emit SetNoSalesBelowPar(newNoSalesBelowPar);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -446,7 +446,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        require(!salesDisabled || sellerAssets >= soldNetCredit, SalesDisabled());
+        require(!noSalesBelowPar || sellerAssets >= soldNetCredit, SaleBelowPar());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
