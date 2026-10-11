@@ -209,7 +209,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
-    /// @dev Blocks maker and taker sales, but not forceDeallocate.
+    /// @dev Blocks maker and taker sales below 1, but not forceDeallocate.
     function setSalesDisabled(bool newSalesDisabled) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         salesDisabled = newSalesDisabled;
@@ -445,10 +445,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
         require(callbackData.length == 0, NonEmptyCallbackData());
-        require(!salesDisabled, SalesDisabled());
-
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(!salesDisabled || sellerAssets >= soldNetCredit, SalesDisabled());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {

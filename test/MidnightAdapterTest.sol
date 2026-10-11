@@ -1177,8 +1177,10 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSalesDisabledBlocksTakerSale() public {
-        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
-        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+        Offer memory initial = buy(30 days, 1e18, discountTick);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, tick);
+        setMaxSellRate(initial.market, type(uint256).max);
 
         vm.prank(curator);
         adapter.setSalesDisabled(true);
@@ -1188,14 +1190,44 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSalesDisabledBlocksMakerSale() public {
-        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
-        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, MAX_TICK);
+        Offer memory initial = buy(30 days, 1e18, discountTick);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, tick);
+        setMaxSellRate(initial.market, type(uint256).max);
         deal(address(loanToken), taker, 1e18);
 
         vm.prank(curator);
         adapter.setSalesDisabled(true);
         vm.expectRevert(IMidnightAdapterBase.SalesDisabled.selector);
         take(sellOffer);
+    }
+
+    function testSalesDisabledAllowsTakerSaleAtOne() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+
+        vm.prank(curator);
+        adapter.setSalesDisabled(true);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18, "");
+
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
+    }
+
+    function testSalesDisabledAllowsMakerSaleAtOne() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+        deal(address(loanToken), taker, 1e18);
+
+        vm.prank(curator);
+        adapter.setSalesDisabled(true);
+        take(sellOffer);
+
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
     }
 
     function testSalesDisabledDoesNotBlockForceDeallocate() public {
