@@ -1157,60 +1157,60 @@ contract MidnightAdapterTest is Test {
         offer.maxAssets = 0;
     }
 
-    function testSetSalesDisabledNotAuthorized(address caller, bool newSalesDisabled) public {
+    function testSetNoSellBelowParNotAuthorized(address caller, bool newNoSellBelowPar) public {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setSalesDisabled(newSalesDisabled);
+        adapter.setNoSellBelowPar(newNoSellBelowPar);
     }
 
-    function testSetSalesDisabledAuthorized(bool newSalesDisabled) public {
+    function testSetNoSellBelowParAuthorized(bool newNoSellBelowPar) public {
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetSalesDisabled(newSalesDisabled);
+        emit IMidnightAdapterBase.SetNoSellBelowPar(newNoSellBelowPar);
         vm.prank(curator);
-        adapter.setSalesDisabled(newSalesDisabled);
-        assertEq(adapter.salesDisabled(), newSalesDisabled, "salesDisabled");
+        adapter.setNoSellBelowPar(newNoSellBelowPar);
+        assertEq(adapter.noSellBelowPar(), newNoSellBelowPar, "noSellBelowPar");
     }
 
-    function testSalesDisabledBlocksTakerSale() public {
+    function testNoSellBelowParBlocksTakerSale() public {
         Offer memory initial = buy(30 days, 1e18, discountTick);
         uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
         Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, tick);
 
         vm.prank(curator);
-        adapter.setSalesDisabled(true);
-        vm.expectRevert(IMidnightAdapterBase.SalesDisabled.selector);
+        adapter.setNoSellBelowPar(true);
+        vm.expectRevert(IMidnightAdapterBase.SellBelowPar.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 1e18, "");
     }
 
-    function testSalesDisabledBlocksMakerSale() public {
+    function testNoSellBelowParBlocksMakerSale() public {
         Offer memory initial = buy(30 days, 1e18, discountTick);
         uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
         Offer memory sellOffer = makeSellOffer(initial.market, 1e18, tick);
         deal(address(loanToken), taker, 1e18);
 
         vm.prank(curator);
-        adapter.setSalesDisabled(true);
-        vm.expectRevert(IMidnightAdapterBase.SalesDisabled.selector);
+        adapter.setNoSellBelowPar(true);
+        vm.expectRevert(IMidnightAdapterBase.SellBelowPar.selector);
         take(sellOffer);
     }
 
-    function testSalesDisabledAllowsTakerSaleAtOne() public {
+    function testNoSellBelowParAllowsTakerSaleAtOne() public {
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(initial.market);
         uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
 
         vm.prank(curator);
-        adapter.setSalesDisabled(true);
+        adapter.setNoSellBelowPar(true);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 1e18, "");
 
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
     }
 
-    function testSalesDisabledAllowsMakerSaleAtOne() public {
+    function testNoSellBelowParAllowsMakerSaleAtOne() public {
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         Offer memory sellOffer = makeSellOffer(initial.market, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(initial.market);
@@ -1218,18 +1218,18 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 1e18);
 
         vm.prank(curator);
-        adapter.setSalesDisabled(true);
+        adapter.setNoSellBelowPar(true);
         take(sellOffer);
 
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
     }
 
-    function testSalesDisabledDoesNotBlockForceDeallocate() public {
+    function testNoSellBelowParDoesNotBlockForceDeallocate() public {
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         deal(address(loanToken), address(this), 0.25e18);
 
         vm.prank(curator);
-        adapter.setSalesDisabled(true);
+        adapter.setNoSellBelowPar(true);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
     }
@@ -3846,10 +3846,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), type(uint32).max);
         assertEq(adapter.minGrowth(), type(uint64).max);
         assertFalse(adapter.noShortfall());
+        assertFalse(adapter.noSellBelowPar());
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 3);
+        assertEq(reads.length, 4);
         assertEq(reads[0], reads[1], "maxTtm and minGrowth share one slot");
         assertEq(reads[1], reads[2], "noShortfall shares the same slot");
+        assertEq(reads[2], reads[3], "noSellBelowPar shares the same slot");
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {
