@@ -78,7 +78,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
     uint64 public minGrowth;
-    bool public noShortfall;
+    bool public noSalesWithShortfall;
+    bool public noSalesBelowFaceValue;
 
     /* CONSTRUCTOR */
 
@@ -200,10 +201,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setNoShortfall(bool newNoShortfall) external {
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noShortfall = newNoShortfall;
-        emit SetNoShortfall(newNoShortfall);
+        noSalesWithShortfall = newNoSalesWithShortfall;
+        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
+    }
+
+    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        noSalesBelowFaceValue = newNoSalesBelowFaceValue;
+        emit SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -438,13 +445,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 maxShortfall =
-                    noShortfall ? 0 : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
+                uint256 maxShortfall = noSalesWithShortfall
+                    ? 0
+                    : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
                 require(shortfall <= maxShortfall, ShortfallTooHigh());
 
                 _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
