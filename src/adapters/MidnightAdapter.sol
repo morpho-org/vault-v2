@@ -451,15 +451,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (!_marketData.forceSellable) {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm);
+                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 uint256 maxShortfall = noSalesWithShortfall
                     ? 0
-                    : newNetCredit.mulDivDown(WAD, WAD + minRate * ttm).zeroFloorSub(amortizedValue);
+                    : newNetCredit.mulDivDown(WAD, WAD + minRate * ttm).zeroFloorSub(amortizedValue - shortfall);
                 require(shortfall <= maxShortfall, ShortfallTooHigh());
 
-                _marketData.rate = (newNetCredit - amortizedValue - shortfall)
-                    .mulDivDown(WAD, (amortizedValue + shortfall) * ttm)
-                    .toUint64();
+                _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
             }
         }
 
