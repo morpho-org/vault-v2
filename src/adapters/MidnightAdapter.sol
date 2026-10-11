@@ -14,8 +14,8 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Approximates held assets by linearly accounting for interest per market.
-/// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant yield to maturity.
+/// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
@@ -23,7 +23,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases growth, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall, decreasing to zero at maturity.
 /// @dev The adapter's allocation cap bounds exposure.
@@ -32,7 +32,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
-    using MathLib for uint64;
+    using MathLib for uint128;
     using MathLib for uint48;
     using DurationsLib for bytes32;
 
@@ -76,8 +76,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum growth of a market after a maker or taker buy, or after a loss sale.
-    uint64 public minGrowth;
+    /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
+    uint64 public minRate;
     bool public noSalesWithShortfall;
     bool public noSalesBelowFaceValue;
 
@@ -193,11 +193,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when buying.
-    /// @dev Also bounds the growth decrease of loss sales.
-    function setMinGrowth(uint256 newMinGrowth) external {
+    /// @dev Also bounds the rate decrease of loss sales.
+    function setMinRate(uint256 newMinRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minGrowth = newMinGrowth.toUint64();
-        emit SetMinGrowth(newMinGrowth);
+        minRate = newMinRate.toUint64();
+        emit SetMinRate(newMinRate);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -348,6 +348,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
+    /// @dev Can revert on extremely high rates.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -374,10 +375,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivUp(WAD - _marketData.growth * ttm, WAD) + paidAssets;
-            // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            _marketData.growth = uint64((newNetCredit - amortizedValue).mulDivDown(WAD, newNetCredit * ttm));
-            require(_marketData.growth >= minGrowth, BuyGrowthTooLow());
+                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + paidAssets;
+            _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            require(_marketData.rate >= minRate, BuyRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -425,7 +425,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.growth);
+        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
 
@@ -449,14 +449,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD - _marketData.growth * ttm, WAD).zeroFloorSub(sellerAssets);
+            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 maxShortfall = noSalesWithShortfall
-                    ? 0
-                    : (newNetCredit * ttm).mulDivDown(_marketData.growth.zeroFloorSub(minGrowth), WAD);
-                require(shortfall <= maxShortfall, ShortfallTooHigh());
-
-                _marketData.growth -= shortfall.mulDivUp(WAD, newNetCredit * ttm).toUint64();
+                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
+                require(!noSalesWithShortfall && amortizedValue <= newNetCredit, ShortfallTooHigh());
+                _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                require(_marketData.rate >= minRate, ShortfallTooHigh());
             }
         }
 
@@ -471,7 +469,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.growth);
+        emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
 
@@ -543,7 +541,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+            uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
             while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
@@ -566,7 +564,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
-                WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp), WAD
+                WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)
             );
         }
         return assets;
