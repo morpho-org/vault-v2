@@ -69,9 +69,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     address public skimRecipient;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
-    /// @dev Enforced on maker and taker sales before maturity only.
-    mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -80,6 +77,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minRate;
+    bool public noShortfall;
 
     /* CONSTRUCTOR */
 
@@ -201,10 +199,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+    function setNoShortfall(bool newNoShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxSellRate[collateralParamsHash] = newMaxSellRate;
-        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+        noShortfall = newNoShortfall;
+        emit SetNoShortfall(newNoShortfall);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -442,20 +440,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            if (ttm > 0 && soldNetCredit > sellerAssets) {
-                require(
-                    (soldNetCredit - sellerAssets).mulDivUp(WAD, ttm * sellerAssets)
-                        <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
-                    SellRateTooHigh()
-                );
-            }
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 newAmortizedValue =
                     uint256(newNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 require(
-                    newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm), ShortfallTooHigh()
+                    !noShortfall && newAmortizedValue <= uint256(newNetCredit).mulDivDown(WAD, WAD + minRate * ttm),
+                    ShortfallTooHigh()
                 );
                 _marketData.rate =
                     (newNetCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * ttm).toUint64();
