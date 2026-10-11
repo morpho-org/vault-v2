@@ -40,7 +40,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinGrowth(uint256 newMinGrowth);
     event SetMaxTtm(uint256 newMaxTtm);
-    event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
+    event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
+    event SetNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -81,7 +82,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
-    error SellRateTooHigh();
+    error SaleBelowFaceValue();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -102,7 +103,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minGrowth() external view returns (uint64);
-    function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
+    function noSalesWithShortfall() external view returns (bool);
+    function noSalesBelowFaceValue() external view returns (bool);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -113,7 +115,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinGrowth(uint256 newMinGrowth) external;
     function setMaxTtm(uint256 newMaxTtm) external;
-    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
+    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
