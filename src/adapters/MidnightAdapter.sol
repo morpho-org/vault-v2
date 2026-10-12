@@ -22,7 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
-/// @dev Sub-ratifiers define how allocator offers are authorized.
+/// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// FUNDING
