@@ -10,6 +10,7 @@ import "../src/VaultV2.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
+import {newTokenOfType} from "./mocks/TokenMocks.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
@@ -22,8 +23,9 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     uint256 underlyingTokenDecimals;
+    uint256 underlyingTokenType;
 
-    ERC20Mock underlyingToken;
+    IERC20 underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
 
@@ -37,7 +39,8 @@ contract BaseTest is Test {
         underlyingTokenDecimals = vm.envOr("DECIMALS", uint256(18));
         require(underlyingTokenDecimals <= 36, "decimals too high");
 
-        underlyingToken = new ERC20Mock(uint8(underlyingTokenDecimals));
+        underlyingTokenType = vm.envOr("TOKEN_TYPE", uint256(0));
+        underlyingToken = newTokenOfType(underlyingTokenType, uint8(underlyingTokenDecimals));
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));

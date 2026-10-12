@@ -57,9 +57,10 @@ jobs:
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
+        token-type: [0, 1, 2, 3, 4]
 
     runs-on: ubuntu-latest
-    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }})"
+    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, token type: ${{ matrix.token-type }})"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -72,3 +73,4 @@ jobs:
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
         env:
           DECIMALS: ${{ matrix.decimals }}
+          TOKEN_TYPE: ${{ matrix.token-type }}
