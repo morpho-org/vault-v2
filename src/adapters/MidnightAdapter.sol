@@ -370,13 +370,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(ttm <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        uint128 newNetCredit = currentNetCredit(marketId);
+        uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+        MarketData storage _marketData = marketData[marketId];
+        uint128 newNetCredit = lossFactor == _marketData.lossFactor
+            ? (_marketData.netCredit + boughtNetCredit).toUint128()
+            : currentNetCredit(marketId);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
-        MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -387,7 +390,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        _marketData.lossFactor = lossFactor;
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -449,11 +452,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(seller == address(this), NotSelf());
         require(callbackData.length == 0, NonEmptyCallbackData());
 
-        uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+        MarketData storage _marketData = marketData[marketId];
+        uint128 newNetCredit = lossFactor == _marketData.lossFactor
+            ? (_marketData.netCredit - soldNetCredit).toUint128()
+            : currentNetCredit(marketId);
         require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-        MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
@@ -466,7 +472,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        _marketData.lossFactor = lossFactor;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)

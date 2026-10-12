@@ -2454,11 +2454,7 @@ contract MidnightAdapterTest is Test {
         uint256 rate = (units - paid) * 1e18 / (paid * duration);
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
-        stdstore.target(address(midnight))
-            .sig("credit(bytes32,address)")
-            .with_key(marketId)
-            .with_key(address(adapter))
-            .checked_write(units - loss);
+        setMidnightCredit(marketId, address(adapter), units - loss);
 
         offer.group = bytes32("second");
         midnight.supplyCollateral(offer.market, 0, units, taker);
@@ -3345,7 +3341,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(7 days, 1e18);
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 2e18, MAX_TICK);
 
-        vm.expectRevert(IMidnight.SellerIsLiquidatable.selector);
+        vm.expectRevert(stdError.arithmeticError);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 2e18, "");
     }
@@ -4365,6 +4361,19 @@ contract MidnightAdapterTest is Test {
             .with_key(marketId)
             .with_key(account)
             .checked_write(credit);
+        // Bump the loss factor without slashing, so the adapter doesn't use its cached net credit.
+        uint256 lossFactor = midnight.lossFactor(marketId) + 1;
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(marketId)
+            .checked_write(lossFactor);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lastLossFactor(bytes32,address)")
+            .with_key(marketId)
+            .with_key(account)
+            .checked_write(lossFactor);
     }
 
     function assertCurrentNetCredit(Market memory market, uint256 rate) internal view {
