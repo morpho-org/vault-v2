@@ -11,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # eth_getLogs block range caps of the RPCs (default 2M).
-CHUNK = {"484": 100_000, "1135": 100_000, "16661": 100_000, "714": 100_000, "42793": 1_000}
-CHUNK |= {chain: 10_000 for chain in ("4114", "685689", "1672", "4326", "1868", "130", "57073", "9745", "988")}
+CHUNK = {"484": 100_000, "1135": 100_000, "16661": 100_000, "714": 100_000}
+CHUNK |= {chain: 10_000 for chain in ("4114", "685689", "1672", "4326", "1868", "130", "57073", "9745", "988", "25")}
 CHUNK["4153"] = 100_000
 CHUNK["534352"] = 100_000
 
@@ -79,10 +79,3 @@ with ThreadPoolExecutor(len(book)) as executor:
             states[futures[future]] = future.result()
         except Exception as e:
             print(f"Chain {futures[future]}: FAILED, {e} {getattr(e, 'stdout', '')}{getattr(e, 'stderr', '')}")
-
-rows = sorted((row for state in states.values() for row in state["rows"]), reverse=True)
-print()
-print(f"{sum(len(state['vaults']) for state in states.values())} vaults on {len(states)}/{len(book)} chains, {len(rows)} with a MorphoMarketV1AdapterV2")
-print("ratio chain vault adapter totalAssets allowance")
-for row in rows:
-    print(*row)
