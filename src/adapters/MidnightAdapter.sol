@@ -277,7 +277,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        SafeERC20Lib.safeApprove(asset, parentVault, withdrawnAssets);
+        SafeERC20Lib.forceApproveMax(asset, parentVault);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -330,7 +330,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
-            SafeERC20Lib.safeApprove(asset, parentVault, assets);
+            SafeERC20Lib.forceApproveMax(asset, parentVault);
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -440,7 +440,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
-        SafeERC20Lib.safeApprove(asset, midnight, paidAssets);
+        SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
@@ -477,7 +477,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        SafeERC20Lib.safeApprove(asset, parentVault, sellerAssets);
+        SafeERC20Lib.forceApproveMax(asset, parentVault);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(

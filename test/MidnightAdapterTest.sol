@@ -2748,8 +2748,21 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
         assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
+    }
+
+    function testMakerBuyRestoresLowMidnightAllowance() public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.prank(address(adapter));
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 1);
+
+        take(offer);
+
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
     }
 
     /* ACCRUAL */
@@ -2900,8 +2913,8 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
     }
 
     function testRealAssetsUsesCachedNetCredit(uint256 elapsed) public {
@@ -3430,8 +3443,8 @@ contract MidnightAdapterTest is Test {
 
         uint128 marketNetCredit = adapter.marketData(marketId).netCredit;
         assertEq(marketNetCredit, 0.5e18);
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
     }
 
     function testForceDeallocateRevertsOnSellOffer() public {
@@ -3616,8 +3629,8 @@ contract MidnightAdapterTest is Test {
         assertEq(marketNetCredit, 0.5e18, "netCredit after sell");
         assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation after sell");
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
-        assertEq(loanToken.allowance(address(adapter), address(realVault)), 0);
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertGe(loanToken.allowance(address(adapter), address(realVault)), type(uint96).max / 2, "vault allowance");
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
     }
 
     /// forge-config: default.isolate = true
@@ -3778,8 +3791,30 @@ contract MidnightAdapterTest is Test {
         assertEq(creditAfter, creditBefore - withdrawAmount, "netCredit");
         assertEq(adapter.realAssets(), creditBefore - withdrawAmount, "realAssets");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount, "vault balance");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
+        assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
+    }
+
+    function testWithdrawToVaultRestoresLowAllowance() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint128 creditBefore = adapter.marketData(marketId).netCredit;
+
+        skip(7 days);
+
+        deal(address(loanToken), address(this), 1e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
+        midnight.repay(boughtOffer.market, 1e18, taker, address(0), "");
+
+        vm.prank(address(adapter));
+        SafeERC20Lib.safeApprove(address(loanToken), address(parentVault), 1);
+
+        uint256 withdrawAmount = 0.5e18;
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
+
+        assertEq(adapter.marketData(marketId).netCredit, creditBefore - withdrawAmount, "netCredit after withdrawal");
+        assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
     }
 
     function testWithdrawToVaultAfterLoss() public {
