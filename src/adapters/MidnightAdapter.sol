@@ -88,8 +88,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-        SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
 
         packedDurations = DurationsLib.pack(_durations);
@@ -279,6 +277,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        SafeERC20Lib.safeApprove(asset, parentVault, withdrawnAssets);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -331,6 +330,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
+            SafeERC20Lib.safeApprove(asset, parentVault, assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -440,6 +440,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
+        SafeERC20Lib.safeApprove(asset, midnight, paidAssets);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
@@ -476,6 +477,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        SafeERC20Lib.safeApprove(asset, parentVault, sellerAssets);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(

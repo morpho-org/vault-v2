@@ -1837,6 +1837,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0, "midnight allowance");
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
@@ -2746,6 +2748,8 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
     }
 
     /* ACCRUAL */
@@ -2896,6 +2900,8 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
     }
 
     function testRealAssetsUsesCachedNetCredit(uint256 elapsed) public {
@@ -3424,6 +3430,8 @@ contract MidnightAdapterTest is Test {
 
         uint128 marketNetCredit = adapter.marketData(marketId).netCredit;
         assertEq(marketNetCredit, 0.5e18);
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
     }
 
     function testForceDeallocateRevertsOnSellOffer() public {
@@ -3608,6 +3616,8 @@ contract MidnightAdapterTest is Test {
         assertEq(marketNetCredit, 0.5e18, "netCredit after sell");
         assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation after sell");
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
+        assertEq(loanToken.allowance(address(adapter), address(realVault)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
     }
 
     /// forge-config: default.isolate = true
@@ -3768,6 +3778,8 @@ contract MidnightAdapterTest is Test {
         assertEq(creditAfter, creditBefore - withdrawAmount, "netCredit");
         assertEq(adapter.realAssets(), creditBefore - withdrawAmount, "realAssets");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount, "vault balance");
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0);
     }
 
     function testWithdrawToVaultAfterLoss() public {
