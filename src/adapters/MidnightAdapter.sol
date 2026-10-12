@@ -14,21 +14,41 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Approximates held assets by discounting the net credit of each market at a constant yield to maturity.
+/// VALUATION
+/// @dev Approximates held assets by discounting the net credit of each market at a constant simple rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+///
+/// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev Sub-ratifiers define which offers are authorized.
+/// @dev The sentinel can only remove sub-ratifiers.
+///
+/// BUYING
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
-/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+///
+/// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
-/// @dev The adapter's allocation cap bounds exposure.
+///
+/// ALLOCATOR GUARDRAILS
+/// @dev minRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
+///
+/// DURATION CAPS
+/// @dev Durations can be used to cap the amount of credit above specific TTMs.
+/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
+/// @dev A position counts toward every duration <= its current remaining time to maturity.
+/// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
+/// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
+/// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all midnight markets.
 ///
 /// TIMELOCKS
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
@@ -47,11 +67,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Durations that can be used to cap the time to maturity.
-    /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all midnight markets.
     /// @dev Sorted in ascending order.
-    /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
-    /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
@@ -204,15 +220,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /// @dev Help prevent operational errors when buying.
-    /// @dev Also bounds the rate decrease of loss sales.
     function setMinRate(uint256 newMinRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate.toUint64();
         emit SetMinRate(newMinRate);
     }
 
-    /// @dev Help prevent operational errors when selling.
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         noSalesWithShortfall = newNoSalesWithShortfall;
@@ -255,8 +268,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetConsumed(msg.sender, group, amount);
     }
 
-    /// @dev Sub-ratifiers define how allocator offers are authorized.
-    /// @dev The sentinel can only remove sub-ratifiers.
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
         require(
             IVaultV2(parentVault).isAllocator(msg.sender)
@@ -541,7 +552,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A position counts toward every duration <= its current remaining time to maturity.
     function durations() external view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -551,7 +561,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
-    /// @dev Stored net credit is an upper bound of the exposure at each check.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
         require(length <= durationsLength, InvalidLength());
         allocations = new uint256[](length);
