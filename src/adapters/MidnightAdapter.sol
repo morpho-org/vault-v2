@@ -43,7 +43,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
-/// @dev The vault's allocation of a duration id stays zero: the adapter enforces these caps itself on buys.
+/// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all midnight markets.
 ///
