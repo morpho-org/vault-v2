@@ -39,6 +39,7 @@ contract BaseTest is Test {
         underlyingTokenDecimals = vm.envOr("DECIMALS", uint256(18));
         require(underlyingTokenDecimals <= 36, "decimals too high");
 
+        // TOKEN_TYPE values: 0 standard, 1 no-revert, 2 usdt, 3 revert-to-zero, 4 no-return.
         underlyingTokenType = vm.envOr("TOKEN_TYPE", uint256(0));
         underlyingToken = newTokenOfType(underlyingTokenType, uint8(underlyingTokenDecimals));
         vm.label(address(underlyingToken), "underlying");
