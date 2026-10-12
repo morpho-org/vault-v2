@@ -37,8 +37,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The adapter's allocation cap bounds exposure.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minRate helps prevent operational errors when buying. It also bounds the rate decrease of loss sales.
-/// @dev noSalesWithShortfall helps prevent operational errors when selling.
+/// @dev minRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the time to maturity.
