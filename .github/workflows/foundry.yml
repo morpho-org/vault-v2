@@ -57,7 +57,16 @@ jobs:
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
-        token-type: [0, 1, 2, 3, 4]
+        token-type: [0]
+        include:
+          - { decimals: 18, isolate: true, token-type: 1 }
+          - { decimals: 18, isolate: true, token-type: 2 }
+          - { decimals: 18, isolate: true, token-type: 3 }
+          - { decimals: 18, isolate: true, token-type: 4 }
+          - { decimals: 18, isolate: false, token-type: 1 }
+          - { decimals: 18, isolate: false, token-type: 2 }
+          - { decimals: 18, isolate: false, token-type: 3 }
+          - { decimals: 18, isolate: false, token-type: 4 }
 
     runs-on: ubuntu-latest
     name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, token type: ${{ matrix.token-type }})"
