@@ -946,7 +946,7 @@ contract MidnightAdapterTest is Test {
 
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, uint256(before.netCredit) + 50e18);
-        uint256 amortizedValue = uint256(before.netCredit).mulDivUp(1e18, 1e18 + before.rate * 30 days) + 50e18;
+        uint256 amortizedValue = uint256(before.netCredit).mulDivUp(1e18, 1e18 + uint256(before.rate) * 30 days) + 50e18;
         assertEq(
             after_.rate, (after_.netCredit - amortizedValue) * 1e18 / (amortizedValue * 30 days), "rate is diluted"
         );
@@ -1008,7 +1008,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
-        duration = bound(duration, 1, 365 days);
+        // Shorter durations at this discount give rates above uint48.
+        duration = bound(duration, 1 hours, 365 days);
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
         midnight.setDefaultContinuousFee(address(loanToken), continuousFee);
@@ -1054,11 +1055,20 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
+    function testOnBuyRateAboveUint48Reverts() public {
+        Offer memory offer = makeBuyOffer(1 minutes, 1e18, discountTick);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits / 2, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits - offer.maxUnits / 2, taker);
+
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
+    }
+
     function testMinRateCapsAverageRate() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
         uint256 amortizedValue =
-            uint256(100e18).mulDivUp(1e18, 1e18 + adapter.marketData(marketId).rate * 30 days) + 50e18;
+            uint256(100e18).mulDivUp(1e18, 1e18 + uint256(adapter.marketData(marketId).rate) * 30 days) + 50e18;
         uint256 averageRate = (150e18 - amortizedValue) * 1e18 / (amortizedValue * 30 days);
         Offer memory freeCredit = makeBuyOffer(30 days, 50e18, MAX_TICK);
         freeCredit.group = bytes32(vm.randomUint());
@@ -2927,8 +2937,8 @@ contract MidnightAdapterTest is Test {
         uint256 elapsed
     ) public {
         pendingFee = uint128(bound(pendingFee, 0, credit));
-        // A loss factor equal to the cached one (0) would make realAssets skip Midnight.
-        lossFactor = uint128(bound(lossFactor, lastLossFactor > 0 ? lastLossFactor : 1, type(uint128).max));
+        // A loss factor whose high 40 bits equal the cached ones (0) would make realAssets skip Midnight.
+        lossFactor = uint128(bound(lossFactor, lastLossFactor > 1 << 88 ? lastLossFactor : 1 << 88, type(uint128).max));
         elapsed = bound(elapsed, 0, 60 days);
         Offer memory offer = buy(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
@@ -2957,6 +2967,37 @@ contract MidnightAdapterTest is Test {
         (uint128 expectedCredit, uint128 expectedPendingFee,) =
             midnight.updatePositionView(offer.market, marketId, address(adapter));
         assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
+    }
+
+    function testRealAssetsLossAfterNearTotalLoss() public {
+        Offer memory offer = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        // Earlier losses left the market with 2^-58 of its units, so the high bits of the loss factor are all ones.
+        uint128 lossFactor = type(uint128).max - (1 << 70);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lastLossFactor(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
+            .checked_write(lossFactor);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(marketId)
+            .checked_write(lossFactor);
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.realAssets(), 1e18, "no loss since the update");
+
+        // The market loses half of its remaining units.
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(marketId)
+            .checked_write(type(uint128).max - (1 << 69));
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertLt(credit - pendingFee, 1e18, "loss");
+        assertEq(adapter.realAssets(), credit - pendingFee, "loss seen although the high bits did not move");
     }
 
     function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
@@ -3930,7 +3971,7 @@ contract MidnightAdapterTest is Test {
     /* SALE SHORTFALL */
 
     function testBuyMaturityOverflow() public {
-        vm.warp(uint256(type(uint48).max) - 1 days);
+        vm.warp(uint256(type(uint40).max) - 1 days);
         Offer memory offer = makeBuyOffer(2 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
@@ -5083,7 +5124,8 @@ contract MidnightAdapterTest is Test {
         fee = bound(fee, 0, MAX_CONTINUOUS_FEE);
         midnight.setDefaultContinuousFee(address(loanToken), fee);
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
-        elapsed = bound(elapsed, 0, 7 days - 1);
+        // Less than an hour to maturity at this discount gives rates above uint48.
+        elapsed = bound(elapsed, 0, 7 days - 1 hours);
         skip(elapsed);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         uint256 expected = realVault.totalAssets();
