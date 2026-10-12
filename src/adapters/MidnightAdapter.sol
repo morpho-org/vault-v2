@@ -567,13 +567,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overridenMarketId) {
+            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+                netCredit = _marketData.netCredit;
+            } else if (marketId == overridenMarketId) {
                 netCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                netCredit = IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor
-                    ? _marketData.netCredit
-                    : currentNetCredit(marketId);
+                netCredit = currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
                 WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)
