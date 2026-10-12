@@ -25,7 +25,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
-/// FUNDING
+/// BUYING
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
