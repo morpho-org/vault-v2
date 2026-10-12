@@ -165,10 +165,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* CURATOR FUNCTIONS */
 
-    function setMaxTtm(uint256 newMaxTtm) external {
+    function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
+        require(newMaxTtm >= maxTtm, MaxTtmTooLow());
         maxTtm = newMaxTtm.toUint32();
-        emit SetMaxTtm(newMaxTtm);
+        emit IncreaseMaxTtm(newMaxTtm);
+    }
+
+    function decreaseMaxTtm(uint256 newMaxTtm) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
+        maxTtm = uint32(newMaxTtm);
+        emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
     function setForceSellable(bytes32 marketId) external {
