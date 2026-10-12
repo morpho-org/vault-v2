@@ -40,7 +40,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 ///
 /// DURATION CAPS
-/// @dev Durations can be used to cap the time to maturity.
+/// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault's allocation of a duration id stays zero: the adapter enforces these caps itself on buys.
