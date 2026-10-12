@@ -352,7 +352,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     /// @dev Can revert on extremely high rates.
-    /// @dev Returns CALLBACK_SUCCESS.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -433,7 +432,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return CALLBACK_SUCCESS;
     }
 
-    /// @dev Returns CALLBACK_SUCCESS.
     function onSell(
         bytes32 marketId,
         Market memory market,
