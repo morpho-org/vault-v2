@@ -782,7 +782,7 @@ contract MidnightAdapterTest is Test {
         sold = bound(sold, 1, maxSold);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
-        uint256 newAmortizedValue = (100e18 - sold).mulDivDown(1e18, 1e18 + rate * ttm) + shortfall;
+        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
         uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
@@ -946,7 +946,7 @@ contract MidnightAdapterTest is Test {
 
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, uint256(before.netCredit) + 50e18);
-        uint256 amortizedValue = uint256(before.netCredit).mulDivDown(1e18, 1e18 + before.rate * 30 days) + 50e18;
+        uint256 amortizedValue = uint256(before.netCredit).mulDivUp(1e18, 1e18 + before.rate * 30 days) + 50e18;
         assertEq(
             after_.rate, (after_.netCredit - amortizedValue) * 1e18 / (amortizedValue * 30 days), "rate is diluted"
         );
@@ -1058,7 +1058,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
         uint256 amortizedValue =
-            uint256(100e18).mulDivDown(1e18, 1e18 + adapter.marketData(marketId).rate * 30 days) + 50e18;
+            uint256(100e18).mulDivUp(1e18, 1e18 + adapter.marketData(marketId).rate * 30 days) + 50e18;
         uint256 averageRate = (150e18 - amortizedValue) * 1e18 / (amortizedValue * 30 days);
         Offer memory freeCredit = makeBuyOffer(30 days, 50e18, MAX_TICK);
         freeCredit.group = bytes32(vm.randomUint());
@@ -2464,7 +2464,7 @@ contract MidnightAdapterTest is Test {
         vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         take(offer);
 
-        uint256 amortizedValue = (units - loss).mulDivDown(1e18, 1e18 + rate * duration) + vaultBalanceBefore
+        uint256 amortizedValue = (units - loss).mulDivUp(1e18, 1e18 + rate * duration) + vaultBalanceBefore
             - loanToken.balanceOf(address(parentVault));
         uint256 newRate = (2 * units - loss - amortizedValue) * 1e18 / (amortizedValue * duration);
         uint256 expectedValue = (2 * units - loss).mulDivDown(1e18, 1e18 + newRate * duration);
@@ -2506,6 +2506,22 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 10, "");
         assertEq(adapter.realAssets(), 0);
         assertEq(loanToken.balanceOf(address(parentVault)), 11);
+    }
+
+    function testBuyRoundsCarriedValueUp() public {
+        deal(address(loanToken), address(parentVault), 20);
+        Offer memory offer = buy(30 days, 10, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 rate = adapter.marketData(marketId).rate;
+        assertEq(uint256(10).mulDivDown(1e18, 1e18 + rate * 30 days), 9);
+        assertEq(uint256(10).mulDivUp(1e18, 1e18 + rate * 30 days), 10);
+
+        buyAdditionalCredit(offer.market, 10);
+
+        assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
+        assertEq(adapter.marketData(marketId).netCredit, 20);
+        assertEq(adapter.marketData(marketId).rate, 0, "carried value rounded up");
+        assertEq(adapter.realAssets(), 20);
     }
 
     function testSellFromMaturityChecksShortfall(bool takerSale, bool zeroProceeds, bool forceSellable, uint256 elapsed)
@@ -2729,7 +2745,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 totalNetCredit = uint256(first.maxUnits) + second.maxUnits;
-        uint256 amortizedValue = uint256(first.maxUnits).mulDivDown(1e18, 1e18 + firstRate * 15 days) + paid;
+        uint256 amortizedValue = uint256(first.maxUnits).mulDivUp(1e18, 1e18 + firstRate * 15 days) + paid;
         uint256 rate = (totalNetCredit - amortizedValue) * 1e18 / (amortizedValue * 15 days);
         uint256 valueAfter = totalNetCredit.mulDivDown(1e18, 1e18 + rate * 15 days);
         assertEq(adapter.realAssets(), valueAfter, "second purchase updates the rate");
