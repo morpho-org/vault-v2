@@ -215,24 +215,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
-        external
-    {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        IMidnight(midnight)
-            .take(
-                offer,
-                ratifierData,
-                units,
-                address(this),
-                offer.buy ? address(this) : address(0),
-                address(this),
-                takerCallbackData
-            );
-    }
-
     /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
@@ -289,18 +271,27 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* VAULT INTERFACE */
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
-    function allocate(bytes memory data, uint256, bytes4, address caller)
+    /// @dev Called by allocators through vault.allocate to take a sell offer, with data abi.encode(offer, ratifierData, units, takerCallbackData).
+    function allocate(bytes memory data, uint256, bytes4 messageSig, address caller)
         external
-        view
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
-        require(caller == address(this), SelfAllocationOnly());
-        returnExactBytes(data);
+        if (caller == address(this)) returnExactBytes(data);
+        require(messageSig == IVaultV2.allocate.selector, NotAuthorized());
+        (Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) =
+            abi.decode(data, (Offer, bytes, uint256, bytes));
+        require(!offer.buy && offer.market.loanToken == asset, IncorrectOffer());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        // forge-lint: disable-next-item(reentrancy-no-eth) callbacks update the vault allocation atomically.
+        IMidnight(midnight)
+            .take(offer, ratifierData, units, address(this), address(0), address(this), takerCallbackData);
+        return (new bytes32[](0), 0);
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver and pulls the full credit value from the caller.
+    /// @dev Called by allocators through vault.deallocate to take a buy offer, with data abi.encode(offer, ratifierData, units, takerCallbackData).
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -325,9 +316,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
-        } else {
-            require(caller == address(this), SelfAllocationOnly());
+        } else if (caller == address(this)) {
             returnExactBytes(data);
+        } else {
+            require(
+                messageSig == IVaultV2.deallocate.selector && IVaultV2(parentVault).isAllocator(caller), NotAuthorized()
+            );
+            (Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) =
+                abi.decode(data, (Offer, bytes, uint256, bytes));
+            require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
+            bytes32 marketId = IdLib.toId(offer.market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            // forge-lint: disable-next-item(reentrancy-no-eth) callbacks update the vault allocation atomically.
+            IMidnight(midnight)
+                .take(offer, ratifierData, units, address(this), address(this), address(this), takerCallbackData);
+            return (new bytes32[](0), 0);
         }
     }
 
