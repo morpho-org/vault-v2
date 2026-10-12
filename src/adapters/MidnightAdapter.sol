@@ -567,10 +567,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
-                netCredit = _marketData.netCredit;
-            } else if (marketId == overridenMarketId) {
+            if (marketId == overridenMarketId) {
                 netCredit = overridenMarketNetCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+                netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
