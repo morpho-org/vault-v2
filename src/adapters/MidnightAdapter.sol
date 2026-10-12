@@ -34,7 +34,6 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
-/// @dev The adapter's allocation cap bounds exposure.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
