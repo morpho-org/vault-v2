@@ -15,7 +15,7 @@ import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// VALUATION
-/// @dev Approximates held assets by discounting the net credit of each market at a constant yield to maturity.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant simple rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 ///
