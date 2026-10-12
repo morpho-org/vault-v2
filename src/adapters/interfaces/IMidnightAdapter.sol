@@ -33,7 +33,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetIsSubRatifier(address indexed sender, address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinRate(uint256 newMinRate);
-    event SetMaxTtm(uint256 newMaxTtm);
+    event IncreaseMaxTtm(uint256 newMaxTtm);
+    event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue);
     event SetForceSellable(bytes32 indexed marketId);
@@ -69,6 +70,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error IncorrectReceiver();
     error InvalidLength();
     error LoanAssetMismatch();
+    error MaxTtmTooHigh();
+    error MaxTtmTooLow();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
@@ -108,7 +111,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setMinRate(uint256 newMinRate) external;
-    function setMaxTtm(uint256 newMaxTtm) external;
+    function increaseMaxTtm(uint256 newMaxTtm) external;
+    function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external;
     function setForceSellable(bytes32 marketId) external;
