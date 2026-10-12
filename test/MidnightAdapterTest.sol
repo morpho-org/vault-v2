@@ -2312,7 +2312,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
         assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
         assertMarkets([_marketId(first.market), _marketId(last.market)]);
     }
@@ -2345,7 +2345,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2687,7 +2687,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -3925,7 +3925,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
     }
 
     function testShortfallUsesAmortizedValue() public {
