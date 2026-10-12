@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-# Ranks VaultV2s having a MorphoMarketV1AdapterV2, on every chain of address-book.json, by totalAssets / allowance(adapter -> vault), descending.
+# Ranks VaultV2s having a MorphoMarketV1AdapterV2, on every chain of address-book.json except those of scripts/untested_chains.txt (one chain id per line, a reason may follow), by totalAssets / allowance(adapter -> vault), descending.
 # Usage: ALCHEMY_KEY=<key> python3 scripts/rank_vaults.py
 # RPCs are the [rpc_endpoints] aliases of foundry.toml (chain id -> url). Chains run in parallel, one thread each.
 # State (vaults, number covered, ranking) is saved to scripts/rank_vaults_<chain>.json every 50 vaults. Rerunning resumes from it; delete the file to start over.
 import json
 import os
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# eth_getLogs block range caps of the RPCs (default 2M).
+CHUNK = {"484": 100_000, "1135": 100_000, "16661": 100_000, "714": 100_000, "42793": 1_000}
+CHUNK |= {chain: 10_000 for chain in ("4114", "685689", "1672", "4326", "1868", "130", "57073", "9745", "988")}
+CHUNK["4153"] = 100_000
+CHUNK["534352"] = 100_000
 
 
 def cast(chain, *args):
@@ -24,8 +30,20 @@ def run(chain):
         print(f"Chain {chain}: resuming from {file}, {state['covered']}/{len(state['vaults'])} vaults covered")
     else:
         print(f"Chain {chain}: fetching CreateVaultV2 logs...")
-        logs = json.loads(cast(chain, "logs", "--json", "--from-block", "0", "--address", FACTORY,
-                               "CreateVaultV2(address indexed owner, address indexed asset, bytes32 salt, address indexed newVaultV2)"))
+        latest = int(cast(chain, "block-number"))
+        lo, hi = 0, latest
+        while lo < hi:  # binary search of the factory deployment block
+            mid = (lo + hi) // 2
+            if cast(chain, "code", FACTORY, "--block", str(mid)) == "0x":
+                lo = mid + 1
+            else:
+                hi = mid
+        logs = []
+        print(f"Chain {chain}: factory deployed at block {lo}, fetching logs up to block {latest} in chunks of {CHUNK.get(chain, 2_000_000)} blocks")
+        for block in range(lo, latest + 1, CHUNK.get(chain, 2_000_000)):
+            print(f"Chain {chain}: logs from block {block}, {len(logs)} vaults so far")
+            logs += json.loads(cast(chain, "logs", "--json", "--from-block", str(block), "--to-block", str(min(block + CHUNK.get(chain, 2_000_000) - 1, latest)), "--address", FACTORY,
+                                    "CreateVaultV2(address indexed owner, address indexed asset, bytes32 salt, address indexed newVaultV2)"))
         state = {"vaults": ["0x" + log["topics"][3][-40:] for log in logs], "covered": 0, "rows": []}
         print(f"Chain {chain}: found {len(state['vaults'])} vaults")
         json.dump(state, open(file, "w"))
@@ -51,14 +69,16 @@ def run(chain):
 
 
 book = json.load(open("address-book.json"))["chains"]
-with ThreadPoolExecutor(len(book)) as executor:
-    futures = {chain: executor.submit(run, chain) for chain in book}
+for line in open("scripts/untested_chains.txt"):
+    del book[line.split()[0]]
 states = {}
-for chain, future in futures.items():
-    try:
-        states[chain] = future.result()
-    except Exception as e:
-        print(f"Chain {chain}: FAILED, {e}")
+with ThreadPoolExecutor(len(book)) as executor:
+    futures = {executor.submit(run, chain): chain for chain in book}
+    for future in as_completed(futures):
+        try:
+            states[futures[future]] = future.result()
+        except Exception as e:
+            print(f"Chain {futures[future]}: FAILED, {e} {getattr(e, 'stdout', '')}{getattr(e, 'stderr', '')}")
 
 rows = sorted((row for state in states.values() for row in state["rows"]), reverse=True)
 print()
