@@ -506,7 +506,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* VIEWS */
 
-    /// @dev Returns the number of markets where the adapter has a non-zero net credit.
+    /// @dev Returns the number of markets with a non-zero stored net credit.
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
     }
