@@ -289,7 +289,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* VAULT INTERFACE */
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
-    /// @dev Returns data as is, which onBuy sets to the ids of the bought market and the change in its net credit.
+    /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
     function allocate(bytes memory data, uint256, bytes4, address caller)
         external
         view
@@ -302,7 +302,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver and pulls the full credit value from the caller.
-    /// @dev Returns the ids of the market and the change in its net credit, taken as is from data outside of forceDeallocate.
+    /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
