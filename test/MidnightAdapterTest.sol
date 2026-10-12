@@ -3,7 +3,9 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
+import {Vm} from "../lib/forge-std/src/Vm.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
+import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
@@ -212,7 +214,7 @@ contract MidnightAdapterTest is Test {
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         factory = new MidnightAdapterFactory(address(midnight), allDurations);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), bytes32(0)));
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
 
@@ -309,7 +311,7 @@ contract MidnightAdapterTest is Test {
     function testGetEmptyData(bytes32 marketId) public view {
         MarketData memory marketData = adapter.marketData(marketId);
         assertEq(marketData.netCredit, 0, "market netCredit");
-        assertEq(marketData.growth, 0, "growth");
+        assertEq(marketData.rate, 0, "rate");
         assertEq(marketData.maturity, 0, "maturity");
         assertEq(marketData.index, 0, "index");
     }
@@ -322,7 +324,7 @@ contract MidnightAdapterTest is Test {
 
         MarketData memory marketData = adapter.marketData(_marketId(second.market));
         assertEq(marketData.netCredit, second.maxUnits, "netCredit");
-        assertEq(marketData.growth, (second.maxUnits - paidAssets) * 1e18 / 7 days / second.maxUnits, "growth");
+        assertEq(marketData.rate, (second.maxUnits - paidAssets) * 1e18 / (paidAssets * 7 days), "rate");
         assertEq(marketData.maturity, second.market.maturity, "maturity");
         assertEq(marketData.index, 1, "index");
 
@@ -489,75 +491,310 @@ contract MidnightAdapterTest is Test {
         adapter.setSkimRecipient(recipient);
     }
 
-    /* MAX SELL RATE */
+    /* NO SALES WITH SHORTFALL */
 
-    function testMaxSellRateDefault(bytes32 collateralParamsHash) public view {
-        assertEq(adapter.maxSellRate(collateralParamsHash), 0);
+    function testNoSalesWithShortfallDefault() public view {
+        assertFalse(adapter.noSalesWithShortfall());
     }
 
-    function testSetMaxSellRateAuthorized(uint256 oldMaxSellRate, uint256 newMaxSellRate) public {
-        bytes32 collateralParamsHash = keccak256(abi.encode(storedOffer.market.collateralParams));
+    function testSetNoSalesWithShortfallAuthorized(bool oldValue, bool newValue) public {
         vm.prank(curator);
-        adapter.setMaxSellRate(collateralParamsHash, oldMaxSellRate);
+        adapter.setNoSalesWithShortfall(oldValue);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMaxSellRate(curator, collateralParamsHash, newMaxSellRate);
+        emit IMidnightAdapterBase.SetNoSalesWithShortfall(newValue);
         vm.prank(curator);
-        adapter.setMaxSellRate(collateralParamsHash, newMaxSellRate);
-        assertEq(adapter.maxSellRate(collateralParamsHash), newMaxSellRate, "maximum updated immediately");
+        adapter.setNoSalesWithShortfall(newValue);
+        assertEq(adapter.noSalesWithShortfall(), newValue, "value updated immediately");
     }
 
-    function testSetMaxSellRateNotAuthorized(address caller, bool sentinel) public {
+    function testSetNoSalesWithShortfallNotAuthorized(address caller, bool sentinel) public {
         vm.assume(caller != curator);
         if (sentinel) {
             stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
         }
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setMaxSellRate(bytes32(0), 1e18);
+        adapter.setNoSalesWithShortfall(true);
     }
 
-    function testSetMaxSellRateCanIncreaseDecreaseAndClear() public {
-        bytes32 collateralParamsHash = keccak256(abi.encode(storedOffer.market.collateralParams));
-        setMaxSellRate(storedOffer.market, 0.5e18);
-        assertEq(adapter.maxSellRate(collateralParamsHash), 0.5e18);
+    function testNoSalesWithShortfallBlocksShortfallSale() public {
+        Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
+        skip(1 days);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 netCredit = adapter.marketData(marketId).netCredit;
+        uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
 
-        setMaxSellRate(storedOffer.market, 0.4e18);
-        assertEq(adapter.maxSellRate(collateralParamsHash), 0.4e18);
+        sellUnits(offer.market, 10e18, tick);
+        assertEq(adapter.marketData(marketId).netCredit, netCredit - 10e18, "loss sale accepted by default");
 
-        setMaxSellRate(storedOffer.market, 0.6e18);
-        assertEq(adapter.maxSellRate(collateralParamsHash), 0.6e18);
+        setNoSalesWithShortfall(true);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        sellUnits(offer.market, 10e18, tick);
+        assertEq(adapter.marketData(marketId).netCredit, netCredit - 10e18, "shortfall sale rejected");
+    }
 
-        setMaxSellRate(storedOffer.market, 0);
-        assertEq(adapter.maxSellRate(collateralParamsHash), 0);
+    /* FORCE SELLABLE. */
+
+    function testForceSellableDefault(bytes32 marketId) public view {
+        assertFalse(adapter.marketData(marketId).forceSellable);
+    }
+
+    function testSetForceSellableNotTimelocked(address caller, bytes32 marketId) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.setForceSellable(marketId);
+    }
+
+    function testSetForceSellableTimelocked(bytes32 marketId, uint256 duration) public {
+        assertFalse(adapter.marketData(marketId).forceSellable, "initially disabled");
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setForceSellable.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+        assertEq(adapter.executableAt(data), block.timestamp + duration, "execution delay");
+        assertFalse(adapter.marketData(marketId).forceSellable, "unchanged before execution");
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setForceSellable(marketId);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setForceSellable.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetForceSellable(marketId);
+        adapter.setForceSellable(marketId);
+        assertTrue(adapter.marketData(marketId).forceSellable, "setting updated");
+        assertEq(adapter.executableAt(data), 0, "pending call consumed");
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setForceSellable(marketId);
+    }
+
+    function testUnsetForceSellable(address caller, bytes32 marketId, bool sentinel) public {
+        vm.assume(caller != curator && !parentVault.isSentinel(caller));
+        setForceSellable(marketId);
+
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.unsetForceSellable(marketId);
+        assertTrue(adapter.marketData(marketId).forceSellable, "unauthorized caller cannot disable");
+
+        address authorizedCaller = curator;
+        if (sentinel) {
+            authorizedCaller = makeAddr("forceSellableSentinel");
+            stdstore.target(address(parentVault))
+                .sig("isSentinel(address)")
+                .with_key(authorizedCaller)
+                .checked_write(true);
+        }
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.UnsetForceSellable(marketId);
+        vm.recordLogs();
+        vm.prank(authorizedCaller);
+        adapter.unsetForceSellable(marketId);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "no Accept event");
+        assertFalse(adapter.marketData(marketId).forceSellable, "setting updated");
+    }
+
+    function testUnsetForceSellableWhenAbdicated(bytes32 marketId) public {
+        setForceSellable(marketId);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        bytes4 selector = IMidnightAdapterBase.setForceSellable.selector;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (selector)));
+        adapter.abdicate(selector);
+
+        unsetForceSellable(marketId);
+        assertFalse(adapter.marketData(marketId).forceSellable, "curator can disable");
+
+        vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
+        adapter.setForceSellable(marketId);
+    }
+
+    function testSetForceSellableRevokedOrAbdicated(bytes32 marketId, bool abdicate_) public {
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        if (abdicate_) {
+            bytes4 selector = IMidnightAdapterBase.setForceSellable.selector;
+            vm.prank(curator);
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (selector)));
+            adapter.abdicate(selector);
+            vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
+        } else {
+            vm.prank(curator);
+            adapter.revoke(data);
+            vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        }
+        adapter.setForceSellable(marketId);
+        assertFalse(adapter.marketData(marketId).forceSellable);
+    }
+
+    function testForceSellablePreservesMarketData(bool newForceSellable) public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory second = buy(7 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(second.market);
+        MarketData memory before = adapter.marketData(marketId);
+
+        setForceSellable(marketId);
+        if (!newForceSellable) unsetForceSellable(marketId);
+        MarketData memory after_ = adapter.marketData(marketId);
+        assertEq(after_.netCredit, before.netCredit, "netCredit unchanged");
+        assertEq(after_.rate, before.rate, "rate unchanged");
+        assertEq(after_.maturity, before.maturity, "maturity unchanged");
+        assertEq(after_.index, before.index, "index unchanged");
+        assertEq(after_.forceSellable, newForceSellable, "setting updated");
+
+        sell(first.market, 1e18);
+        assertEq(adapter.marketData(marketId).index, 0, "updated index");
+        assertEq(adapter.marketData(marketId).forceSellable, newForceSellable, "setting unchanged");
+    }
+
+    function testForceSellablePreventsBuys(bool takerBuy) public {
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        bytes memory data;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+            midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+            data = ratify([offer], signerAllocator);
+        }
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        setForceSellable(marketId);
+
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits, "");
+        } else {
+            this.takeWithAccrual(offer, data, taker, address(0));
+        }
+        assertEq(adapter.marketData(marketId).netCredit, 0, "buy rejected");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "no assets spent");
+
+        Offer memory otherOffer = buy(7 days, 1e18);
+        assertEq(adapter.marketData(_marketId(otherOffer.market)).netCredit, 1e18, "other market unaffected");
+
+        unsetForceSellable(marketId);
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits, "");
+        } else {
+            this.takeWithAccrual(offer, data, taker, address(0));
+        }
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
+    }
+
+    function testForceSellableOverridesNoSalesWithShortfallAndMinRate(bool takerSale) public {
+        Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+        uint256 rate = adapter.marketData(marketId).rate;
+        setMinRate(rate);
+        setNoSalesWithShortfall(true);
+
+        uint256 soldUnits = 0.5e18;
+        uint256 tick = TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING);
+        Offer memory offer = takerSale
+            ? makeExternalOffer(boughtOffer.market, true, soldUnits, MAX_TICK)
+            : makeSellOffer(boughtOffer.market, soldUnits, tick);
+        offer.tick = tick;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 assetsBefore = adapter.realAssets();
+
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", soldUnits, "");
+        } else {
+            take(offer);
+        }
+        assertEq(adapter.marketData(marketId).rate, rate, "rate unchanged after rejected sale");
+        assertEq(adapter.realAssets(), assetsBefore, "assets unchanged after rejected sale");
+
+        setForceSellable(marketId);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", soldUnits, "");
+        } else {
+            take(offer);
+        }
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - vaultBalanceBefore;
+        uint256 assetsAfter = adapter.realAssets();
+        uint256 shortfall = (assetsBefore - assetsAfter) - proceeds;
+        assertGt(shortfall, 0, "loss realized");
+        assertEq(adapter.marketData(marketId).rate, rate, "rate unchanged");
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - soldUnits, "position partially sold");
+        assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
+        assertEq(
+            vaultBalanceBefore + assetsBefore - loanToken.balanceOf(address(parentVault)) - assetsAfter,
+            shortfall,
+            "shortfall realized immediately"
+        );
+    }
+
+    function testForceSellableIsPerMarketAndCanBeDisabled() public {
+        Offer memory first = buy(2 days, 2e18);
+        Offer memory second = buy(1 days, 1e18);
+        bytes32 firstMarketId = _marketId(first.market);
+        bytes32 secondMarketId = _marketId(second.market);
+        setForceSellable(firstMarketId);
+
+        sellUnits(first.market, 1e18, MAX_TICK / 2);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        sellUnits(second.market, 1e18, MAX_TICK / 2);
+        assertFalse(adapter.marketData(secondMarketId).forceSellable, "other market protected");
+        assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
+
+        unsetForceSellable(firstMarketId);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        sellUnits(first.market, 1e18, MAX_TICK / 2);
+        assertFalse(adapter.marketData(firstMarketId).forceSellable, "override disabled");
+        assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
+
+        sellUnits(first.market, 1e18, MAX_TICK);
+        assertEq(adapter.marketData(firstMarketId).netCredit, 0, "par sale still allowed");
     }
 
     /* SALES BELOW AMORTIZED VALUE */
 
-    function testLossSaleLowersGrowth(uint256 elapsed, uint256 sold, uint256 price) public {
+    function testLossSaleLowersRate(uint256 elapsed, uint256 sold, uint256 price) public {
         elapsed = bound(elapsed, 0, 20 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(elapsed);
         uint256 ttm = 30 days - elapsed;
-        uint256 growth = adapter.marketData(marketId).growth;
-        uint256 discountFactor = 1e18 - growth * ttm;
+        uint256 rate = adapter.marketData(marketId).rate;
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
-        uint256 maxSold = (100e18 * (1e18 - discountFactor) - 1e18) / (1e18 - TickLib.tickToPrice(tick));
+        uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 shortfall = sold.mulDivUp(discountFactor, 1e18) - proceeds;
-        uint256 newGrowth = growth - shortfall.mulDivUp(1e18, (100e18 - sold) * ttm);
+        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
+        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, proceeds, sold, 100e18 - sold, newGrowth);
+        emit IMidnightAdapterBase.Sell(marketId, proceeds, sold, 100e18 - sold, newRate);
         sellUnits(offer.market, sold, tick);
 
         MarketData memory data = adapter.marketData(marketId);
         assertEq(data.netCredit, 100e18 - sold);
-        assertEq(data.growth, newGrowth, "growth decreases");
+        assertEq(data.rate, newRate, "rate decreases");
         assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
         assertGe(adapter.realAssets(), assetsBefore - proceeds, "amortized value decreases by the proceeds");
         assertLe(adapter.realAssets() - (assetsBefore - proceeds), (100e18 - sold) * ttm / 1e18 + 2, "rounding");
@@ -565,92 +802,108 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
     }
 
-    function testLossSaleRespectsMinGrowth(uint256 elapsed, uint256 sold, uint256 price, uint256 minGrowth) public {
+    function testLossSaleRespectsMinRate(uint256 elapsed, uint256 sold, uint256 price, uint256 minRate) public {
         elapsed = bound(elapsed, 0, 20 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(elapsed);
         uint256 ttm = 30 days - elapsed;
-        uint256 growth = adapter.marketData(marketId).growth;
-        uint256 discountFactor = 1e18 - growth * ttm;
-        minGrowth = bound(minGrowth, 0, growth);
-        setMinGrowth(minGrowth);
+        uint256 rate = adapter.marketData(marketId).rate;
+        minRate = bound(minRate, 0, rate);
+        setMinRate(minRate);
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
-        uint256 maxSold = (100e18 * (1e18 - discountFactor) - 1e18) / (1e18 - TickLib.tickToPrice(tick));
+        uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
-        uint256 shortfall = sold.mulDivUp(discountFactor, 1e18) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 denominator = (100e18 - sold) * ttm;
-        uint256 growthDecrease = shortfall.mulDivUp(1e18, denominator);
-        bool remainingGrowthTooLow = shortfall * 1e18 > denominator * uint256(growth).zeroFloorSub(minGrowth);
+        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
+        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        bool remainingRateTooLow = newAmortizedValue > 100e18 - sold;
+        uint256 newRate = shortfall == 0
+            ? rate
+            : remainingRateTooLow ? 0 : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
 
-        if (remainingGrowthTooLow) {
+        if (remainingRateTooLow || newRate < minRate) {
             vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
             sellUnits(offer.market, sold, tick);
         } else {
             sellUnits(offer.market, sold, tick);
-            assertEq(adapter.marketData(marketId).growth, growth - growthDecrease, "growth decreases");
+            assertEq(adapter.marketData(marketId).rate, newRate, "rate decreases");
         }
     }
 
-    function testGainSaleIgnoresMinGrowth() public {
+    function testGainSaleIgnoresMinRate() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMinGrowth(type(uint64).max);
+        setMinRate(type(uint64).max);
         deal(address(loanToken), taker, 100e18);
-        uint256 growth = adapter.marketData(marketId).growth;
+        uint256 rate = adapter.marketData(marketId).rate;
 
         sellUnits(offer.market, 1e18, MAX_TICK);
 
-        assertEq(adapter.marketData(marketId).growth, growth, "growth unchanged");
+        assertEq(adapter.marketData(marketId).rate, rate, "rate unchanged");
     }
 
-    function testGainSaleKeepsGrowth(uint256 elapsed, uint256 sold) public {
+    function testGainSaleKeepsRate(uint256 elapsed, uint256 sold) public {
         elapsed = bound(elapsed, 0, 30 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
         skip(elapsed);
         sold = bound(sold, 1, 100e18);
         deal(address(loanToken), taker, 100e18);
-        uint256 growth = adapter.marketData(marketId).growth;
-        uint256 discountFactor = 1e18 - growth * (30 days - elapsed);
-        uint256 newGrowth = sold == 100e18 ? 0 : growth;
+        uint256 rate = adapter.marketData(marketId).rate;
+        uint256 newRate = sold == 100e18 ? 0 : rate;
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, newGrowth);
+        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, newRate);
         sellUnits(offer.market, sold, MAX_TICK);
 
-        assertEq(adapter.marketData(marketId).growth, newGrowth, "growth unchanged");
-        assertEq(adapter.realAssets(), (100e18 - sold).mulDivDown(discountFactor, 1e18));
+        assertEq(adapter.marketData(marketId).rate, newRate, "rate unchanged");
+        assertEq(adapter.realAssets(), (100e18 - sold).mulDivDown(1e18, 1e18 + rate * (30 days - elapsed)));
+    }
+
+    function testSellAtBuyRateKeepsRate(uint256 elapsed, uint256 sold) public {
+        elapsed = bound(elapsed, 0, 30 days - 1);
+        Offer memory offer = buyAtDiscount(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 rate = adapter.marketData(marketId).rate;
+        setMinRate(rate);
+        skip(elapsed);
+        sold = bound(sold, 1, 100e18);
+        deal(address(loanToken), taker, 100e18);
+        // Lowest tick above the amortized value of one unit: the sale yields the purchase rate or less.
+        uint256 tick = TickLib.priceToTick(1e36 / (1e18 + rate * (30 days - elapsed)) + 1, DEFAULT_TICK_SPACING);
+
+        sellUnits(offer.market, sold, tick);
+
+        assertEq(adapter.marketData(marketId).rate, sold == 100e18 ? 0 : rate, "rate unchanged");
     }
 
     function testLossSaleCanUseAllRemainingInterest() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMinGrowth(0);
-        uint256 growth = adapter.marketData(marketId).growth;
-        uint256 discountFactor = 1e18 - growth * 30 days;
+        setMinRate(0);
+        uint256 rate = adapter.marketData(marketId).rate;
         uint256 low;
         uint256 high = 100e18 - adapter.realAssets();
         // Largest shortfall that the interest remaining after the sale can absorb.
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
-            uint256 units = 2 * mid.mulDivDown(1e18, 2 * (discountFactor - 0.5e18));
-            if (mid * 1e18 <= (100e18 - units) * 30 days * growth) low = mid;
+            uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
+            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
+                + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
+            if (newAmortizedValue <= 100e18 - units) low = mid;
             else high = mid;
         }
 
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         this.sellWithShortfall(offer.market, low + 1);
         this.sellWithShortfall(offer.market, low);
-        assertEq(adapter.marketData(marketId).growth, 0, "all remaining interest is used");
+        assertEq(adapter.marketData(marketId).rate, 0, "all remaining interest is used");
         assertEq(adapter.realAssets(), adapter.marketData(marketId).netCredit, "carried at par");
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
 
     function testParPurchaseCannotSellBelowPar(uint256 elapsed) public {
         Offer memory offer = buy(30 days, 100e18);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(bound(elapsed, 0, 30 days));
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - DEFAULT_TICK_SPACING);
@@ -662,12 +915,12 @@ contract MidnightAdapterTest is Test {
         Offer memory first = buyAtDiscount(30 days, 100e18);
         Offer memory second = buyAtDiscount(31 days, 100e18);
         bytes32 secondMarketId = _marketId(second.market);
-        uint256 secondGrowth = adapter.marketData(secondMarketId).growth;
+        uint256 secondRate = adapter.marketData(secondMarketId).rate;
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         this.sellWithShortfall(first.market, 1e18);
-        assertEq(adapter.marketData(secondMarketId).growth, secondGrowth, "other market unchanged");
+        assertEq(adapter.marketData(secondMarketId).rate, secondRate, "other market unchanged");
         assertEq(adapter.marketData(secondMarketId).netCredit, 100e18);
         uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
         assertGe(adapter.realAssets() + proceeds, assetsBefore);
@@ -694,65 +947,68 @@ contract MidnightAdapterTest is Test {
 
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, uint256(before.netCredit) + 50e18);
-        assertEq(after_.growth, uint256(before.netCredit) * before.growth / after_.netCredit, "growth is diluted");
+        uint256 amortizedValue = uint256(before.netCredit).mulDivUp(1e18, 1e18 + before.rate * 30 days) + 50e18;
+        assertEq(
+            after_.rate, (after_.netCredit - amortizedValue) * 1e18 / (amortizedValue * 30 days), "rate is diluted"
+        );
         assertGe(adapter.realAssets(), assetsBefore + 50e18, "purchase adds its cost");
     }
 
-    /* MIN GROWTH */
+    /* MIN RATE */
 
-    function testSetMinGrowthNotAuthorized(address caller, uint256 newMinGrowth) public {
+    function testSetMinRateNotAuthorized(address caller, uint256 newMinRate) public {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setMinGrowth(newMinGrowth);
+        adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinGrowthAuthorized(uint256 oldMinGrowth, uint256 newMinGrowth) public {
-        oldMinGrowth = bound(oldMinGrowth, 0, type(uint64).max);
-        newMinGrowth = bound(newMinGrowth, 0, type(uint64).max);
+    function testSetMinRateAuthorized(uint256 oldMinRate, uint256 newMinRate) public {
+        oldMinRate = bound(oldMinRate, 0, type(uint64).max);
+        newMinRate = bound(newMinRate, 0, type(uint64).max);
         vm.prank(curator);
-        adapter.setMinGrowth(oldMinGrowth);
+        adapter.setMinRate(oldMinRate);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMinGrowth(newMinGrowth);
+        emit IMidnightAdapterBase.SetMinRate(newMinRate);
         vm.prank(curator);
-        adapter.setMinGrowth(newMinGrowth);
-        assertEq(adapter.minGrowth(), newMinGrowth, "minGrowth");
+        adapter.setMinRate(newMinRate);
+        assertEq(adapter.minRate(), newMinRate, "minRate");
     }
 
-    function testSetMinGrowthOverflow(uint256 newMinGrowth) public {
-        newMinGrowth = bound(newMinGrowth, uint256(type(uint64).max) + 1, type(uint256).max);
+    function testSetMinRateOverflow(uint256 newMinRate) public {
+        newMinRate = bound(newMinRate, uint256(type(uint64).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
-        adapter.setMinGrowth(newMinGrowth);
+        adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinGrowthDecrease(uint256 oldMinGrowth, uint256 newMinGrowth) public {
-        oldMinGrowth = bound(oldMinGrowth, 0, type(uint64).max);
-        newMinGrowth = bound(newMinGrowth, 0, oldMinGrowth);
-        setMinGrowth(oldMinGrowth);
-        setMinGrowth(newMinGrowth);
-        assertEq(adapter.minGrowth(), newMinGrowth, "minGrowth decreased");
+    function testSetMinRateDecrease(uint256 oldMinRate, uint256 newMinRate) public {
+        oldMinRate = bound(oldMinRate, 0, type(uint64).max);
+        newMinRate = bound(newMinRate, 0, oldMinRate);
+        setMinRate(oldMinRate);
+        setMinRate(newMinRate);
+        assertEq(adapter.minRate(), newMinRate, "minRate decreased");
     }
 
-    function testMinGrowthRejectsPreviouslyRatifiedZeroGrowthOffer() public {
+    function testMinRateRejectsPreviouslyRatifiedZeroRateOffer() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         bytes memory data = ratify([offer], signerAllocator);
-        assertEq(adapter.minGrowth(), 0, "default minGrowth");
-        setMinGrowth(1);
+        assertEq(adapter.minRate(), 0, "default minRate");
+        setMinRate(1);
 
         vm.prank(taker);
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
         assertEq(adapter.realAssets(), 0, "failed buy leaves no assets");
         assertEq(midnight.consumed(address(adapter), offer.group), 0, "offer not consumed");
 
-        setMinGrowth(0);
+        setMinRate(0);
         take(offer);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "zero growth accepted");
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "zero rate accepted");
     }
 
-    function testMinGrowthBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
+    function testMinRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
         duration = bound(duration, 1, 365 days);
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
@@ -763,26 +1019,26 @@ contract MidnightAdapterTest is Test {
         uint256 paidAssets = uint256(offer.maxUnits).mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
         uint256 pendingFee = uint256(offer.maxUnits).mulDivDown(continuousFee * duration, 1e18);
         uint256 netCredit = offer.maxUnits - pendingFee;
-        uint256 growth = (netCredit - paidAssets) * 1e18 / (netCredit * duration);
-        setMinGrowth(growth + 1);
+        uint256 rate = (netCredit - paidAssets) * 1e18 / (paidAssets * duration);
+        setMinRate(rate + 1);
 
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         take(offer);
 
-        setMinGrowth(growth);
+        setMinRate(rate);
         take(offer);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, netCredit, "net growth accepted");
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, netCredit, "net rate accepted");
     }
 
-    function testMinGrowthUsesRemainingDuration() public {
+    function testMinRateUsesRemainingDuration() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, discountTick);
         offer.expiry = offer.market.maturity;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         uint256 paidAssets = uint256(offer.maxUnits).mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
-        uint256 growth = (offer.maxUnits - paidAssets) * 1e18 / (offer.maxUnits * 15 days);
-        setMinGrowth(growth);
+        uint256 rate = (offer.maxUnits - paidAssets) * 1e18 / (paidAssets * 15 days);
+        setMinRate(rate);
 
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         take(offer);
 
         skip(15 days);
@@ -790,65 +1046,63 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "remaining duration used");
     }
 
-    function testMinGrowthZeroPaidAssets() public {
+    function testBuyZeroPaidAssetsReverts() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        setMinGrowth(uint256(1e18) / 30 days);
-        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
+        vm.expectRevert(stdError.divisionError);
         take(offer);
-
-        assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore, "no assets paid");
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "free credit accepted");
     }
 
-    function testMinGrowthCapsAverageGrowth() public {
+    function testMinRateCapsAverageRate() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        uint256 averageGrowth = uint256(adapter.marketData(marketId).growth) * 100e18 / 150e18;
+        uint256 amortizedValue =
+            uint256(100e18).mulDivUp(1e18, 1e18 + adapter.marketData(marketId).rate * 30 days) + 50e18;
+        uint256 averageRate = (150e18 - amortizedValue) * 1e18 / (amortizedValue * 30 days);
         Offer memory freeCredit = makeBuyOffer(30 days, 50e18, MAX_TICK);
         freeCredit.group = bytes32(vm.randomUint());
         midnight.supplyCollateral(offer.market, 0, 50e18, taker);
         midnight.supplyCollateral(offer.market, 1, 50e18, taker);
-        setMinGrowth(averageGrowth + 1);
+        setMinRate(averageRate + 1);
 
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         take(freeCredit);
 
-        setMinGrowth(averageGrowth);
+        setMinRate(averageRate);
         take(freeCredit);
-        assertEq(adapter.marketData(marketId).growth, averageGrowth, "average growth accepted");
+        assertEq(adapter.marketData(marketId).rate, averageRate, "average rate accepted");
     }
 
-    function testMinGrowthDoesNotRestrictSells() public {
+    function testMinRateDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
-        setMinGrowth(type(uint64).max);
+        setMinRate(type(uint64).max);
         sell(offer.market, offer.maxUnits);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "sell accepted");
     }
 
     /// forge-config: default.isolate = true
-    function testMinGrowthAllocatorTakeRealVault() public {
+    function testMinRateAllocatorTakeRealVault() public {
         setUpRealVault();
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, 1e18, MAX_TICK);
-        setMinGrowth(1);
+        setMinRate(1);
 
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         adapter.take(offer, "", offer.maxUnits, "");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "failed buy leaves no allocation");
         assertEq(loanToken.balanceOf(address(realVault)), 10e18, "failed buy leaves vault funds unchanged");
 
-        setMinGrowth(0);
+        setMinRate(0);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits, "");
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "buy accepted");
     }
 
     /// forge-config: default.isolate = true
-    function testMinGrowthAllocatorTakeNetGrowth() public {
+    function testMinRateAllocatorTakeNetRate() public {
         setUpRealVault();
         uint256 duration = 7 days;
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
@@ -863,17 +1117,17 @@ contract MidnightAdapterTest is Test {
         uint256 paidAssets = uint256(offer.maxUnits).mulDivUp(buyerPrice, 1e18);
         uint256 pendingFee = uint256(offer.maxUnits).mulDivDown(uint256(MAX_CONTINUOUS_FEE) * duration, 1e18);
         uint256 netCredit = offer.maxUnits - pendingFee;
-        uint256 growth = (netCredit - paidAssets) * 1e18 / (netCredit * duration);
-        setMinGrowth(growth + 1);
+        uint256 rate = (netCredit - paidAssets) * 1e18 / (paidAssets * duration);
+        setMinRate(rate + 1);
 
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.BuyGrowthTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.BuyRateTooLow.selector);
         adapter.take(offer, "", offer.maxUnits, "");
 
-        setMinGrowth(growth);
+        setMinRate(rate);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits, "");
-        assertEq(adapter.marketData(marketId).netCredit, netCredit, "net growth accepted");
+        assertEq(adapter.marketData(marketId).netCredit, netCredit, "net rate accepted");
         assertEq(loanToken.balanceOf(address(realVault)), 10e18 - paidAssets, "includes settlement fee");
     }
 
@@ -923,6 +1177,83 @@ contract MidnightAdapterTest is Test {
         offer.maxAssets = 0;
     }
 
+    function testSetNoSalesBelowFaceValueNotAuthorized(address caller, bool newNoSalesBelowFaceValue) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.setNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
+    }
+
+    function testSetNoSalesBelowFaceValueAuthorized(bool newNoSalesBelowFaceValue) public {
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
+        assertEq(adapter.noSalesBelowFaceValue(), newNoSalesBelowFaceValue, "noSalesBelowFaceValue");
+    }
+
+    function testNoSalesBelowFaceValueBlocksTakerSale() public {
+        Offer memory initial = buy(30 days, 1e18, discountTick);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, tick);
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        vm.expectRevert(IMidnightAdapterBase.SaleBelowFaceValue.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18, "");
+    }
+
+    function testNoSalesBelowFaceValueBlocksMakerSale() public {
+        Offer memory initial = buy(30 days, 1e18, discountTick);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, tick);
+        deal(address(loanToken), taker, 1e18);
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        vm.expectRevert(IMidnightAdapterBase.SaleBelowFaceValue.selector);
+        take(sellOffer);
+    }
+
+    function testNoSalesBelowFaceValueAllowsTakerSaleAtOne() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory buyOffer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18, "");
+
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
+    }
+
+    function testNoSalesBelowFaceValueAllowsMakerSaleAtOne() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        Offer memory sellOffer = makeSellOffer(initial.market, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+        deal(address(loanToken), taker, 1e18);
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        take(sellOffer);
+
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
+    }
+
+    function testNoSalesBelowFaceValueDoesNotBlockForceDeallocate() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        deal(address(loanToken), address(this), 0.25e18);
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        forceDeallocate(initial.market, 0.25e18);
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
+    }
+
     function testRatifyLoanAssetMismatch(uint256 seed, address otherToken) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
@@ -949,7 +1280,7 @@ contract MidnightAdapterTest is Test {
         vm.setSeed(seed);
         address otherAllocator = makeAddr("otherAllocator");
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        address otherAdapter = factory.createMidnightAdapter(address(otherVault));
+        address otherAdapter = factory.createMidnightAdapter(address(otherVault), bytes32(0));
         Offer memory offer = _ratificationSetup();
         offer.maker = otherAdapter;
         bytes32 _root = root(offer);
@@ -1196,7 +1527,7 @@ contract MidnightAdapterTest is Test {
     function testSharedRatifierTwoAdapters() public {
         address otherAllocator = makeAddr("otherAllocator");
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault)));
+        IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault), bytes32(0)));
         vm.prank(curator);
         otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint32).max)));
         otherAdapter.setMaxTtm(type(uint32).max);
@@ -1409,14 +1740,22 @@ contract MidnightAdapterTest is Test {
 
     /* FACTORY */
 
-    function testFactoryCreateMidnightAdapter() public {
+    function testFactoryCreateMidnightAdapter(bytes32 salt) public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        vm.expectEmit(true, false, false, false, address(factory));
-        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), address(0));
-        address newAdapter = factory.createMidnightAdapter(address(newVault));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(MidnightAdapter).creationCode, abi.encode(address(newVault), address(midnight), allDurations)
+            )
+        );
+        address expected =
+            address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), salt, initCodeHash)))));
+        vm.expectEmit(address(factory));
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), salt, expected);
+        address newAdapter = factory.createMidnightAdapter(address(newVault), salt);
 
-        assertEq(factory.midnightAdapter(address(newVault)), newAdapter, "midnightAdapter");
+        assertEq(newAdapter, expected, "expected address");
+        assertEq(factory.midnightAdapter(address(newVault), salt), newAdapter, "midnightAdapter");
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
@@ -1424,9 +1763,16 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
-        // Fixed salt: one adapter per vault.
+        bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
         vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault));
+        factory.createMidnightAdapter(address(newVault), salt);
+
+        address otherAdapter = factory.createMidnightAdapter(address(newVault), differentSalt);
+        assertTrue(otherAdapter != newAdapter, "different salts create different adapters");
+        assertEq(factory.midnightAdapter(address(newVault), salt), newAdapter, "first adapter mapping");
+        assertEq(factory.midnightAdapter(address(newVault), differentSalt), otherAdapter, "second adapter mapping");
+        assertTrue(factory.isMidnightAdapter(newAdapter), "first adapter registered");
+        assertTrue(factory.isMidnightAdapter(otherAdapter), "second adapter registered");
     }
 
     function testFactoryConstructor() public {
@@ -1457,7 +1803,7 @@ contract MidnightAdapterTest is Test {
 
     function testDurationCapsDefaultToZero() public {
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
-        IMidnightAdapter fresh = IMidnightAdapter(factory.createMidnightAdapter(address(vault)));
+        IMidnightAdapter fresh = IMidnightAdapter(factory.createMidnightAdapter(address(vault), bytes32(0)));
         for (uint256 i; i < allDurations.length; i++) {
             assertEq(vault.relativeCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
             assertEq(vault.absoluteCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
@@ -1967,7 +2313,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false)));
         assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
         assertMarkets([_marketId(first.market), _marketId(last.market)]);
     }
@@ -1999,7 +2345,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0);
         sell(soldOffer.market, 1e18);
 
-        assertEq(abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
         for (uint256 i = 0; i < 249; i++) {
@@ -2104,7 +2450,7 @@ contract MidnightAdapterTest is Test {
         take(offer);
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 growth = (units - paid) * 1e18 / (units * duration);
+        uint256 rate = (units - paid) * 1e18 / (paid * duration);
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
         stdstore.target(address(midnight))
@@ -2116,52 +2462,19 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("second");
         midnight.supplyCollateral(offer.market, 0, units, taker);
         midnight.supplyCollateral(offer.market, 1, units, taker);
+        vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         take(offer);
 
-        uint256 expectedValue = 2 * units - loss - (2 * units - loss).mulDivUp(growth * duration, 1e18);
+        uint256 amortizedValue = (units - loss).mulDivUp(1e18, 1e18 + rate * duration) + vaultBalanceBefore
+            - loanToken.balanceOf(address(parentVault));
+        uint256 newRate = (2 * units - loss - amortizedValue) * 1e18 / (amortizedValue * duration);
+        uint256 expectedValue = (2 * units - loss).mulDivDown(1e18, 1e18 + newRate * duration);
         assertEq(adapter.realAssets(), expectedValue);
         uint128 marketNetCredit = adapter.marketData(marketId).netCredit;
         assertEq(marketNetCredit, 2 * units - loss);
     }
 
-    function testOnSellMaxSellRate() public {
-        uint256 price = TickLib.tickToPrice(MAX_TICK - 4);
-        uint256 maxSellRate = (1e18 - price).mulDivUp(1e18, price * 30 days);
-
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buyAtDiscount(32 days, 1e18);
-        skip(2 days);
-        setMaxSellRate(offer.market, maxSellRate);
-        deal(address(loanToken), taker, 1e18);
-
-        sellUnits(offer.market, 1e18, MAX_TICK - 4);
-
-        uint128 marketNetCredit = adapter.marketData(_marketId(offer.market)).netCredit;
-        assertEq(marketNetCredit, 0);
-        assertEq(adapter.realAssets(), 0);
-        assertEq(adapter.maxSellRate(keccak256(abi.encode(offer.market.collateralParams))), maxSellRate);
-    }
-
-    // Same maximum rate, reached through the allocator take path: taking a buy offer makes the adapter sell.
-    function testTakeMaxSellRate() public {
-        uint256 price = TickLib.tickToPrice(MAX_TICK - 4);
-        uint256 maxSellRate = (1e18 - price).mulDivUp(1e18, price * 30 days);
-
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buyAtDiscount(32 days, 1e18);
-        skip(2 days);
-        setMaxSellRate(offer.market, maxSellRate);
-
-        Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
-        vm.prank(signerAllocator);
-        adapter.take(buyOffer, "", 1e18, "");
-
-        uint128 marketNetCredit = adapter.marketData(_marketId(offer.market)).netCredit;
-        assertEq(marketNetCredit, 0);
-        assertEq(adapter.realAssets(), 0);
-    }
-
-    function testTakeRoundingShortfallFailsMaxSellRate() public {
+    function testTakeRoundingShortfallRevertsWhenRemainingInterestRoundsAway() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
@@ -2169,17 +2482,9 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
-        uint256 maxSellRate = uint256(1e18).mulDivUp(1, 4 * 30 days);
-        setMaxSellRate(offer.market, maxSellRate - 1);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        vm.prank(signerAllocator);
-        adapter.take(buyOffer, "", 5, "");
-
-        setMaxSellRate(offer.market, maxSellRate);
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
-
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
         assertEq(adapter.realAssets(), 9);
         assertEq(loanToken.balanceOf(address(parentVault)), 1);
@@ -2188,7 +2493,6 @@ contract MidnightAdapterTest is Test {
     function testTakeSaleRoundsValueUp() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
-        setMaxSellRate(offer.market, type(uint256).max);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
         assertEq(adapter.realAssets(), 9);
         parentVault.setTotalAssets(10);
@@ -2205,245 +2509,80 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(parentVault)), 11);
     }
 
-    function testMaxSellRateUsesNetCreditAndNetProceeds(bool takerSale) public {
-        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
-        for (uint256 i = 0; i <= 6; i++) {
-            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
-        }
-        Offer memory boughtOffer = buy(30 days, 1e18, TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
-        bytes32 marketId = _marketId(boughtOffer.market);
-        skip(2 days);
-        midnight.updatePosition(boughtOffer.market, address(adapter));
-        uint256 soldCredit = midnight.credit(marketId, address(adapter));
-        uint256 soldNetCredit = adapter.marketData(marketId).netCredit;
-        uint256 sellerPrice = TickLib.tickToPrice(discountTick) - (takerSale ? 10 * CBP : 0);
-        uint256 sellerAssets =
-            takerSale ? soldCredit.mulDivDown(sellerPrice, 1e18) : soldCredit.mulDivUp(sellerPrice, 1e18);
-        uint256 maxSellRate = (soldNetCredit - sellerAssets).mulDivUp(1e18, sellerAssets * 28 days);
-        assertLt(soldNetCredit, soldCredit, "pending continuous fee released on sale");
-        assertLt(
-            maxSellRate, (soldCredit - sellerAssets).mulDivUp(1e18, sellerAssets * 28 days), "net rate below gross rate"
-        );
-        Offer memory offer = takerSale
-            ? makeExternalOffer(boughtOffer.market, true, 2e18, discountTick)
-            : makeSellOffer(boughtOffer.market, soldCredit, discountTick);
-        deal(address(loanToken), taker, 2e18);
-        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        setMaxSellRate(offer.market, maxSellRate - 1);
+    function testBuyRoundsCarriedValueUp() public {
+        deal(address(loanToken), address(parentVault), 20);
+        Offer memory offer = buy(30 days, 10, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 rate = adapter.marketData(marketId).rate;
+        assertEq(uint256(10).mulDivDown(1e18, 1e18 + rate * 30 days), 9);
+        assertEq(uint256(10).mulDivUp(1e18, 1e18 + rate * 30 days), 10);
 
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        if (takerSale) {
-            vm.prank(signerAllocator);
-            adapter.take(offer, "", soldCredit, "");
-        } else {
-            take(offer);
-        }
+        buyAdditionalCredit(offer.market, 10);
 
-        setMaxSellRate(offer.market, maxSellRate);
-        if (takerSale) {
-            vm.prank(signerAllocator);
-            adapter.take(offer, "", soldCredit, "");
-        } else {
-            take(offer);
-        }
-
-        assertEq(adapter.marketData(marketId).netCredit, 0, "position sold");
-        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + sellerAssets, "net proceeds");
-        assertEq(
-            adapter.maxSellRate(keccak256(abi.encode(offer.market.collateralParams))),
-            maxSellRate,
-            "maximum not consumed"
-        );
+        assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
+        assertEq(adapter.marketData(marketId).netCredit, 20);
+        assertEq(adapter.marketData(marketId).rate, 0, "carried value rounded up");
+        assertEq(adapter.realAssets(), 20);
     }
 
-    function testMaxSellRateSharedAcrossMaturitiesAndNotConsumed() public {
-        Offer memory first = buy(4 days, 1e18, MAX_TICK / 2);
-        Offer memory second = buy(3 days, 0.5e18, MAX_TICK / 2);
-        skip(2 days);
-        uint256 maxSellRate = uint256(1e18).mulDivUp(1, 2 days);
-        setMaxSellRate(first.market, maxSellRate);
-
-        sellUnits(first.market, 0.01e18, MAX_TICK / 2);
-        sellUnits(first.market, 0.01e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(second.market, 1e18, MAX_TICK / 2);
-
-        assertEq(adapter.marketData(_marketId(first.market)).netCredit, 1.98e18, "both sales accepted");
-        assertEq(
-            adapter.maxSellRate(keccak256(abi.encode(first.market.collateralParams))),
-            maxSellRate,
-            "maximum not consumed"
-        );
-        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 1e18, "other market protected");
-        setMaxSellRate(second.market, uint256(1e18).mulDivUp(1, 1 days));
-        sellUnits(second.market, 0.01e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 0.99e18, "shared maximum updated");
-    }
-
-    function testMaxSellRateIsPerCollateralParams() public {
-        Offer memory first = buy(2 days, 1e18);
-        Offer memory second = makeBuyOffer(2 days, 0.5e18, MAX_TICK / 2);
-        second.market.collateralParams = storedSingleCollateral;
-        second.group = bytes32("other collaterals");
-        midnight.supplyCollateral(second.market, 0, second.maxUnits, taker);
-        take(second);
-        skip(1 days);
-        setMaxSellRate(first.market, 1);
-        setMaxSellRate(second.market, uint256(1e18).mulDivUp(1, 1 days));
-
-        sellUnits(second.market, 0.01e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(first.market, 1e18, MAX_TICK / 2);
-
-        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 0.99e18, "other collateral array reduced");
-        assertEq(adapter.marketData(_marketId(first.market)).netCredit, 1e18, "original collateral array protected");
-    }
-
-    function testMaxSellRateBoundary(uint256 duration, uint256 assets, bool unlimitedRate) public {
-        duration = bound(duration, 1, 365 days);
-        assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        deal(storedCollaterals[0].token, address(this), 3 * assets);
-        deal(storedCollaterals[1].token, address(this), 3 * assets);
-        Offer memory offer = buy(duration, assets, MAX_TICK / 2 - DEFAULT_TICK_SPACING);
-        uint256 soldCredit = offer.maxUnits;
-        uint256 sellerAssets = soldCredit.mulDivUp(0.5e18, 1e18);
-        uint256 rate = (soldCredit - sellerAssets).mulDivUp(1e18, sellerAssets * duration);
-        deal(address(loanToken), taker, sellerAssets);
-        setMaxSellRate(offer.market, rate - 1);
-
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, soldCredit, MAX_TICK / 2);
-
-        setMaxSellRate(offer.market, unlimitedRate ? type(uint256).max : rate);
-        sellUnits(offer.market, soldCredit, MAX_TICK / 2);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "rate accepted");
-    }
-
-    function testMaxSellRateUsesRemainingDuration() public {
-        Offer memory offer = buy(31 days, 1e18, MAX_TICK / 2);
-        skip(1 days);
-        setMaxSellRate(offer.market, uint256(1e18).mulDivUp(1, 30 days));
-        sellUnits(offer.market, 0.01e18, MAX_TICK / 2);
-
-        skip(15 days);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, 0.01e18, MAX_TICK / 2);
-
-        setMaxSellRate(offer.market, uint256(1e18).mulDivUp(1, 15 days));
-        sellUnits(offer.market, 0.01e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1.98e18, "remaining duration used");
-    }
-
-    function testMaxSellRateZeroPreventsBelowParSales(bool initiallySet, bool zeroProceeds, uint256 elapsed) public {
-        Offer memory offer = buy(30 days, 1e18);
-        uint256 tick = zeroProceeds ? 0 : MAX_TICK / 2;
-        if (initiallySet) {
-            setMaxSellRate(offer.market, 1);
-            if (zeroProceeds) vm.expectRevert(stdError.arithmeticError);
-            else vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-            sellUnits(offer.market, 1e18, tick);
-            setMaxSellRate(offer.market, 0);
-        }
-
-        skip(bound(elapsed, 0, 30 days - 1));
-        if (zeroProceeds) vm.expectRevert(stdError.arithmeticError);
-        else vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, 1e18, tick);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "zero prevents below-par sales");
-    }
-
-    function testSellMaturityBoundary(bool afterMaturity, bool zeroRate) public {
-        Offer memory offer = buy(30 days, 2e18);
-        setMaxSellRate(offer.market, zeroRate ? 0 : 1);
-        skip(30 days - 1);
-
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, 1e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 2e18, "below-par sale rejected before maturity");
-        sellUnits(offer.market, 1e18, MAX_TICK);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "par sale accepted before maturity");
-
-        skip(afterMaturity ? 2 : 1);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
-        sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18, "below-par sale rejected from maturity");
-        sellUnits(offer.market, 1e18, MAX_TICK);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "par sale accepted from maturity");
-    }
-
-    function testSellFromMaturityRejectsLoss(bool takerSale, uint256 tick, uint256 elapsed) public {
+    function testSellFromMaturityChecksShortfall(bool takerSale, bool zeroProceeds, bool forceSellable, uint256 elapsed)
+        public
+    {
         Offer memory boughtOffer = buy(30 days, 1e18);
-        tick = bound(tick, 0, 2) * (MAX_TICK / 2);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 rate = adapter.marketData(marketId).rate;
+        uint256 soldUnits = 0.5e18;
+        uint256 tick = zeroProceeds ? 0 : MAX_TICK / 2;
         Offer memory offer = takerSale
-            ? makeExternalOffer(boughtOffer.market, true, 1e18, MAX_TICK)
-            : makeSellOffer(boughtOffer.market, 1e18, tick);
+            ? makeExternalOffer(boughtOffer.market, true, soldUnits, MAX_TICK)
+            : makeSellOffer(boughtOffer.market, soldUnits, tick);
         offer.tick = tick;
         offer.expiry = boughtOffer.market.maturity + 365 days;
         bytes memory data = takerSale ? bytes("") : ratify([offer], signerAllocator);
         skip(30 days + bound(elapsed, 0, 365 days));
+        if (forceSellable) setForceSellable(marketId);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 assetsBefore = adapter.realAssets();
 
-        if (tick < MAX_TICK) vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        if (!forceSellable) vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
-            adapter.take(offer, "", 1e18, "");
+            adapter.take(offer, "", soldUnits, "");
         } else {
             this.takeWithAccrual(offer, data, taker, address(0));
         }
 
-        if (tick == MAX_TICK) {
-            assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 0, "position sold");
-            assertEq(adapter.marketData(_marketId(boughtOffer.market)).netCredit, 0, "netCredit cleared");
-            assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.marketData(marketId).rate, rate, "rate unchanged");
+        if (forceSellable) {
+            uint256 proceeds = loanToken.balanceOf(address(parentVault)) - vaultBalanceBefore;
+            uint256 assetsAfter = adapter.realAssets();
+            uint256 shortfall = soldUnits - proceeds;
+            assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "position partially sold");
+            assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit reduced");
+            assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
+            assertEq(adapter.marketIdsLength(), 1, "market retained");
             assertEq(
-                loanToken.balanceOf(address(parentVault)),
-                vaultBalanceBefore + TickLib.tickToPrice(tick),
-                "sale proceeds"
+                assetsBefore + vaultBalanceBefore - assetsAfter - loanToken.balanceOf(address(parentVault)),
+                shortfall,
+                "shortfall realized immediately"
             );
         } else {
-            assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 1e18, "position unchanged");
-            assertEq(adapter.marketData(_marketId(boughtOffer.market)).netCredit, 1e18, "netCredit unchanged");
+            assertEq(midnight.credit(marketId, address(adapter)), 1e18, "position unchanged");
+            assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit unchanged");
+            assertEq(adapter.marketData(marketId).forceSellable, false, "setting disabled");
             assertEq(adapter.marketIdsLength(), 1, "market retained");
             assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
+            assertEq(adapter.realAssets(), assetsBefore, "assets unchanged");
         }
     }
 
-    function testMaxSellRateAllowsParAndNetPremium(bool continuousFee) public {
-        if (continuousFee) midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
-        Offer memory offer = buy(30 days, 1e18, discountTick);
-        setMaxSellRate(offer.market, 0);
-        deal(address(loanToken), taker, offer.maxUnits);
-
-        sellUnits(offer.market, offer.maxUnits, MAX_TICK);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "nonpositive rate accepted");
-    }
-
-    function testMaxSellRateZeroAllowsTakingParBuyOfferWithoutFees() public {
-        Offer memory boughtOffer = buy(30 days, 1e18);
-        bytes32 marketId = _marketId(boughtOffer.market);
-        assertEq(adapter.maxSellRate(keccak256(abi.encode(boughtOffer.market.collateralParams))), 0);
-        assertEq(midnight.settlementFee(marketId, 30 days), 0);
-        (uint128 credit, uint128 pendingFee,) =
-            midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
-        assertEq(pendingFee, 0, "no credit fee");
-        Offer memory offer = makeExternalOffer(boughtOffer.market, true, credit, MAX_TICK);
-        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-
-        vm.prank(signerAllocator);
-        adapter.take(offer, "", credit, "");
-
-        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + credit, "par proceeds");
-        assertEq(adapter.marketData(marketId).netCredit, 0, "position sold");
-    }
-
-    function testMaxSellRateZeroAllowsTakingParBuyOfferWithReleasedCreditFee() public {
+    function testTakingParBuyOfferWithReleasedCreditFee() public {
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         for (uint256 i = 0; i <= 6; i++) {
             midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
         }
         Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(boughtOffer.market);
-        assertEq(adapter.maxSellRate(keccak256(abi.encode(boughtOffer.market.collateralParams))), 0);
         (uint128 credit, uint128 pendingFee,) =
             midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
         uint256 settlementFee = midnight.settlementFee(marketId, 30 days);
@@ -2463,7 +2602,7 @@ contract MidnightAdapterTest is Test {
         assertEq(remainingPendingFee, 0, "credit fee released");
     }
 
-    function testMaxSellRateZeroWithSettlementFee(bool continuousFee) public {
+    function testTakingBuyOfferWithSettlementFee(bool continuousFee) public {
         if (continuousFee) midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         for (uint256 i = 0; i <= 6; i++) {
             midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
@@ -2471,11 +2610,10 @@ contract MidnightAdapterTest is Test {
         Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
         Offer memory offer = makeExternalOffer(boughtOffer.market, true, boughtOffer.maxUnits, MAX_TICK);
 
-        if (!continuousFee) vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.take(offer, "", boughtOffer.maxUnits, "");
 
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, continuousFee ? 0 : boughtOffer.maxUnits);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0);
     }
 
     function testOutOfOrderInsertsStayTracked() public {
@@ -2548,7 +2686,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -2564,18 +2702,16 @@ contract MidnightAdapterTest is Test {
 
     /* ACCRUAL */
 
-    function testPurchaseDiscountAccruesLinearly() public {
+    function testPurchaseDiscountAccruesAtConstantRate() public {
         uint256 duration = 30 days;
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory offer = buy(duration, 1e18, discountTick);
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 interest = offer.maxUnits - paid;
         assertGt(interest, 0, "bought at a discount");
-        uint256 growth = interest * 1e18 / (uint256(offer.maxUnits) * duration);
+        uint256 rate = interest * 1e18 / (paid * duration);
 
-        assertEq(
-            adapter.realAssets(), offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * duration, 1e18), "at buy"
-        );
+        assertEq(adapter.realAssets(), uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * duration), "at buy");
         assertGe(adapter.realAssets(), paid, "rounding is realized immediately");
         assertLt(
             adapter.realAssets() - paid, uint256(offer.maxUnits).mulDivUp(duration, 1e18), "initial rounding is bounded"
@@ -2583,7 +2719,7 @@ contract MidnightAdapterTest is Test {
         skip(duration / 3);
         assertEq(
             adapter.realAssets(),
-            offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * (2 * duration / 3), 1e18),
+            uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * (2 * duration / 3)),
             "a third of the way"
         );
         skip(2 * duration / 3);
@@ -2596,7 +2732,7 @@ contract MidnightAdapterTest is Test {
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory first = buy(30 days, 1e18, discountTick);
         uint256 firstPaid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 firstGrowth = (first.maxUnits - firstPaid) * 1e18 / (uint256(first.maxUnits) * 30 days);
+        uint256 firstRate = (first.maxUnits - firstPaid) * 1e18 / (firstPaid * 30 days);
         skip(15 days);
         uint256 valueBefore = adapter.realAssets();
         vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
@@ -2610,15 +2746,15 @@ contract MidnightAdapterTest is Test {
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 totalNetCredit = uint256(first.maxUnits) + second.maxUnits;
-        uint256 addedAssetsWadPerSecond = (second.maxUnits - paid).mulDivDown(1e18, 15 days);
-        uint256 growth = (first.maxUnits * firstGrowth + addedAssetsWadPerSecond) / totalNetCredit;
-        uint256 valueAfter = totalNetCredit - totalNetCredit.mulDivUp(growth * 15 days, 1e18);
-        assertEq(adapter.realAssets(), valueAfter, "second purchase updates growth");
+        uint256 amortizedValue = uint256(first.maxUnits).mulDivUp(1e18, 1e18 + firstRate * 15 days) + paid;
+        uint256 rate = (totalNetCredit - amortizedValue) * 1e18 / (amortizedValue * 15 days);
+        uint256 valueAfter = totalNetCredit.mulDivDown(1e18, 1e18 + rate * 15 days);
+        assertEq(adapter.realAssets(), valueAfter, "second purchase updates the rate");
         assertGe(valueAfter, valueBefore + paid, "rounding is realized immediately");
         skip(15 days / 2);
         assertEq(
             adapter.realAssets(),
-            totalNetCredit - totalNetCredit.mulDivUp(growth * (15 days / 2), 1e18),
+            totalNetCredit.mulDivDown(1e18, 1e18 + rate * (15 days / 2)),
             "combined discount accrues"
         );
         skip(15 days / 2);
@@ -2629,7 +2765,7 @@ contract MidnightAdapterTest is Test {
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory offer = buy(30 days, 1e18, discountTick);
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 growth = (offer.maxUnits - paid) * 1e18 / (uint256(offer.maxUnits) * 30 days);
+        uint256 rate = (offer.maxUnits - paid) * 1e18 / (paid * 30 days);
         skip(1 days);
         uint256 valueBefore = adapter.realAssets();
 
@@ -2640,23 +2776,11 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), valueBefore, "no discount realized by synchronization");
 
         skip(1 days);
-        uint256 expectedValue = offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * 28 days, 1e18);
-        assertEq(adapter.realAssets(), expectedValue, "growth unchanged by synchronization");
+        uint256 expectedValue = uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * 28 days);
+        assertEq(adapter.realAssets(), expectedValue, "rate unchanged by synchronization");
     }
 
-    function testSaleAboveMaxSellRateReverts() public {
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(30 days, 1e18, discountTick);
-        parentVault.setTotalAssets(1e18);
-        uint256 sellTick = TickLib.priceToTick(0.93e18, DEFAULT_TICK_SPACING);
-
-        uint256 price = TickLib.tickToPrice(discountTick);
-        setMaxSellRate(offer.market, (1e18 - price).mulDivUp(1e18, price * 30 days));
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, offer.maxUnits / 2, sellTick);
-    }
-
-    function testSaleAtAmortizedCostAfterDefault() public {
+    function testNoSalesWithShortfallAllowsSaleAtAmortizedValue() public {
         deal(address(loanToken), address(parentVault), 1e18);
         Offer memory offer = buy(30 days, 1e18, discountTick);
         parentVault.setTotalAssets(1e18);
@@ -2664,19 +2788,27 @@ contract MidnightAdapterTest is Test {
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
-        (uint128 credit,,) = midnight.updatePositionView(offer.market, _marketId(offer.market), address(adapter));
+        (uint128 credit, uint128 pendingFee,) =
+            midnight.updatePositionView(offer.market, _marketId(offer.market), address(adapter));
 
-        // Round up to a tick covering the amortized value, including growth-rounding dust.
-        uint256 sellTick = TickLib.priceToTick(adapter.realAssets().mulDivUp(1e18, credit), DEFAULT_TICK_SPACING);
+        // Round up to a tick covering the amortized value, including rate-rounding dust.
+        uint256 sellTick =
+            TickLib.priceToTick(adapter.realAssets().mulDivUp(1e18, credit - pendingFee), DEFAULT_TICK_SPACING);
+        assertLt(sellTick, MAX_TICK, "below par");
         parentVault.setTotalAssets(adapter.realAssets() + loanToken.balanceOf(address(parentVault)));
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
-        sellUnits(offer.market, credit, sellTick);
+        uint256 rate = adapter.marketData(_marketId(offer.market)).rate;
+        uint256 assetsBefore = adapter.realAssets();
+        setNoSalesWithShortfall(true);
+        sellUnits(offer.market, credit / 2, sellTick);
 
-        setMaxSellRate(offer.market, type(uint256).max);
-        sellUnits(offer.market, credit, sellTick);
-
-        assertGe(loanToken.balanceOf(address(parentVault)), parentVault.totalAssets(), "vault assets covered");
-        assertEq(adapter.realAssets(), 0, "position sold");
+        assertGe(
+            loanToken.balanceOf(address(parentVault)) + adapter.realAssets(),
+            parentVault.totalAssets(),
+            "vault assets covered"
+        );
+        assertLt(adapter.realAssets(), assetsBefore, "position partially sold");
+        assertGt(adapter.realAssets(), 0, "position remains");
+        assertEq(adapter.marketData(_marketId(offer.market)).rate, rate, "rate unchanged");
         assertLt(loanToken.balanceOf(address(parentVault)), 1e18, "market loss remains");
     }
 
@@ -2726,7 +2858,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         uint128 netCredit = adapter.marketData(marketId).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 growth = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
+        uint256 rate = (netCredit - paid) * 1e18 / (paid * 30 days);
 
         skip(elapsed);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePosition(offer.market, address(adapter));
@@ -2736,8 +2868,8 @@ contract MidnightAdapterTest is Test {
         uint256 timeToMaturity = offer.market.maturity.zeroFloorSub(block.timestamp);
         assertEq(
             adapter.realAssets(),
-            netCredit - uint256(netCredit).mulDivUp(growth * timeToMaturity, 1e18),
-            "growth unchanged by fee accrual"
+            uint256(netCredit).mulDivDown(1e18, 1e18 + rate * timeToMaturity),
+            "rate unchanged by fee accrual"
         );
     }
 
@@ -2791,22 +2923,22 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, units, discountTick);
         uint128 netCredit = adapter.marketData(_marketId(offer.market)).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 growth = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
+        uint256 rate = (netCredit - paid) * 1e18 / (paid * 30 days);
 
         skip(elapsed);
-        assertCurrentNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, rate);
 
         uint256 price = fullLoss ? 0 : ORACLE_PRICE_SCALE / 4;
         OracleMock(storedCollaterals[0].oracle).setPrice(price);
         OracleMock(storedCollaterals[1].oracle).setPrice(price);
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
-        assertCurrentNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, rate);
 
         midnight.updatePosition(offer.market, address(adapter));
-        assertCurrentNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, rate);
 
         skip(30 days);
-        assertCurrentNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, rate);
     }
 
     function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
@@ -2817,7 +2949,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         uint128 oldNetCredit = adapter.marketData(marketId).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 growth = (oldNetCredit - paid) * 1e18 / (uint256(oldNetCredit) * 30 days);
+        uint256 rate = (oldNetCredit - paid) * 1e18 / (paid * 30 days);
         skip(15 days);
 
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
@@ -2825,7 +2957,7 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
 
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
-        uint256 expectedValue = credit - pendingFee - uint256(credit - pendingFee).mulDivUp(growth * 15 days, 1e18);
+        uint256 expectedValue = uint256(credit - pendingFee).mulDivDown(1e18, 1e18 + rate * 15 days);
         assertLt(credit - pendingFee, oldNetCredit, "loss realized");
         assertEq(adapter.realAssets(), expectedValue, "exact loss-adjusted amortized value");
         assertEq(adapter.marketData(marketId).netCredit, oldNetCredit, "view does not update the cache");
@@ -3539,8 +3671,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A market whose oracle permanently reverts cannot be sold below net credit from maturity.
-    function testCannotAbandonMarketWithRevertingOracleFromMaturity() public {
+    /// @dev A market whose oracle permanently reverts can be abandoned from maturity after forceSellable is set.
+    function testAbandonMarketWithRevertingOracleFromMaturity() public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -3552,9 +3684,7 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, true, address(this), address(0), "");
         assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
-        assertEq(
-            adapter.maxSellRate(keccak256(abi.encode(boughtOffer.market.collateralParams))), 0, "default maximum rate"
-        );
+        assertFalse(adapter.noSalesWithShortfall(), "sales with shortfall disabled by default");
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation");
@@ -3573,6 +3703,19 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation unchanged");
+        }
+
+        setForceSellable(marketId);
+        this.takeWithAccrual(sellOffer, data, buyer, address(0));
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit sold");
+        assertEq(midnight.credit(marketId, buyer), 1e18, "buyer received credit");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.realAssets(), 0, "adapter realAssets cleared");
+        assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
     }
 
@@ -3782,20 +3925,23 @@ contract MidnightAdapterTest is Test {
     }
 
     function testStoragePacking() public {
-        setMinGrowth(type(uint64).max);
+        setMinRate(type(uint64).max);
         setUpMaxTtm(type(uint32).max);
 
         vm.record();
         assertEq(adapter.maxTtm(), type(uint32).max);
-        assertEq(adapter.minGrowth(), type(uint64).max);
+        assertEq(adapter.minRate(), type(uint64).max);
+        assertFalse(adapter.noSalesWithShortfall());
+        assertFalse(adapter.noSalesBelowFaceValue());
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 2);
-        assertEq(reads[0], reads[1], "maxTtm and minGrowth share one slot");
+        assertEq(reads.length, 4);
+        assertEq(reads[0], reads[1], "maxTtm and minRate share one slot");
+        assertEq(reads[1], reads[2], "noSalesWithShortfall shares the same slot");
+        assertEq(reads[2], reads[3], "noSalesBelowFaceValue shares the same slot");
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {
         Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
         deal(address(loanToken), taker, 200e18);
         assertGt(adapter.realAssets(), 100e18);
@@ -3809,7 +3955,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
     }
 
     function testFullSaleBelowAmortizedValueUsesOtherMarketGrowth() public {
@@ -3985,15 +4131,14 @@ contract MidnightAdapterTest is Test {
 
     function testShortfallUsesAmortizedValue() public {
         Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
         adapter.withdrawToVault(offer.market, 0);
         bytes32 marketId = _marketId(offer.market);
-        uint256 discountFactor = 1e18 - adapter.marketData(marketId).growth * 29 days;
+        uint256 rate = adapter.marketData(marketId).rate;
         uint256 assetsBefore = adapter.realAssets();
         uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = uint256(10e18).mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 shortfall = uint256(10e18).mulDivUp(discountFactor, 1e18) - proceeds;
+        uint256 shortfall = uint256(10e18).mulDivUp(1e18, 1e18 + rate * 29 days) - proceeds;
         assertGt(shortfall, 0);
 
         sellUnits(offer.market, 10e18, tick);
@@ -4004,7 +4149,6 @@ contract MidnightAdapterTest is Test {
 
     function testSaleBelowAmortizedValue(uint256 elapsed, uint256 sold, uint256 sellPrice) public {
         Offer memory offer = buy(30 days, 100e18, discountTick);
-        setMaxSellRate(offer.market, type(uint256).max);
         skip(bound(elapsed, 1 days, 30 days - 1));
         bytes32 marketId = _marketId(offer.market);
         uint256 netCredit = adapter.marketData(marketId).netCredit;
@@ -4016,11 +4160,11 @@ contract MidnightAdapterTest is Test {
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 ttm = offer.market.maturity - block.timestamp;
-        uint256 growth = adapter.marketData(marketId).growth;
-        uint256 discountFactor = 1e18 - growth * ttm;
+        uint256 rate = adapter.marketData(marketId).rate;
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 shortfall = sold.mulDivUp(discountFactor, 1e18).zeroFloorSub(proceeds);
-        bool interestExhausted = shortfall * 1e18 > growth * (netCredit - sold) * ttm;
+        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm).zeroFloorSub(proceeds);
+        uint256 newAmortizedValue = (netCredit - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        bool interestExhausted = shortfall > 0 && newAmortizedValue > netCredit - sold;
 
         if (interestExhausted) vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(offer.market, sold, tick);
@@ -4031,7 +4175,7 @@ contract MidnightAdapterTest is Test {
         } else {
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
             uint256 expected =
-                shortfall == 0 ? (netCredit - sold).mulDivDown(discountFactor, 1e18) : assetsBefore - proceeds;
+                shortfall == 0 ? (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm) : assetsBefore - proceeds;
             assertGe(adapter.realAssets(), expected);
             assertLe(adapter.realAssets() - expected, shortfall == 0 ? 0 : (netCredit - sold) * ttm / 1e18 + 2);
         }
@@ -4044,7 +4188,6 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18, 0);
         take(offer);
-        setMaxSellRate(offer.market, type(uint256).max);
 
         skip(12 hours);
         vm.expectEmit(address(adapter));
@@ -4151,12 +4294,11 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
-    /// @dev Sells an even number of units at half price so that the shortfall is exactly `shortfall`. Lifts the max sell rate.
+    /// @dev Sells an even number of units at half price so that the shortfall is exactly `shortfall`.
     function sellWithShortfall(Market memory market, uint256 shortfall) external {
-        setMaxSellRate(market, type(uint256).max);
         MarketData memory data = adapter.marketData(_marketId(market));
-        uint256 discountFactor = 1e18 - data.growth * (market.maturity - block.timestamp);
-        sellUnits(market, 2 * shortfall.mulDivDown(1e18, 2 * (discountFactor - 0.5e18)), MAX_TICK / 2);
+        uint256 unitValue = 1e36 / (1e18 + data.rate * (market.maturity - block.timestamp));
+        sellUnits(market, 2 * shortfall.mulDivDown(1e18, 2 * (unitValue - 0.5e18)), MAX_TICK / 2);
     }
 
     function buyAdditionalCredit(Market memory market, uint256 assets) internal {
@@ -4242,15 +4384,25 @@ contract MidnightAdapterTest is Test {
         _adapter.setIsSubRatifier(subRatifier, true);
     }
 
-    function setMaxSellRate(Market memory market, uint256 newMaxSellRate) internal {
-        bytes32 collateralParamsHash = keccak256(abi.encode(market.collateralParams));
+    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) internal {
         vm.prank(curator);
-        adapter.setMaxSellRate(collateralParamsHash, newMaxSellRate);
+        adapter.setNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
-    function setMinGrowth(uint256 newMinGrowth) internal {
+    function setForceSellable(bytes32 marketId) internal {
         vm.prank(curator);
-        adapter.setMinGrowth(newMinGrowth);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId)));
+        adapter.setForceSellable(marketId);
+    }
+
+    function unsetForceSellable(bytes32 marketId) internal {
+        vm.prank(curator);
+        adapter.unsetForceSellable(marketId);
+    }
+
+    function setMinRate(uint256 newMinRate) internal {
+        vm.prank(curator);
+        adapter.setMinRate(newMinRate);
     }
 
     function take(Offer memory offer) internal {
@@ -4399,7 +4551,7 @@ contract MidnightAdapterTest is Test {
         realVault = IVaultV2(deployCode("VaultV2.sol:VaultV2", abi.encode(owner, address(loanToken))));
         vm.prank(owner);
         realVault.setCurator(curator);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), bytes32(0)));
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
 
@@ -4470,15 +4622,15 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
-    function assertCurrentNetCredit(Market memory market, uint256 growth) internal view {
+    function assertCurrentNetCredit(Market memory market, uint256 rate) internal view {
         bytes32 marketId = _marketId(market);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
         uint256 netCredit = credit - pendingFee;
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         assertEq(
             adapter.realAssets(),
-            netCredit - netCredit.mulDivUp(growth * timeToMaturity, 1e18),
-            "real maturity still determines growth"
+            netCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity),
+            "real maturity still determines the rate"
         );
     }
 
@@ -4669,19 +4821,19 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testEagerLossUncoveredSaleReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
-        setMaxSellRate(initial.market, 1);
+        setNoSalesWithShortfall(true);
         Offer memory offer = makeSellOffer(initial.market, 4e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         directTake(offer);
     }
 
     /// forge-config: default.isolate = true
     function testEagerLossUncoveredSaleAfterDefaultReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
-        setMaxSellRate(initial.market, 1);
+        setNoSalesWithShortfall(true);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         Offer memory offer = makeSellOffer(initial.market, 2e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         directTake(offer);
     }
 
@@ -4689,7 +4841,6 @@ contract MidnightAdapterTest is Test {
     function testEagerLossAllowedDiscountedSale() public {
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(2 days);
-        setMaxSellRate(initial.market, uint256(1e18).mulDivUp(1, initial.market.maturity - block.timestamp));
         deal(address(loanToken), address(realVault), 10e18 - adapter.realAssets());
         directTake(makeSellOffer(initial.market, 0.08e18, MAX_TICK / 2));
         assertEq(realVault._totalAssets(), 10e18);
@@ -4772,13 +4923,13 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testEagerLossDefaultDuringDiscountedSaleReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
-        setMaxSellRate(initial.market, 1);
+        setNoSalesWithShortfall(true);
         EagerLossCallback callback = newCallback();
         callback.push(
             address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
         );
         Offer memory offer = makeSellOffer(initial.market, 4e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.SellRateTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         callbackSale(offer, callback);
     }
 
@@ -5095,6 +5246,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), bound(fee, 0, MAX_CONTINUOUS_FEE));
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
+        if (block.timestamp >= initial.market.maturity) setForceSellable(_marketId(initial.market));
         (uint128 credit, uint128 pendingFee,) =
             midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
@@ -5130,6 +5282,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), fee);
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
+        if (block.timestamp >= initial.market.maturity) setForceSellable(_marketId(initial.market));
         if (loss) this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         (uint128 credit,,) = midnight.updatePositionView(initial.market, _marketId(initial.market), address(adapter));
         sold = bound(sold, 1, credit);
