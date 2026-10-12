@@ -1837,8 +1837,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0, "midnight allowance");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), type(uint256).max, "midnight allowance");
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), type(uint256).max, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
@@ -2749,13 +2749,16 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), type(uint256).max);
     }
 
     function testMakerBuyRestoresLowMidnightAllowance() public {
         Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.prank(address(adapter));
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
 
         vm.prank(address(adapter));
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 1);
@@ -3805,6 +3808,9 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 1e18);
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.repay(boughtOffer.market, 1e18, taker, address(0), "");
+
+        vm.prank(address(adapter));
+        SafeERC20Lib.safeApprove(address(loanToken), address(parentVault), 0);
 
         vm.prank(address(adapter));
         SafeERC20Lib.safeApprove(address(loanToken), address(parentVault), 1);
