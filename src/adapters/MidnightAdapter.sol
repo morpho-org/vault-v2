@@ -123,15 +123,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Accept(selector, msg.data);
     }
 
-    function requireCuratorOrSentinel() internal view {
+    function revoke(bytes calldata data) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-    }
-
-    function revoke(bytes calldata data) external {
-        requireCuratorOrSentinel();
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
@@ -171,14 +167,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
-        require(newMaxTtm >= maxTtm, MaxTtmNotIncreasing());
+        require(newMaxTtm >= maxTtm, MaxTtmTooLow());
         maxTtm = newMaxTtm.toUint32();
         emit IncreaseMaxTtm(newMaxTtm);
     }
 
     function decreaseMaxTtm(uint256 newMaxTtm) external {
-        requireCuratorOrSentinel();
-        require(newMaxTtm <= maxTtm, MaxTtmNotDecreasing());
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
         // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
         maxTtm = uint32(newMaxTtm);
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
@@ -191,7 +190,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function unsetForceSellable(bytes32 marketId) external {
-        requireCuratorOrSentinel();
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
         marketData[marketId].forceSellable = false;
         emit UnsetForceSellable(marketId);
     }

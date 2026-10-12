@@ -1606,13 +1606,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), newMaxTtm, "maxTtm");
     }
 
-    function testIncreaseMaxTtmNotIncreasing(uint256 oldMaxTtm) public {
+    function testIncreaseMaxTtmTooLow(uint256 oldMaxTtm) public {
         oldMaxTtm = bound(oldMaxTtm, 1, type(uint32).max);
         setUpMaxTtm(oldMaxTtm);
         uint256 newMaxTtm = oldMaxTtm - 1;
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (newMaxTtm)));
-        vm.expectRevert(IMidnightAdapterBase.MaxTtmNotIncreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.MaxTtmTooLow.selector);
         adapter.increaseMaxTtm(newMaxTtm);
     }
 
@@ -1676,11 +1676,11 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), newMaxTtm, "maxTtm");
     }
 
-    function testDecreaseMaxTtmNotDecreasing(uint256 oldMaxTtm) public {
+    function testDecreaseMaxTtmTooHigh(uint256 oldMaxTtm) public {
         oldMaxTtm = bound(oldMaxTtm, 0, type(uint32).max - 1);
         setUpMaxTtm(oldMaxTtm);
         uint256 newMaxTtm = oldMaxTtm + 1;
-        vm.expectRevert(IMidnightAdapterBase.MaxTtmNotDecreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.MaxTtmTooHigh.selector);
         vm.prank(curator);
         adapter.decreaseMaxTtm(newMaxTtm);
     }
