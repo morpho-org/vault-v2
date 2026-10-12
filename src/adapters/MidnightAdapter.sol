@@ -40,8 +40,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
-    /// @dev Ignore cached loss factors higher than this to be able to detect all big enough losses.
-    uint40 internal constant MAX_CACHED_LOSS_FACTOR = 0xff00000000;
 
     /* IMMUTABLES */
 
@@ -280,7 +278,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
-        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId).high40();
+        marketData[marketId].lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -338,7 +336,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId).high40();
+            marketData[marketId].lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -401,7 +399,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId).high40();
+        _marketData.lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint40();
@@ -480,7 +478,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId).high40();
+        _marketData.lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -581,10 +579,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (
-                IMidnight(midnight).lossFactor(marketId).high40() == _marketData.lossFactor
-                    && _marketData.lossFactor < MAX_CACHED_LOSS_FACTOR
-            ) {
+            uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+            // When less than 2^120 is left, the market lost 255/256 of its units, and a loss can leave the high 40 bits unchanged.
+            if (lossFactor.high40() == _marketData.lossFactorHigh40 && type(uint128).max - lossFactor >= 2 ** 120) {
                 netCredit = _marketData.netCredit;
             } else if (marketId == overridenMarketId) {
                 netCredit = overridenMarketNetCredit;
