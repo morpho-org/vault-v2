@@ -123,11 +123,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Accept(selector, msg.data);
     }
 
-    function revoke(bytes calldata data) external {
+    function requireCuratorOrSentinel() internal view {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
+    }
+
+    function revoke(bytes calldata data) external {
+        requireCuratorOrSentinel();
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
@@ -165,10 +169,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* CURATOR FUNCTIONS */
 
-    function setMaxTtm(uint256 newMaxTtm) external {
+    function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
+        require(newMaxTtm >= maxTtm, MaxTtmNotIncreasing());
         maxTtm = newMaxTtm.toUint32();
-        emit SetMaxTtm(newMaxTtm);
+        emit IncreaseMaxTtm(newMaxTtm);
+    }
+
+    function decreaseMaxTtm(uint256 newMaxTtm) external {
+        requireCuratorOrSentinel();
+        require(newMaxTtm <= maxTtm, MaxTtmNotDecreasing());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
+        maxTtm = uint32(newMaxTtm);
+        emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
     function setForceSellable(bytes32 marketId) external {
@@ -178,10 +191,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function unsetForceSellable(bytes32 marketId) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        requireCuratorOrSentinel();
         marketData[marketId].forceSellable = false;
         emit UnsetForceSellable(marketId);
     }
