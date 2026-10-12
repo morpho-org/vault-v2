@@ -36,7 +36,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 /// @dev The adapter's allocation cap bounds exposure.
 ///
-/// CURATOR GUARDRAILS
+/// ALLOCATOR GUARDRAILS
 /// @dev minRate helps prevent operational errors when buying. It also bounds the rate decrease of loss sales.
 /// @dev noSalesWithShortfall helps prevent operational errors when selling.
 ///
