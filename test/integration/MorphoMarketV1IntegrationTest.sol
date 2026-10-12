@@ -121,6 +121,6 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         increaseRelativeCap(expectedIdData2[2], WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
     }
 }

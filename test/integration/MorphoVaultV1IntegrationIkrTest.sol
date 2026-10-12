@@ -72,7 +72,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morphoVaultV1), type(uint256).max);
         morphoVaultV1.deposit(deallocatedAssets, address(this));
         vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
@@ -102,7 +102,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
         morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
         vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
