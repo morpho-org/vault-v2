@@ -272,13 +272,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
     /// @dev Called by allocators through vault.allocate to take a sell offer, with data abi.encode(offer, ratifierData, units, takerCallbackData).
-    function allocate(bytes memory data, uint256, bytes4 messageSig, address caller)
+    function allocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
         if (caller == address(this)) returnExactBytes(data);
         require(messageSig == IVaultV2.allocate.selector, NotAuthorized());
+        require(assets == 0, NonZeroAssets());
         (Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) =
             abi.decode(data, (Offer, bytes, uint256, bytes));
         require(!offer.buy && offer.market.loanToken == asset, IncorrectOffer());
@@ -322,6 +323,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(
                 messageSig == IVaultV2.deallocate.selector && IVaultV2(parentVault).isAllocator(caller), NotAuthorized()
             );
+            require(assets == 0, NonZeroAssets());
             (Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) =
                 abi.decode(data, (Offer, bytes, uint256, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());

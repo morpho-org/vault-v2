@@ -3314,6 +3314,24 @@ contract MidnightAdapterTest is Test {
 
     /* TAKE */
 
+    function testAllocatorTakeAllocateNonZeroAssets() public {
+        Offer memory offer = makeExternalOffer(storedOffer.market, false, 1e18, MAX_TICK);
+        bytes memory data = abi.encode(offer, bytes(""), uint256(offer.maxUnits), bytes(""));
+
+        vm.expectRevert(IMidnightAdapterBase.NonZeroAssets.selector);
+        vm.prank(signerAllocator);
+        parentVault.allocate(address(adapter), data, 1);
+    }
+
+    function testAllocatorTakeDeallocateNonZeroAssets() public {
+        Offer memory offer = makeExternalOffer(storedOffer.market, true, 1e18, MAX_TICK);
+        bytes memory data = abi.encode(offer, bytes(""), uint256(offer.maxUnits), bytes(""));
+
+        vm.expectRevert(IMidnightAdapterBase.NonZeroAssets.selector);
+        vm.prank(signerAllocator);
+        parentVault.deallocate(address(adapter), data, 1);
+    }
+
     function testAllocatorTakeIncorrectOffer() public {
         Offer memory buyOffer = makeExternalOffer(storedOffer.market, true, 1e18, MAX_TICK);
         bytes memory buyData = abi.encode(buyOffer, bytes(""), uint256(buyOffer.maxUnits), bytes(""));
