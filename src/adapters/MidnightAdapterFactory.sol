@@ -14,30 +14,24 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     mapping(address parentVault => mapping(bytes32 salt => address)) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
-    uint256[] public durations;
 
     /* CONSTRUCTOR */
 
-    /// @dev Durations are checked only when an adapter is created.
-    constructor(address _midnight, uint256[] memory _durations) {
+    constructor(address _midnight) {
         midnight = _midnight;
-        durations = _durations;
-        emit CreateMidnightAdapterFactory(_midnight, _durations);
-    }
-
-    /* GETTERS */
-
-    function durationsLength() external view returns (uint256) {
-        return durations.length;
+        emit CreateMidnightAdapterFactory(_midnight);
     }
 
     /* FUNCTIONS */
 
-    function createMidnightAdapter(address parentVault, bytes32 salt) external returns (address) {
+    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
+        external
+        returns (address)
+    {
         address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
         midnightAdapter[parentVault][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, salt, _midnightAdapter);
+        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);
         return _midnightAdapter;
     }
 }
