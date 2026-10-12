@@ -16,7 +16,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by discounting the net credit of each market at a constant yield to maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Any loss larger than 1/2^32th of the market's remaiing units are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Any loss larger than 1/2^32th of the market's remaining units are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
