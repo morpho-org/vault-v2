@@ -266,6 +266,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
+        marketData[marketId].lossFactor = marketLossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -321,6 +322,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
+            marketData[marketId].lossFactor = marketLossFactor(marketId);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -382,6 +384,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
+        _marketData.lossFactor = marketLossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -460,6 +463,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
+        _marketData.lossFactor = marketLossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -489,6 +493,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
+    }
+
+    function marketLossFactor(bytes32 marketId) internal view returns (uint128) {
+        return IMidnight(midnight).lossFactor(marketId);
     }
 
     function removeMarket(bytes32 marketId) internal {
@@ -561,7 +569,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                netCredit = currentNetCredit(marketId);
+                netCredit = marketLossFactor(marketId) == _marketData.lossFactor
+                    ? _marketData.netCredit
+                    : currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
                 WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)

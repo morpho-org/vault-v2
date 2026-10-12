@@ -17,6 +17,8 @@ struct MarketData {
     /// @dev When activated, rate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    uint128 lossFactor;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -158,7 +160,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
+        returns (uint128 netCredit, uint64 rate, uint48 maturity, uint8 index, bool forceSellable, uint128 lossFactor);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

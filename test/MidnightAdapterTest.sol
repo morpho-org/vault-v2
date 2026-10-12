@@ -2312,7 +2312,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false)));
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
         assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
         assertMarkets([_marketId(first.market), _marketId(last.market)]);
     }
@@ -2344,7 +2344,9 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0);
         sell(soldOffer.market, 1e18);
 
-        assertEq(abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0))
+        );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
         for (uint256 i = 0; i < 249; i++) {
@@ -2685,7 +2687,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -2880,7 +2882,8 @@ contract MidnightAdapterTest is Test {
         uint256 elapsed
     ) public {
         pendingFee = uint128(bound(pendingFee, 0, credit));
-        lossFactor = uint128(bound(lossFactor, lastLossFactor, type(uint128).max));
+        // A loss factor equal to the cached one (0) would make realAssets skip Midnight.
+        lossFactor = uint128(bound(lossFactor, lastLossFactor > 0 ? lastLossFactor : 1, type(uint128).max));
         elapsed = bound(elapsed, 0, 60 days);
         Offer memory offer = buy(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
@@ -2974,7 +2977,7 @@ contract MidnightAdapterTest is Test {
         vm.record();
         assertEq(adapter.marketData(marketId).netCredit, credit - pendingFee, "netCredit");
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 1, "one cache slot");
+        assertEq(reads.length, 2, "two cache slots");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), credit - pendingFee, "packed net credit");
     }
@@ -3922,7 +3925,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false)));
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
     }
 
     function testShortfallUsesAmortizedValue() public {
