@@ -881,15 +881,15 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         setMinRate(0);
         uint256 rate = adapter.marketData(marketId).rate;
+        uint256 discount = 1e18 + rate * 30 days;
         uint256 low;
         uint256 high = 100e18 - adapter.realAssets();
         // Largest shortfall that the interest remaining after the sale can absorb.
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
             uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
-                + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
-            if (newAmortizedValue <= 100e18 - units) low = mid;
+            uint256 amortizedValueTimesDiscount = 100e18 * 1e18 - units / 2 * discount;
+            if (amortizedValueTimesDiscount <= (100e18 - units) * discount) low = mid;
             else high = mid;
         }
 
@@ -2518,10 +2518,14 @@ contract MidnightAdapterTest is Test {
 
         buyAdditionalCredit(offer.market, 10);
 
+        uint256 discount = 1e18 + rate * 30 days;
+        uint256 amortizedValueTimesDiscount = 10 * 1e18 + 10 * discount;
+        uint256 expectedRate =
+            (20 * discount - amortizedValueTimesDiscount).mulDivDown(1e18, amortizedValueTimesDiscount * 30 days);
         assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
         assertEq(adapter.marketData(marketId).netCredit, 20);
-        assertEq(adapter.marketData(marketId).rate, 0, "carried value rounded up");
-        assertEq(adapter.realAssets(), 20);
+        assertEq(adapter.marketData(marketId).rate, expectedRate, "single-rounded rate");
+        assertEq(adapter.realAssets(), uint256(20).mulDivDown(1e18, 1e18 + expectedRate * 30 days));
     }
 
     function testSellFromMaturityChecksShortfall(bool takerSale, bool zeroProceeds, bool forceSellable, uint256 elapsed)
