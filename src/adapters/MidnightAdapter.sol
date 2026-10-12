@@ -580,7 +580,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
             uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
-            // When less than 2^120 is left, the market lost 255/256 of its units, and a loss can leave the high 40 bits unchanged.
             if (lossFactor.high40() == _marketData.lossFactorHigh40 && type(uint128).max - lossFactor >= 2 ** 120) {
                 netCredit = _marketData.netCredit;
             } else if (marketId == overridenMarketId) {
