@@ -20,7 +20,7 @@ contract ViewFunctionsTest is BaseTest {
         maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));

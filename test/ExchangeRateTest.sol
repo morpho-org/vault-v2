@@ -19,14 +19,14 @@ contract ExchangeRateTest is BaseTest {
         maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         vault.deposit(INITIAL_DEPOSIT, address(this));
 
         assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "wrong balance before");
         assertEq(vault.totalAssets(), INITIAL_DEPOSIT, "wrong totalAssets before");
 
-        underlyingToken.transfer(address(vault), INITIAL_DEPOSIT);
+        SafeERC20Lib.safeTransfer(address(underlyingToken), address(vault), INITIAL_DEPOSIT);
         writeTotalAssets(2 * INITIAL_DEPOSIT);
 
         totalAssets = vault.totalAssets();

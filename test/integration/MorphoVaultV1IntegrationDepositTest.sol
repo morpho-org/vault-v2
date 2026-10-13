@@ -41,7 +41,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
 
         // Donate
         morpho.supply(
@@ -86,7 +86,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
 
         // Donate
         morpho.supply(
