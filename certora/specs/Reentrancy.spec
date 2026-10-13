@@ -1,70 +1,102 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+using ERC20Standard as ERC20;
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function isAdapter(address) external returns (bool) envfree;
+    // Interest accrual leaves the vault in the same state as the accrueInterest entry point, so its writes are not tracked.
+    function accrueInterest() internal => summaryAccrueInterest();
 
-    function _.accrueInterest(MorphoMarketV1AdapterV2.MarketParams) external => ignoredCallVoidSummary() expect void;
+    // Static calls, that can't write to the vault's storage.
+    function _.realAssets() external => NONDET;
+    function _.isInRegistry(address) external => NONDET;
+    function _.canReceiveShares(address) external => NONDET;
+    function _.canSendShares(address) external => NONDET;
+    function _.canReceiveAssets(address) external => NONDET;
+    function _.canSendAssets(address) external => NONDET;
 
-    // Assume that adapters are either MorphoMarketV1AdapterV2 or MorphoVaultV1Adapter.
-    function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-
-    function _.supply(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, bytes) external => ignoredCallUintPairSummary() expect(uint256, uint256);
-    function _.withdraw(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, address) external => ignoredCallUintPairSummary() expect(uint256, uint256);
-    function _.deposit(uint256, address) external => ignoredCallUintSummary() expect(uint256);
-    function _.withdraw(uint256, address, address) external => ignoredCallUintSummary() expect(uint256);
-
-    function _.transfer(address, uint256) external => ignoredCallBoolSummary() expect(bool);
-    function _.transferFrom(address, address, uint256) external => ignoredCallBoolSummary() expect(bool);
+    // Adapters are arbitrary contracts.
+    function _.allocate(bytes, uint256, bytes4, address) external => summaryAdapterCall(calledContract) expect(bytes32[], int256);
+    function _.deallocate(bytes, uint256, bytes4, address) external => summaryAdapterCall(calledContract) expect(bytes32[], int256);
 }
 
-function ignoredCallVoidSummary() {
-    ignoredCall = true;
+function summaryAccrueInterest() { }
+
+function summaryAdapterCall(address adapter) returns (bytes32[], int256) {
+    // Used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
+    require currentContract.forceDeallocatePenalty[adapter] <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec, the penalty is not written in entry points that call adapters";
+    if (!currentContract.isAdapter[adapter]) {
+        nonAdapterCalled = true;
+    }
+    if (vaultStorageChanged) {
+        adapterCalledAfterSStore = true;
+    }
+    bytes32[] ids;
+    int256 change;
+    return (ids, change);
 }
 
-function ignoredCallBoolSummary() returns bool {
-    ignoredCall = true;
-    bool value;
-    return value;
-}
+// True when allocate or deallocate is called on a contract that is not an adapter.
+persistent ghost bool nonAdapterCalled;
 
-function ignoredCallUintPairSummary() returns (uint256, uint256) {
-    ignoredCall = true;
-    uint256[2] values;
-    return (values[0], values[1]);
-}
-
-function ignoredCallUintSummary() returns uint256 {
-    ignoredCall = true;
-    uint256 value;
-    return value;
-}
-
-persistent ghost bool ignoredCall;
-
+// True when an external call is made to a contract other than the asset, apart from adapter calls which are summarized.
 persistent ghost bool hasCall;
 
 hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
-    if (ignoredCall || addr == currentContract) {
-        ignoredCall = false;
-    } else if (addr == MorphoMarketV1AdapterV2 || addr == MorphoVaultV1Adapter) {
-        assert isAdapter(addr);
-        ignoredCall = false;
-    } else {
+    if (addr != currentContract && addr != ERC20) {
         hasCall = true;
     }
 }
 
-// Check that there are no untrusted external calls, ensuring notably reentrancy safety.
+// True when at least one slot of the vault was written.
+persistent ghost bool vaultStorageChanged;
+
+// True when an adapter was called after a write to the vault's storage.
+persistent ghost bool adapterCalledAfterSStore;
+
+// Number of writes to the vault's storage after an adapter was called after a write to the vault's storage.
+persistent ghost mathint sstoreCount;
+
+// Number of writes to caps allocations after an adapter was called after a write to the vault's storage.
+persistent ghost mathint allocationSstoreCount;
+
+hook ALL_SSTORE(uint _, uint _) {
+    if (executingContract == currentContract) {
+        vaultStorageChanged = true;
+        if (adapterCalledAfterSStore) {
+            sstoreCount = sstoreCount + 1;
+        }
+    }
+}
+
+hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
+    if (adapterCalledAfterSStore) {
+        allocationSstoreCount = allocationSstoreCount + 1;
+    }
+}
+
+// Check that the only external calls are to the asset and to adapters, ensuring no reentrancy apart from adapters if the asset is trusted not to reenter.
 rule reentrancySafe(method f, env e, calldataarg data) {
-    require(!ignoredCall && !hasCall, "set up the initial ghost state");
+    require !nonAdapterCalled, "setup ghost state";
+    require !hasCall, "setup ghost state";
+
     f(e, data);
+
+    assert !nonAdapterCalled;
     assert !hasCall;
+}
+
+// Check that adapters are called in a consistent state: either the vault wrote nothing before the call apart from interest accrual, or the vault writes nothing after the call apart from the caps allocations.
+// Deposits through the liquidity adapter are in the second case: the adapter is called once the deposit is complete, and only the allocations remain to be updated.
+rule adapterCalledInConsistentState(method f, env e, calldataarg data) {
+    require !vaultStorageChanged, "setup ghost state";
+    require !adapterCalledAfterSStore, "setup ghost state";
+    require sstoreCount == 0, "setup ghost state";
+    require allocationSstoreCount == 0, "setup ghost state";
+
+    f(e, data);
+
+    assert sstoreCount == allocationSstoreCount;
 }
