@@ -591,10 +591,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint40 lossFactorHigh40 = _marketData.lossFactorHigh40;
             uint256 netCredit;
             uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (lossFactor.high40() == lossFactorHigh40 && lossFactor <= MAX_CACHEABLE_LOSS_FACTOR) {
-                netCredit = _marketData.netCredit;
-            } else if (marketId == overriddenMarketId) {
+            if (marketId == overriddenMarketId) {
                 netCredit = overriddenMarketNetCredit;
+            } else if (lossFactor.high40() == lossFactorHigh40 && lossFactor <= MAX_CACHEABLE_LOSS_FACTOR) {
+                netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
