@@ -290,7 +290,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        SafeERC20Lib.forceApproveMax(asset, parentVault);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -332,6 +331,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
+        SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
@@ -343,7 +343,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
-            SafeERC20Lib.forceApproveMax(asset, parentVault);
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -490,7 +489,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        SafeERC20Lib.forceApproveMax(asset, parentVault);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
