@@ -1,68 +1,63 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+using ERC20Standard as ERC20;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    // Interest accrual leaves the vault in the same state as the accrueInterest entry point, so its writes are not tracked.
-    function accrueInterest() internal => summaryAccrueInterest();
-
-    // Static calls, that can't write to the vault's storage.
-    function _.realAssets() external => NONDET;
-    function _.isInRegistry(address) external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.canSendShares(address) external => NONDET;
-    function _.canReceiveAssets(address) external => NONDET;
-    function _.canSendAssets(address) external => NONDET;
-
-    // Adapters are arbitrary contracts.
-    function _.allocate(bytes, uint256, bytes4, address) external => summaryAdapterCall(calledContract) expect(bytes32[], int256);
-    function _.deallocate(bytes, uint256, bytes4, address) external => summaryAdapterCall(calledContract) expect(bytes32[], int256);
-}
-
-function summaryAccrueInterest() { }
-
-function summaryAdapterCall(address adapter) returns (bytes32[], int256) {
-    // Used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
-    env e;
-    require currentContract.forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec, the penalty is not written in entry points that call adapters";
-    if (vaultStorageChanged) {
-        adapterCalledAfterSStore = true;
-    }
-
-    // No ids, so that the vault writes no allocations after the call.
-    bytes32[] ids;
-    require ids.length == 0, "the allocations written after the call are not tracked, see the rule below";
-    int256 change;
-    return (ids, change);
+    // Ignore changes done by accrueInterest; the state after this call is still valid even if it changed the state, as for the accrueInterest entry point.
+    function accrueInterest() internal => NONDET;
 }
 
 // True when at least one slot of the vault was written.
-persistent ghost bool vaultStorageChanged;
+persistent ghost bool storageChanged;
 
-// True when an adapter was called after a write to the vault's storage.
-persistent ghost bool adapterCalledAfterSStore;
+// True when at least one CALL to a contract other than the asset is executed after a storage change.
+persistent ghost bool hasCallAfterStore;
 
-// True when the vault's storage is written after an adapter was called after a write to the vault's storage.
-persistent ghost bool sstoreAfterAdapterCall;
+// True when at least one slot of the vault is changed after a CALL is executed after a storage change.
+persistent ghost bool unsafeCall;
 
 hook ALL_SSTORE(uint _, uint _) {
     if (executingContract == currentContract) {
-        vaultStorageChanged = true;
-        if (adapterCalledAfterSStore) {
-            sstoreAfterAdapterCall = true;
+        storageChanged = true;
+        if (hasCallAfterStore) {
+            unsafeCall = true;
         }
     }
 }
 
-// Check that adapters are called in a consistent state: either the vault wrote nothing before the call apart from interest accrual, or the vault writes nothing after the call apart from the caps allocations.
-// Deposits through the liquidity adapter are in the second case: the adapter is called once the deposit is complete, and only the allocations remain to be updated.
-rule adapterCalledInConsistentState(method f, env e, calldataarg data) {
-    require !vaultStorageChanged, "setup ghost state";
-    require !adapterCalledAfterSStore, "setup ghost state";
-    require !sstoreAfterAdapterCall, "setup ghost state";
+hook ALL_TSTORE(uint _, uint _) {
+    if (executingContract == currentContract) {
+        storageChanged = true;
+        if (hasCallAfterStore) {
+            unsafeCall = true;
+        }
+    }
+}
 
-    f(e, data);
+// Calls to the asset are ignored: it is assumed to be a standard ERC20 token, that does not reenter.
+hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
+    if (storageChanged && addr != ERC20) {
+        hasCallAfterStore = true;
+    }
+}
 
-    assert !sstoreAfterAdapterCall;
+// Check that calls are either before the first store or after the last store (excluding the effects of accrueInterest and calls to the asset).
+rule reentrancySafe(method f, env e, calldataarg data) {
+    require(!storageChanged && !hasCallAfterStore && !unsafeCall, "set up the initial ghost state");
+    if (f.selector == sig:forceDeallocate(address, bytes, uint256, address).selector) {
+        address adapter;
+        bytes adapterData;
+        uint256 assets;
+        address onBehalf;
+    
+        // Used to show that the penalty withdrawal does not deallocate again.
+        require forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec";
+        forceDeallocate(e, adapter, adapterData, assets, onBehalf);
+    } else {
+        f(e, data);
+    }
+    assert !unsafeCall;
 }

@@ -99,8 +99,8 @@ Shares and assets move only through permitted paths and by the exact requested a
 
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that `allocate` and `deallocate` of arbitrary adapters are called in a consistent state: either the vault wrote nothing before the call apart from interest accrual, or it writes nothing after the call apart from the caps allocations, as in deposits through the liquidity adapter.
-  The rule assumes that the asset is a standard ERC20 token.
+- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
+  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
   It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
