@@ -14,15 +14,15 @@ methods {
     function _.canSendAssets(address) external => ignoredBoolStaticcall() expect(bool);
 }
 
-function ignoredUintStaticcall() returns uint256 {
-    ignoredStaticcall = true;
-    uint256 value;
-    return value;
-}
-
 function ignoredBoolStaticcall() returns bool {
     ignoredStaticcall = true;
     bool value;
+    return value;
+}
+
+function ignoredUintStaticcall() returns uint256 {
+    ignoredStaticcall = true;
+    uint256 value;
     return value;
 }
 
@@ -52,8 +52,8 @@ hook ALL_TSTORE(uint _, uint _) {
     }
 }
 
-// address(1) is ignored because it's the ecrecover precompile.
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
+    // address(1) is ignored because it's the ecrecover function.
     if (!ignoredStaticcall && storageChanged && addr != 0x1) {
         staticCallAfterSStore = true;
     }
