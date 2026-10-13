@@ -9,6 +9,8 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
+    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    uint128 lossFactor;
     /// @dev WAD-scaled simple interest rate per second.
     uint64 rate;
     uint48 maturity;
@@ -135,7 +137,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
+        returns (uint128 netCredit, uint128 lossFactor, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
