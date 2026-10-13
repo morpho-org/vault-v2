@@ -26,7 +26,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another midnight market on the adapter.
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
@@ -45,7 +45,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
-/// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all midnight markets.
+/// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -73,8 +73,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
-    bytes32 transient overridenMarketId;
-    uint256 transient overridenMarketNetCredit;
+    bytes32 transient overriddenMarketId;
+    uint256 transient overriddenMarketNetCredit;
 
     /* TIMELOCKS STORAGE */
 
@@ -324,7 +324,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -392,10 +392,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         uint128 newNetCredit = currentNetCredit(marketId);
-        (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
+        (overriddenMarketId, overriddenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
-        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
+        (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
@@ -584,8 +584,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overridenMarketId) {
-                netCredit = overridenMarketNetCredit;
+            if (marketId == overriddenMarketId) {
+                netCredit = overriddenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
