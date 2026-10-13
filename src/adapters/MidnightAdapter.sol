@@ -374,6 +374,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
+            // rate = (newNetCredit - amortizedValue) / (amortizedValue * ttm), with amortizedValue the old position's
+            // discounted value plus paidAssets. Everything is multiplied by discount to round only once.
             uint256 discount = WAD + _marketData.rate * ttm;
             uint256 amortizedValueTimesDiscount = (newNetCredit - boughtNetCredit) * WAD + paidAssets * discount;
             _marketData.rate = (newNetCredit * discount - amortizedValueTimesDiscount)
@@ -451,6 +453,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
+            // Same as in onBuy, with amortizedValue the discounted value of the position before the sale minus
+            // sellerAssets. The condition is that the sold part's discounted value exceeds sellerAssets.
             uint256 discount = WAD + _marketData.rate * ttm;
             if (soldNetCredit * WAD > sellerAssets * discount) {
                 uint256 amortizedValueTimesDiscount = (newNetCredit + soldNetCredit) * WAD - sellerAssets * discount;
