@@ -103,6 +103,9 @@ The vault does not expose an untrusted callback after entering an unsafe interme
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
   It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
+- [`ReentrancyAdapters.spec`](specs/ReentrancyAdapters.spec) checks that the vault calls adapters' `allocate` and `deallocate` in a consistent state, for arbitrary adapters.
+  Either the vault wrote nothing before the call apart from interest accrual, or it writes nothing after the call apart from the caps allocations, as in deposits through the liquidity adapter.
+  The rule assumes that the asset is a standard ERC20 token.
 
 # Verification setup
 
