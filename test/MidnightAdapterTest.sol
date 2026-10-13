@@ -2746,7 +2746,12 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
+        MarketData memory marketData = adapter.marketData(_marketId(offer.market));
+        assertEq(marketData.netCredit, 0, "netCredit");
+        assertEq(marketData.rate, 0, "rate");
+        assertEq(marketData.maturity, 0, "maturity");
+        assertEq(marketData.index, 0, "index");
+        assertFalse(marketData.forceSellable, "forceSellable");
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }

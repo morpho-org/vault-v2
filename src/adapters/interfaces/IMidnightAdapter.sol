@@ -9,9 +9,8 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev High 40 bits of Midnight's loss factor of the market when netCredit was last updated.
-    /// @dev Only used while the market has lost less than 255/256 of its units. Until then, a loss of at least 2^-32 of the remaining units changes them.
-    uint40 lossFactorHigh40;
+    /// @dev 40 bits of the hash of Midnight's loss factor of the market when netCredit was last updated.
+    uint40 lossFactorHash40;
     /// @dev WAD-scaled simple interest rate per second.
     uint48 rate;
     uint40 maturity;
@@ -141,7 +140,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint40 lossFactorHigh40,
+            uint40 lossFactorHash40,
             uint48 rate,
             uint40 maturity,
             uint8 index,
