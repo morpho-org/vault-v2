@@ -29,30 +29,26 @@ function ignoredBoolStaticcall() returns bool {
 // True when the next STATICCALL is a call to one of the functions assumed to not reenter.
 persistent ghost bool ignoredStaticcall;
 
-// True when at least one slot of the vault was written.
+// True when at least one slot was written.
 persistent ghost bool storageChanged;
 
 // True when at least one STATICCALL is executed after a storage change.
 persistent ghost bool staticCallAfterSStore;
 
-// True when at least one slot of the vault is changed after a STATICCALL is executed after a storage change.
+// True when at least one slot is changed after a STATICCALL is executed after a storage change.
 persistent ghost bool staticCallUnsafe;
 
 hook ALL_SSTORE(uint _, uint _) {
-    if (executingContract == currentContract) {
-        storageChanged = true;
-        if (staticCallAfterSStore) {
-            staticCallUnsafe = true;
-        }
+    storageChanged = true;
+    if (staticCallAfterSStore) {
+        staticCallUnsafe = true;
     }
 }
 
 hook ALL_TSTORE(uint _, uint _) {
-    if (executingContract == currentContract) {
-        storageChanged = true;
-        if (staticCallAfterSStore) {
-            staticCallUnsafe = true;
-        }
+    storageChanged = true;
+    if (staticCallAfterSStore) {
+        staticCallUnsafe = true;
     }
 }
 
