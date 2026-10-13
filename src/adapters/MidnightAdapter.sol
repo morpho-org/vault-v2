@@ -242,19 +242,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ALLOCATOR FUNCTIONS */
 
     /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
-    function swapMarkets(uint256 i, uint256 j) external {
+    /// @dev newMarketIds must be a permutation of marketIds.
+    function reorderMarkets(bytes32[] calldata newMarketIds) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(newMarketIds.length == marketIds.length, InvalidLength());
 
-        bytes32 marketIdI = marketIds[i];
-        bytes32 marketIdJ = marketIds[j];
-        marketIds[i] = marketIdJ;
-        marketIds[j] = marketIdI;
-        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
-        marketData[marketIdI].index = uint8(j);
-        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
-        marketData[marketIdJ].index = uint8(i);
+        uint256 seen;
+        for (uint256 i; i < newMarketIds.length; i++) {
+            uint256 index = marketData[newMarketIds[i]].index;
+            require(marketIds[index] == newMarketIds[i] && ((seen >> index) & 1) == 0, NotAPermutation());
+            seen |= 1 << index;
+        }
 
-        emit SwapMarkets(msg.sender, i, j);
+        for (uint256 i; i < newMarketIds.length; i++) {
+            marketIds[i] = newMarketIds[i];
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+            marketData[newMarketIds[i]].index = uint8(i);
+        }
+
+        emit ReorderMarkets(msg.sender, newMarketIds);
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
