@@ -103,7 +103,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
   Deposits and mints call the liquidity adapter after creating the shares, so for them it checks instead that only the caps allocations are written after the call.
   The rule assumes that the asset is a standard ERC20 token that does not reenter the vault.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
-  The rule assumes that the asset is a standard ERC20 token, and that adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
+  The rule assumes that the asset, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
 
 # Verification setup
 

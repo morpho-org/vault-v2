@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using ERC20Standard as ERC20;
-
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
@@ -57,13 +55,13 @@ hook ALL_TSTORE(uint _, uint _) {
     }
 }
 
-// Calls to the asset are ignored: it is assumed to be a standard ERC20 token, that does not reenter.
+// Calls to the asset are ignored: it is assumed to not reenter.
 // address(1) is ignored because it's the ecrecover precompile.
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     if (
         !ignoredStaticcall
             && storageChanged
-            && addr != ERC20
+            && addr != currentContract.asset
             && addr != 0x1
     ) {
         staticCallAfterSStore = true;
