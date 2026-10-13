@@ -5,8 +5,6 @@ pragma solidity 0.8.37;
 import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
-/// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on
-/// 32 bits.
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
@@ -28,6 +26,8 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* FUNCTIONS */
 
+    /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on
+    /// 32 bits.
     function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
         external
         returns (address)
