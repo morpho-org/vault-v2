@@ -5,6 +5,6 @@ hook DELEGATECALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLengt
     assert addr == currentContract;
 }
 
-// Check that the contract is truly immutable.
-invariant immutability()
+// Check that every delegate call targets the contract itself.
+invariant noExternalDelegateCall()
     true;

@@ -61,7 +61,7 @@ Risk limits and timelocked configuration cannot be bypassed.
 - [`EarliestTime.spec`](specs/EarliestTime.spec) checks the three ways a timelocked call can become executable: an existing submission, a fresh submission plus the current timelock, or a pending timelock decrease plus the new delay.
   For the covered configuration calls, the earliest execution time cannot move backward and the call cannot succeed before it.
 - [`AbdicatedFunctions.spec`](specs/AbdicatedFunctions.spec) checks that an abdicated timelocked function cannot be called, that abdication is permanent, and that each affected configuration value remains unchanged in the direction the abdicated function would have modified it.
-- [`Immutability.spec`](specs/Immutability.spec) checks that every `DELEGATECALL` targets the vault itself, preventing delegation to arbitrary implementation code.
+- [`NoExternalDelegateCall.spec`](specs/NoExternalDelegateCall.spec) checks that every `DELEGATECALL` targets the vault itself, preventing delegation to arbitrary implementation code.
 
 ## Authorization, input validation, and liveness
 
