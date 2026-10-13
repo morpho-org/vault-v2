@@ -26,7 +26,7 @@ contract ForceDeallocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
     }
 
     function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {
@@ -78,7 +78,8 @@ contract ForceDeallocateTest is BaseTest {
 
         // Deposit some assets
         deal(address(underlyingToken), address(this), 1000);
-        underlyingToken.approve(address(vault), 1000);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), 0);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), 1000);
         vault.deposit(1000, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 1000);

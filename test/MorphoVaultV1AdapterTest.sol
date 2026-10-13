@@ -6,6 +6,8 @@ import "../lib/forge-std/src/Test.sol";
 
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {newTokenOfType} from "./mocks/TokenMocks.sol";
+import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {MorphoVaultV1Adapter} from "../src/adapters/MorphoVaultV1Adapter.sol";
@@ -37,18 +39,20 @@ contract MorphoVaultV1AdapterTest is Test {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
 
-        asset = IERC20(address(new ERC20Mock(18)));
+        asset = newTokenOfType(vm.envOr("TOKEN_TYPE", uint256(0)), 18);
         rewardToken = IERC20(address(new ERC20Mock(18)));
         morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new MorphoVaultV1AdapterFactory();
         adapter = MorphoVaultV1Adapter(factory.createMorphoVaultV1Adapter(address(parentVault), address(morphoVaultV1)));
-        vm.prank(address(adapter));
-        asset.approve(address(morphoVaultV1), type(uint256).max);
+        vm.startPrank(address(adapter));
+        SafeERC20Lib.safeApprove(address(asset), address(morphoVaultV1), 0);
+        SafeERC20Lib.safeApprove(address(asset), address(morphoVaultV1), type(uint256).max);
+        vm.stopPrank();
 
         deal(address(asset), address(this), type(uint256).max);
-        asset.approve(address(morphoVaultV1), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(asset), address(morphoVaultV1), type(uint256).max);
 
         // Increase the exchange rate to make so 1 asset is worth EXCHANGE_RATE shares.
         deal(address(morphoVaultV1), address(0), EXCHANGE_RATE - 1, true);
@@ -229,7 +233,7 @@ contract MorphoVaultV1AdapterTest is Test {
         address donor = makeAddr("donor");
         deal(address(asset), donor, donation);
         vm.startPrank(donor);
-        asset.approve(address(otherVault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(asset), address(otherVault), type(uint256).max);
         otherVault.deposit(donation, address(adapter));
         vm.stopPrank();
 
@@ -255,7 +259,7 @@ contract MorphoVaultV1AdapterTest is Test {
 
         deal(address(asset), address(parentVault), deposit);
         parentVault.allocate(address(adapter), hex"", deposit);
-        asset.transfer(address(morphoVaultV1), interest);
+        SafeERC20Lib.safeTransfer(address(asset), address(morphoVaultV1), interest);
 
         // approx because of the virtual shares.
         assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
@@ -266,7 +270,7 @@ contract ERC4626MockExtended is ERC4626Mock {
     constructor(address _asset) ERC4626Mock(_asset) {}
 
     function lose(uint256 assets) public {
-        IERC20(asset()).transfer(address(0xdead), assets);
+        SafeERC20Lib.safeTransfer(asset(), address(0xdead), assets);
     }
 }
 

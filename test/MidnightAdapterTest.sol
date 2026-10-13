@@ -7,6 +7,8 @@ import {Vm} from "../lib/forge-std/src/Vm.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
 import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {newTokenOfType} from "./mocks/TokenMocks.sol";
+import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
@@ -73,8 +75,8 @@ contract EagerLossCallback {
 
     constructor(address midnight_, address token, address vault) {
         midnight = midnight_;
-        IERC20(token).approve(midnight_, type(uint256).max);
-        IERC20(token).approve(vault, type(uint256).max);
+        SafeERC20Lib.safeApprove(token, midnight_, type(uint256).max);
+        SafeERC20Lib.safeApprove(token, vault, type(uint256).max);
         IMidnight(midnight_).setIsAuthorized(msg.sender, true, address(this));
     }
 
@@ -174,6 +176,7 @@ contract MidnightAdapterTest is Test {
     IVaultV2 internal realVault;
     IERC20 internal loanToken;
     IERC20 internal rewardToken;
+    uint256 internal loanTokenType;
     address internal owner;
     address internal curator;
     address internal signerAllocator;
@@ -207,7 +210,8 @@ contract MidnightAdapterTest is Test {
         midnight.enableLiquidationCursor(0.25e18);
         midnight.setFeeSetter(address(this));
 
-        loanToken = IERC20(address(new ERC20Mock(18)));
+        loanTokenType = vm.envOr("TOKEN_TYPE", uint256(0));
+        loanToken = newTokenOfType(loanTokenType, 18);
         rewardToken = IERC20(address(new ERC20Mock(18)));
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
@@ -278,7 +282,7 @@ contract MidnightAdapterTest is Test {
         IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
         deal(storedCollaterals[0].token, taker, 1_000e18);
         deal(storedCollaterals[1].token, taker, 1_000e18);
-        loanToken.approve(address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.setIsAuthorized(address(this), true, taker);
         vm.stopPrank();
 
@@ -3171,9 +3175,11 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         if (funded) deal(address(loanToken), address(this), 0.5e18);
-        else loanToken.approve(address(adapter), type(uint256).max);
+        else SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
 
-        vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
+        vm.expectRevert(
+            loanTokenType == 1 ? ErrorsLib.TransferFromReturnedFalse.selector : ErrorsLib.TransferFromReverted.selector
+        );
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
         );
@@ -3198,7 +3204,7 @@ contract MidnightAdapterTest is Test {
         realVault.approve(taker, expectedPenaltyShares);
         deal(address(loanToken), taker, settlementFee);
         vm.startPrank(taker);
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
 
         uint256 penaltyShares = realVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
@@ -3412,7 +3418,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(boughtOffer.market);
 
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, 0.5e18, 0.5e18);
         parentVault.forceDeallocate(
@@ -3460,7 +3466,7 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18, tick);
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
         deal(address(loanToken), address(this), 0.5e18);
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
 
@@ -3491,7 +3497,7 @@ contract MidnightAdapterTest is Test {
         uint256 received = assets.mulDivDown(TickLib.tickToPrice(discountTick), 1e18);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         deal(address(loanToken), address(this), assets - received);
-        loanToken.approve(address(adapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
 
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), assets, address(this)
@@ -3638,7 +3644,7 @@ contract MidnightAdapterTest is Test {
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, MAX_TICK);
         deal(address(loanToken), address(this), 2e18);
-        loanToken.approve(address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
 
         this.takeWithAccrual(offer, ratify([offer], signerAllocator), taker, address(this));
 
@@ -3751,7 +3757,7 @@ contract MidnightAdapterTest is Test {
         skip(7 days);
 
         deal(address(loanToken), address(this), 1e18);
-        loanToken.approve(address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.repay(boughtOffer.market, 1e18, taker, address(0), "");
 
         uint256 withdrawAmount = 0.5e18;
@@ -3772,7 +3778,7 @@ contract MidnightAdapterTest is Test {
 
         // The borrower repays 0.7e18 and defaults on the rest.
         deal(address(loanToken), address(this), 0.7e18);
-        loanToken.approve(address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.repay(boughtOffer.market, 0.7e18, taker, address(0), "");
         OracleMock(storedCollaterals[0].oracle).setPrice(0);
         OracleMock(storedCollaterals[1].oracle).setPrice(0);
@@ -3894,7 +3900,7 @@ contract MidnightAdapterTest is Test {
         uint256 assets = uint256(type(uint128).max) - 1;
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, assets);
 
-        loanToken.approve(address(adapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
         (, int256 change) = parentVault.forceDeallocate(
@@ -4053,7 +4059,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(initial.market);
         skip(1 days);
         deal(address(loanToken), address(this), 50e18);
-        loanToken.approve(address(midnight), 50e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 50e18);
         midnight.repay(initial.market, 50e18, taker, address(0), "");
         deal(address(loanToken), address(parentVault), 0);
 
@@ -4292,7 +4298,7 @@ contract MidnightAdapterTest is Test {
 
         deal(address(loanToken), buyer, offer.maxUnits);
         vm.startPrank(buyer);
-        loanToken.approve(address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.setIsAuthorized(address(approvalRatifier), true, buyer);
         approvalRatifier.setIsRootRatified(buyer, root_, true);
         vm.stopPrank();
@@ -4322,7 +4328,7 @@ contract MidnightAdapterTest is Test {
         if (isBuy) {
             deal(address(loanToken), maker, assets);
             vm.prank(maker);
-            loanToken.approve(address(midnight), type(uint256).max);
+            SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         } else {
             midnight.supplyCollateral(market, 0, assets / 2, maker);
             midnight.supplyCollateral(market, 1, assets / 2, maker);
@@ -4337,7 +4343,7 @@ contract MidnightAdapterTest is Test {
     function forceDeallocate(Market memory market, uint256 assets) internal {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(market, assets);
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
-        loanToken.approve(address(adapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -4376,7 +4382,7 @@ contract MidnightAdapterTest is Test {
         }
 
         deal(address(loanToken), address(this), 10e18);
-        loanToken.approve(address(realVault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(realVault), type(uint256).max);
         realVault.deposit(10e18, address(this));
     }
 
@@ -4393,7 +4399,7 @@ contract MidnightAdapterTest is Test {
     function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(market, assets);
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
-        loanToken.approve(address(adapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
         return realVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -5312,7 +5318,7 @@ contract MidnightAdapterTest is Test {
         returns (uint256)
     {
         (Offer memory offer, bytes memory ratifierData_) = callbackOffer(market, assets, buyer);
-        loanToken.approve(address(adapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
         return realVault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData_), assets, address(this));
     }
 
@@ -5490,7 +5496,7 @@ contract MidnightAdapterTest is Test {
         address exiter = makeAddr("exiter");
         deal(address(loanToken), exiter, 2e18);
         vm.startPrank(exiter);
-        loanToken.approve(address(realVault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(realVault), type(uint256).max);
         realVault.deposit(2e18, exiter);
         vm.stopPrank();
         uint256 exiterShares = realVault.balanceOf(exiter);
@@ -5549,7 +5555,7 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes memory ratifierData_) = callbackOffer(initial.market, 2e18, buyer, discountTick);
         uint256 received = uint256(2e18).mulDivDown(TickLib.tickToPrice(discountTick), 1e18);
         deal(address(loanToken), address(this), 2e18 - received);
-        loanToken.approve(address(adapter), 2e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 2e18);
         uint256 buyerBalanceBefore = loanToken.balanceOf(address(buyer));
 
         realVault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData_), 2e18, address(this));

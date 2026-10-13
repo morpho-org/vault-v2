@@ -26,7 +26,7 @@ contract AccrueInterestTest is BaseTest {
         vault.setManagementFeeRecipient(managementFeeRecipient);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         adapter = new AdapterMock(address(vault));
         vm.prank(curator);
@@ -227,7 +227,7 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
 
-        underlyingToken.transfer(address(vault), donation);
+        SafeERC20Lib.safeTransfer(address(underlyingToken), address(vault), donation);
 
         assertEq(vault.totalAssets(), deposit);
     }
@@ -242,7 +242,7 @@ contract AccrueInterestTest is BaseTest {
 
         skip(elapsed);
 
-        underlyingToken.transfer(address(vault), donation);
+        SafeERC20Lib.safeTransfer(address(underlyingToken), address(vault), donation);
 
         uint256 maxTotalAssets = deposit + (deposit * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
         assertEq(vault.totalAssets(), MathLib.min(deposit + donation, maxTotalAssets));
