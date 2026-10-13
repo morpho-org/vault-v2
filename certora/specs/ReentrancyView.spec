@@ -4,6 +4,7 @@
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
+    // These calls are assumed to not re-enter (documented).
     function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
     function _.isInRegistry(address) external => ignoredBoolStaticcall() expect(bool);
     function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
