@@ -14,6 +14,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* STORAGE */
 
+    /// @dev durationsHash is keccak256(abi.encode(durations)).
     mapping(address parentVault => mapping(bytes32 durationsHash => mapping(bytes32 salt => address))) public
         midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
