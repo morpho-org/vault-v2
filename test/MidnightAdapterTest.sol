@@ -4109,6 +4109,9 @@ contract MidnightAdapterTest is Test {
         uint256 remainingAmortizedValueA = remainingA.mulDivUp(WAD, WAD + dataA.rate * ttmA);
         uint256 capacityA =
             remainingA.mulDivDown(WAD, WAD + adapter.minRate() * ttmA).zeroFloorSub(remainingAmortizedValueA);
+        uint256 amortizedValueAAfterReduction = remainingAmortizedValueA + capacityA;
+        uint256 newRateA =
+            (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
         uint256 remainingLoss = loss - capacityA;
         uint256 amortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.rate * ttmB);
         uint256 capacityB =
@@ -4119,12 +4122,12 @@ contract MidnightAdapterTest is Test {
         assertLt(remainingLoss, capacityB, "market B absorbs the rest");
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ReduceRate(marketIdA, adapter.minRate());
+        emit IMidnightAdapterBase.ReduceRate(marketIdA, newRateA);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ReduceRate(marketIdB, newRateB);
         sellUnits(offerA.market, sold, tick);
 
-        assertEq(adapter.marketData(marketIdA).rate, adapter.minRate(), "market A at minRate");
+        assertEq(adapter.marketData(marketIdA).rate, newRateA, "market A fully uses its capacity");
         assertEq(adapter.marketData(marketIdB).rate, newRateB, "market B absorbs remaining shortfall");
     }
 
