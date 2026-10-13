@@ -6,6 +6,7 @@ import {BaseTest} from "../BaseTest.sol";
 import {WhitelistReceiveSharesGate} from "../../src/periphery/gates/WhitelistReceiveSharesGate.sol";
 import {WhitelistSendAssetsGate} from "../../src/periphery/gates/WhitelistSendAssetsGate.sol";
 import {ErrorsLib} from "../../src/libraries/ErrorsLib.sol";
+import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 
 contract WhitelistGatesIntegrationTest is BaseTest {
@@ -32,7 +33,7 @@ contract WhitelistGatesIntegrationTest is BaseTest {
 
         deal(address(underlyingToken), depositor, ASSETS);
         vm.prank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
     }
 
     function testWhitelistReceiveSharesGateControlsVaultDeposits() public {

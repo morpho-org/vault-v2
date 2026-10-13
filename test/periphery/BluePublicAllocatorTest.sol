@@ -527,7 +527,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         deal(address(underlyingToken), rando, expectedPenaltyAssets);
         vm.startPrank(rando);
-        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(bluePublicAllocator), expectedPenaltyAssets);
         vm.expectEmit();
         emit IBluePublicAllocator.Reallocate(
             rando, address(vault), address(adapter), id1, address(adapter), id2, amount, expectedPenaltyAssets
@@ -558,7 +558,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         deal(address(underlyingToken), rando, expectedPenaltyAssets);
         vm.startPrank(rando);
-        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(bluePublicAllocator), expectedPenaltyAssets);
         vm.expectEmit();
         emit IBluePublicAllocator.AllocateFromIdle(
             rando, address(vault), address(adapter), id2, amount, expectedPenaltyAssets
@@ -588,7 +588,11 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         uint64 penalty_ = _currentPenalty();
-        vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
+        vm.expectRevert(
+            underlyingTokenType == 1
+                ? ErrorsLib.TransferFromReturnedFalse.selector
+                : ErrorsLib.TransferFromReverted.selector
+        );
         _reallocate(amount, penalty_);
     }
 

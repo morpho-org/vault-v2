@@ -9,6 +9,8 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
+    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    uint128 lossFactor;
     /// @dev WAD-scaled simple interest rate per second.
     uint64 rate;
     uint48 maturity;
@@ -130,33 +132,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function swapMarkets(uint256 i, uint256 j) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
-    function realAssets() external view returns (uint256 assets);
-    function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32);
-    function allocate(bytes memory data, uint256 assets, bytes4, address caller)
-        external
-        returns (bytes32[] memory, int256);
-    function deallocate(bytes memory data, uint256 assets, bytes4, address caller)
-        external
-        returns (bytes32[] memory, int256);
-    function onBuy(
-        bytes32 id,
-        Market memory market,
-        uint256 buyerAssets,
-        uint256 units,
-        uint256 pendingFeeIncrease,
-        address buyer,
-        bytes memory data
-    ) external returns (bytes32);
-    function onSell(
-        bytes32 id,
-        Market memory market,
-        uint256 sellerAssets,
-        uint256 units,
-        uint256 pendingFeeDecrease,
-        address seller,
-        address receiver,
-        bytes memory data
-    ) external returns (bytes32);
 }
 
 /// @dev This interface is inherited by MidnightAdapter so that function signatures are checked by the compiler.
@@ -165,7 +140,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
+        returns (uint128 netCredit, uint128 lossFactor, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

@@ -104,7 +104,9 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assets = bound(assets, initialInIdle + 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.TransferReverted.selector);
+        vm.expectRevert(
+            underlyingTokenType == 1 ? ErrorsLib.TransferReturnedFalse.selector : ErrorsLib.TransferReverted.selector
+        );
         vault.allocate(address(adapter), abi.encode(marketParams1), assets);
     }
 

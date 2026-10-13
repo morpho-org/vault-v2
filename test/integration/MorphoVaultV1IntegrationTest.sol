@@ -137,7 +137,7 @@ contract MorphoVaultV1IntegrationTest is BaseTest {
 
         // Approval.
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
     }
 
     function setSupplyQueueIdle() internal {
