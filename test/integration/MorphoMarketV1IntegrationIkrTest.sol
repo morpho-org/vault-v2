@@ -76,7 +76,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
         morpho.supply(marketParams1, deallocatedAssets, 0, address(this), hex"");
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));

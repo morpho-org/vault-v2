@@ -21,7 +21,7 @@ contract MainFunctionsTest is BaseTest {
         vault.setMaxRate(MAX_MAX_RATE);
 
         deal(address(underlyingToken), address(this), INITIAL_DEPOSIT, true);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         initialSharesDeposit = vault.deposit(INITIAL_DEPOSIT, address(this));
 
@@ -34,7 +34,7 @@ contract MainFunctionsTest is BaseTest {
         // Make sure there is a rounding error.
         skip(1); // needed since the max rate.
         deal(address(underlyingToken), address(this), 123456789);
-        underlyingToken.transfer(address(vault), 123456789);
+        SafeERC20Lib.safeTransfer(address(underlyingToken), address(vault), 123456789);
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + vault.virtualShares()), 0);
 
         assertEq(underlyingToken.balanceOf(address(vault)), 1e18, "balanceOf(vault)");
