@@ -24,11 +24,15 @@ function summaryAccrueInterest() { }
 
 function summaryAdapterCall(address adapter) returns (bytes32[], int256) {
     // Used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
-    require currentContract.forceDeallocatePenalty[adapter] <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec, the penalty is not written in entry points that call adapters";
+    env e;
+    require currentContract.forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec, the penalty is not written in entry points that call adapters";
     if (vaultStorageChanged) {
         adapterCalledAfterSStore = true;
     }
+
+    // No ids, so that the vault writes no allocations after the call.
     bytes32[] ids;
+    require ids.length == 0, "the allocations written after the call are not tracked, see the rule below";
     int256 change;
     return (ids, change);
 }
@@ -39,24 +43,15 @@ persistent ghost bool vaultStorageChanged;
 // True when an adapter was called after a write to the vault's storage.
 persistent ghost bool adapterCalledAfterSStore;
 
-// Number of writes to the vault's storage after an adapter was called after a write to the vault's storage.
-persistent ghost mathint sstoreCount;
-
-// Number of writes to caps allocations after an adapter was called after a write to the vault's storage.
-persistent ghost mathint allocationSstoreCount;
+// True when the vault's storage is written after an adapter was called after a write to the vault's storage.
+persistent ghost bool sstoreAfterAdapterCall;
 
 hook ALL_SSTORE(uint _, uint _) {
     if (executingContract == currentContract) {
         vaultStorageChanged = true;
         if (adapterCalledAfterSStore) {
-            sstoreCount = sstoreCount + 1;
+            sstoreAfterAdapterCall = true;
         }
-    }
-}
-
-hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
-    if (adapterCalledAfterSStore) {
-        allocationSstoreCount = allocationSstoreCount + 1;
     }
 }
 
@@ -65,10 +60,9 @@ hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (ui
 rule adapterCalledInConsistentState(method f, env e, calldataarg data) {
     require !vaultStorageChanged, "setup ghost state";
     require !adapterCalledAfterSStore, "setup ghost state";
-    require sstoreCount == 0, "setup ghost state";
-    require allocationSstoreCount == 0, "setup ghost state";
+    require !sstoreAfterAdapterCall, "setup ghost state";
 
     f(e, data);
 
-    assert sstoreCount == allocationSstoreCount;
+    assert !sstoreAfterAdapterCall;
 }
