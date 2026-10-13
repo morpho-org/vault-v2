@@ -53,7 +53,7 @@ hook ALL_TSTORE(uint _, uint _) {
 }
 
 // Calls to the asset are ignored: it is assumed to be a standard ERC20 token, that does not reenter.
-hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
+hook CALL(uint256 _, address addr, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (addr != ERC20) {
         hasCall = true;
         if (storageChanged) {
@@ -62,7 +62,7 @@ hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 ar
     }
 }
 
-hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
+hook Sstore currentContract.caps[KEY bytes32 _].allocation uint256 _ {
     if (hasCall) {
         allocationStoresAfterCall = allocationStoresAfterCall + 1;
     }

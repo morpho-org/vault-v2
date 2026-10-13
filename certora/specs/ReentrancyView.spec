@@ -30,7 +30,7 @@ hook ALL_TSTORE(uint _, uint _) {
 
 // address(1) is ignored because it's the ecrecover function.
 // These calls are assumed to not re-enter (documented). 0x56c07573 is realAssets() and 0xe4bb26f2 is isInRegistry(address).
-hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
+hook STATICCALL(uint256 _, address addr, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (
         storageChanged
             && addr != 0x1
