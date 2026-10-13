@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using ERC20Standard as ERC20;
-
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
@@ -27,33 +25,12 @@ function summaryAccrueInterest() { }
 function summaryAdapterCall(address adapter) returns (bytes32[], int256) {
     // Used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
     require currentContract.forceDeallocatePenalty[adapter] <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec, the penalty is not written in entry points that call adapters";
-    if (!currentContract.isAdapter[adapter]) {
-        nonAdapterCalled = true;
-    }
-    adapterCall = true;
     if (vaultStorageChanged) {
         adapterCalledAfterSStore = true;
     }
     bytes32[] ids;
     int256 change;
     return (ids, change);
-}
-
-// True when allocate or deallocate is called on a contract that is not an adapter.
-persistent ghost bool nonAdapterCalled;
-
-// True when the current call is an adapter call, checked separately in the summary.
-persistent ghost bool adapterCall;
-
-// True when an external call is made to a contract other than the asset and adapters.
-persistent ghost bool hasCall;
-
-hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    if (adapterCall || addr == currentContract || addr == ERC20) {
-        adapterCall = false;
-    } else {
-        hasCall = true;
-    }
 }
 
 // True when at least one slot of the vault was written.
@@ -81,18 +58,6 @@ hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (ui
     if (adapterCalledAfterSStore) {
         allocationSstoreCount = allocationSstoreCount + 1;
     }
-}
-
-// Check that the only external calls are to the asset and to adapters, ensuring no reentrancy apart from adapters if the asset is trusted not to reenter.
-rule reentrancySafe(method f, env e, calldataarg data) {
-    require !nonAdapterCalled, "setup ghost state";
-    require !adapterCall, "setup ghost state";
-    require !hasCall, "setup ghost state";
-
-    f(e, data);
-
-    assert !nonAdapterCalled;
-    assert !hasCall;
 }
 
 // Check that adapters are called in a consistent state: either the vault wrote nothing before the call apart from interest accrual, or the vault writes nothing after the call apart from the caps allocations.
