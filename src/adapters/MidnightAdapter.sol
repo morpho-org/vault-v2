@@ -104,8 +104,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-        SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
 
         packedDurations = DurationsLib.pack(_durations);

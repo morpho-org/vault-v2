@@ -1837,8 +1837,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
-        assertEq(loanToken.allowance(address(adapter), address(midnight)), type(uint256).max, "midnight allowance");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), type(uint256).max, "vault allowance");
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0, "midnight allowance");
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
@@ -2749,7 +2749,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
         take(offer);
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
-        assertEq(loanToken.allowance(address(adapter), address(parentVault)), type(uint256).max);
+        assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
     }
 
     function testMakerBuyRestoresLowMidnightAllowance() public {
