@@ -5,7 +5,19 @@ using ERC20Standard as ERC20;
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
+    function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
 }
+
+// Adapters are assumed to not reenter on realAssets.
+function ignoredUintStaticcall() returns uint256 {
+    ignoredStaticcall = true;
+    uint256 value;
+    return value;
+}
+
+// True when the next STATICCALL is a call to realAssets.
+persistent ghost bool ignoredStaticcall;
 
 // True when at least one slot of the vault was written.
 persistent ghost bool storageChanged;
@@ -37,14 +49,20 @@ hook ALL_TSTORE(uint _, uint _) {
 // Calls to the asset are ignored: it is assumed to be a standard ERC20 token, that does not reenter.
 // address(1) is ignored because it's the ecrecover precompile.
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    if (storageChanged && addr != ERC20 && addr != 0x1) {
+    if (
+        !ignoredStaticcall
+            && storageChanged
+            && addr != ERC20
+            && addr != 0x1
+    ) {
         staticCallAfterSStore = true;
     }
+    ignoredStaticcall = false;
 }
 
 // Check that static calls are either before the first store or after the last store (excluding calls to the asset).
 rule reentrancyViewSafe(method f, env e, calldataarg data) {
-    require(!storageChanged && !staticCallAfterSStore && !staticCallUnsafe, "set up the initial ghost state");
+    require(!ignoredStaticcall && !storageChanged && !staticCallAfterSStore && !staticCallUnsafe, "set up the initial ghost state");
     if (f.selector == sig:forceDeallocate(address, bytes, uint256, address).selector) {
         address adapter;
         bytes adapterData;
