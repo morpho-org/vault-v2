@@ -92,7 +92,9 @@ contract MorphoVaultV1IntegrationAllocationTest is MorphoVaultV1IntegrationTest 
         assets = bound(assets, initialInIdle + 1, maxTestAssets);
 
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.TransferReverted.selector);
+        vm.expectRevert(
+            underlyingTokenType == 1 ? ErrorsLib.TransferReturnedFalse.selector : ErrorsLib.TransferReverted.selector
+        );
         vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
     }
 
