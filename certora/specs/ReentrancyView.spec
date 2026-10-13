@@ -7,16 +7,27 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
+    function _.isInRegistry(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canSendShares(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canReceiveAssets(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canSendAssets(address) external => ignoredBoolStaticcall() expect(bool);
 }
 
-// Adapters are assumed to not reenter on realAssets.
+// Adapters' realAssets, the adapter registry and the gates are assumed to not reenter.
 function ignoredUintStaticcall() returns uint256 {
     ignoredStaticcall = true;
     uint256 value;
     return value;
 }
 
-// True when the next STATICCALL is a call to realAssets.
+function ignoredBoolStaticcall() returns bool {
+    ignoredStaticcall = true;
+    bool value;
+    return value;
+}
+
+// True when the next STATICCALL is a call to one of the functions assumed to not reenter.
 persistent ghost bool ignoredStaticcall;
 
 // True when at least one slot of the vault was written.
