@@ -6,6 +6,7 @@ methods {
 
     // These calls are assumed to not re-enter (documented).
     function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
+    function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
     function _.isInRegistry(address) external => ignoredBoolStaticcall() expect(bool);
     function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
     function _.canSendShares(address) external => ignoredBoolStaticcall() expect(bool);
@@ -13,7 +14,6 @@ methods {
     function _.canSendAssets(address) external => ignoredBoolStaticcall() expect(bool);
 }
 
-// Adapters' realAssets, the adapter registry and the gates are assumed to not reenter.
 function ignoredUintStaticcall() returns uint256 {
     ignoredStaticcall = true;
     uint256 value;
@@ -32,7 +32,7 @@ persistent ghost bool ignoredStaticcall;
 // True when at least one slot of the vault was written.
 persistent ghost bool storageChanged;
 
-// True when at least one STATICCALL to a contract other than the asset is executed after a storage change.
+// True when at least one STATICCALL is executed after a storage change.
 persistent ghost bool staticCallAfterSStore;
 
 // True when at least one slot of the vault is changed after a STATICCALL is executed after a storage change.
@@ -56,21 +56,15 @@ hook ALL_TSTORE(uint _, uint _) {
     }
 }
 
-// Calls to the asset are ignored: it is assumed to not reenter.
 // address(1) is ignored because it's the ecrecover precompile.
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    if (
-        !ignoredStaticcall
-            && storageChanged
-            && addr != currentContract.asset
-            && addr != 0x1
-    ) {
+    if (!ignoredStaticcall && storageChanged && addr != 0x1) {
         staticCallAfterSStore = true;
     }
     ignoredStaticcall = false;
 }
 
-// Check that static calls are either before the first store or after the last store (excluding calls to the asset).
+// Check that static calls are either before the first store or after the last store.
 rule reentrancyViewSafe(method f, env e, calldataarg data) {
     require(!ignoredStaticcall && !storageChanged && !staticCallAfterSStore && !staticCallUnsafe, "set up the initial ghost state");
     if (f.selector == sig:forceDeallocate(address, bytes, uint256, address).selector) {
