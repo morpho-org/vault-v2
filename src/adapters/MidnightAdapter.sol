@@ -588,9 +588,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
+            uint40 lossFactorHigh40 = _marketData.lossFactorHigh40;
             uint256 netCredit;
             uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (lossFactor.high40() == _marketData.lossFactorHigh40 && lossFactor <= MAX_CACHEABLE_LOSS_FACTOR) {
+            if (lossFactor.high40() == lossFactorHigh40 && lossFactor <= MAX_CACHEABLE_LOSS_FACTOR) {
                 netCredit = _marketData.netCredit;
             } else if (marketId == overriddenMarketId) {
                 netCredit = overriddenMarketNetCredit;
