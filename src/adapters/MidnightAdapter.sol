@@ -112,6 +112,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         durationsLength = _durations.length;
     }
 
+    /* MULTICALL */
+
+    /// @dev Useful for EOAs to batch curator and allocator calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
+    }
+
     /* TIMELOCK FUNCTIONS */
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
