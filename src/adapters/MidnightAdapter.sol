@@ -36,7 +36,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev minRate, maxSellRate and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 ///
 /// DURATION CAPS
@@ -94,8 +94,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minRate;
+    /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
+    uint64 public maxSellRate;
     bool public noSalesWithShortfall;
-    bool public noSalesBelowFaceValue;
 
     /* CONSTRUCTOR */
 
@@ -232,10 +233,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
-    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external {
+    function setMaxSellRate(uint256 newMaxSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesBelowFaceValue = newNoSalesBelowFaceValue;
-        emit SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
+        maxSellRate = newMaxSellRate.toUint64();
+        emit SetMaxSellRate(newMaxSellRate);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -471,10 +472,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
+            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
+
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
