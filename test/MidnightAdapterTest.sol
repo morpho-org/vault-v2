@@ -4688,18 +4688,29 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testEagerLossCallbackValuationAfterDefault() public {
+    function testEagerLossCallbackFirstValuationAfterDefaultBlocked() public {
         Offer memory initial = freshPosition(MAX_TICK);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         uint256 expected = realVault.totalAssets();
         EagerLossCallback callback = newCallback();
-        callback.push(address(adapter), abi.encodeCall(IAdapter.realAssets, ()), bytes4(0));
-        callback.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), bytes4(0));
-        callback.push(address(realVault), abi.encodeCall(realVault.deposit, (1e18, recipient)), bytes4(0));
+        callback.push(
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapterBase.OtherSellInProgress.selector
+        );
+        callback.push(
+            address(realVault),
+            abi.encodeCall(IVaultV2.accrueInterest, ()),
+            IMidnightAdapterBase.OtherSellInProgress.selector
+        );
+        callback.push(
+            address(realVault),
+            abi.encodeCall(realVault.deposit, (1e18, recipient)),
+            IMidnightAdapterBase.OtherSellInProgress.selector
+        );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), expected + 1e18);
-        assertApproxEqAbs(backing(), expected + 1e18, 1);
-        assertEq(realVault.balanceOf(recipient), realVault.previewDeposit(1e18));
+        assertEq(realVault._totalAssets(), 10e18);
+        assertApproxEqAbs(realVault.totalAssets(), expected, 1);
+        assertApproxEqAbs(backing(), expected, 1);
+        assertEq(realVault.balanceOf(recipient), 0);
     }
 
     /// forge-config: default.isolate = true
@@ -4843,13 +4854,12 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testEagerLossCrossMarketBuyAfterDefault() public {
+    function testEagerLossCrossMarketSnapshotBlocked() public {
         Offer memory initial = freshPosition(MAX_TICK);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         uint256 expected = realVault.totalAssets();
         EagerLossCallback callback = newCallback();
         Offer memory inner = makeBuyOffer(6 days, 1e18, MAX_TICK);
-        midnight.supplyCollateral(inner.market, 0, 2e18, address(callback));
         callback.push(
             address(midnight),
             abi.encodeCall(
@@ -4864,12 +4874,12 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            bytes4(0)
+            IMidnightAdapterBase.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), expected);
+        assertEq(realVault._totalAssets(), 10e18);
+        assertApproxEqAbs(realVault.totalAssets(), expected, 1);
         assertApproxEqAbs(backing(), expected, 1);
-        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, 1e18);
     }
 
     /// forge-config: default.isolate = true
@@ -5057,6 +5067,26 @@ contract MidnightAdapterTest is Test {
             + uint256(realVault._totalAssets())
                 .mulDivDown((block.timestamp - realVault.lastUpdate()) * realVault.maxRate(), 1e18);
         expectedSaleBaseline = MathLib.min(loanToken.balanceOf(address(realVault)) + value, cap);
+    }
+
+    /// forge-config: default.isolate = true
+    function testEagerLossValuationAfterDefaultDuringSaleBlocked(bool updatePosition) public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        EagerLossCallback callback = newCallback();
+        callback.push(
+            address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
+        );
+        if (updatePosition) {
+            callback.push(
+                address(midnight),
+                abi.encodeCall(IMidnight.updatePosition, (initial.market, address(adapter))),
+                bytes4(0)
+            );
+        }
+        callback.push(
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapterBase.OtherSellInProgress.selector
+        );
+        callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
     }
 
     /// forge-config: default.isolate = true

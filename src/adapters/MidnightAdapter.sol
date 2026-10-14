@@ -604,15 +604,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = overriddenMarketNetCredit;
             } else if (scaledNetCredit < type(uint168).max) {
                 uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
-                // During a sale of this market, a loss realized after the sale took the credit isn't borne by the sold part.
-                if (lossFactor > 0 && IMidnight(midnight).liquidationLocked(marketId, address(this))) {
-                    require(
-                        lossFactor == IMidnight(midnight).lastLossFactor(marketId, address(this)), OtherSellInProgress()
-                    );
-                }
                 // No overflow because the loss factor only increases.
                 unchecked {
                     netCredit = scaledNetCredit * (type(uint128).max - lossFactor) >> 128;
+                }
+                // During a sale of this market, a loss not yet synced might not be borne by the sold part.
+                // The net credit is recovered exactly until the next loss, so a different value means such a loss.
+                if (lossFactor > 0 && IMidnight(midnight).liquidationLocked(marketId, address(this))) {
+                    require(netCredit == _marketData.netCredit, OtherSellInProgress());
                 }
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
