@@ -521,22 +521,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!noSalesWithShortfall || shortfall == 0, ShortfallTooHigh());
             for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
                 bytes32 id = marketIds[i];
-                if (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this))) continue;
                 MarketData storage otherMarketData = marketData[id];
-                uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
-                uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                uint256 rate = otherMarketData.rate;
-                if (otherMarketData.forceSellable || otherTtm == 0 || netCredit == 0 || rate <= minRate) continue;
-
-                uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + rate * otherTtm);
-                uint256 capacity = netCredit.mulDivDown(WAD, WAD + minRate * otherTtm).zeroFloorSub(amortizedValue);
-                if (capacity == 0) continue;
-                uint256 shortfallReduction = shortfall.min(capacity);
-                amortizedValue += shortfallReduction;
-                otherMarketData.rate =
-                    (netCredit - amortizedValue).mulDivDown(WAD, amortizedValue * otherTtm).toUint64();
-                shortfall -= shortfallReduction;
-                emit ReduceRate(id, otherMarketData.rate);
+                if (
+                    !otherMarketData.forceSellable
+                        && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
+                ) {
+                    uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.rate * otherTtm);
+                    uint256 capacity = netCredit.mulDivDown(WAD, WAD + minRate * otherTtm).zeroFloorSub(amortizedValue);
+                    if (capacity > 0) {
+                        uint256 shortfallReduction = shortfall.min(capacity);
+                        uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                        otherMarketData.rate =
+                            (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
+                        shortfall -= shortfallReduction;
+                        emit ReduceRate(id, otherMarketData.rate);
+                    }
+                }
             }
             require(shortfall == 0, ShortfallTooHigh());
         }
