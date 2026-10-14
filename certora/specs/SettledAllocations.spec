@@ -47,9 +47,10 @@ function adapterRealAssetsSummary() returns uint256 {
     return value;
 }
 
-// Check that adapters are only called when the allocations are settled, so that adapters can read allocations during allocate, deallocate and realAssets.
+// Check that adapters are only called when the allocations are settled, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
 rule adaptersAreCalledWithSettledAllocations(method f, env e, calldataarg data) {
     require(pendingAllocationWrites == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
     f(e, data);
     assert !adapterCalledWithPendingWrites;
+    assert pendingAllocationWrites == 0;
 }
