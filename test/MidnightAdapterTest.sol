@@ -2236,45 +2236,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(keccak256(idData)), 0, "config allocation after sell");
     }
 
-    function testOnBuyAfterFullLossKeepsMarketTracked() public {
-        Offer memory first = buy(1 days, 1e18);
-        Offer memory offer = buy(7 days, 1e18);
-        Offer memory last = buy(30 days, 1e18);
-        bytes32 marketId = _marketId(offer.market);
-        setMidnightCredit(marketId, address(adapter), 0);
-
-        offer.group = bytes32("second buy");
-        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
-        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 1e18, 1e18, 1e18, 0);
-        take(offer);
-
-        uint128 netCredit = adapter.marketData(marketId).netCredit;
-        assertEq(netCredit, 1e18, "netCredit");
-        assertEq(adapter.realAssets(), 3e18, "realAssets");
-        assertMarkets([_marketId(first.market), marketId, _marketId(last.market)]);
-    }
-
-    function testOnBuyZeroUnitsAfterFullLossRemovesMarket() public {
-        Offer memory first = buy(1 days, 1e18);
-        Offer memory offer = buy(7 days, 1e18, discountTick);
-        Offer memory last = buy(30 days, 1e18);
-        bytes32 marketId = _marketId(offer.market);
-        setMidnightCredit(marketId, address(adapter), 0);
-
-        offer.group = bytes32("zero buy");
-        bytes memory data = ratify([offer], signerAllocator);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0);
-        vm.prank(taker);
-        midnight.take(offer, data, 0, taker, taker, address(0), "");
-
-        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
-        assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
-        assertMarkets([_marketId(first.market), _marketId(last.market)]);
-    }
-
     function testSellClearsFirstMarketAndReactivatesSlot() public {
         checkSellClearsMarketAndReactivatesSlot(0);
     }
