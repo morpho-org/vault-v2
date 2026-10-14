@@ -6,6 +6,7 @@ import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.so
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {UtilsLib} from "lib/midnight/src/libraries/UtilsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -531,7 +532,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.rate * otherTtm);
                     uint256 capacity = netCredit.mulDivDown(WAD, WAD + minRate * otherTtm).zeroFloorSub(amortizedValue);
                     if (capacity > 0) {
-                        uint256 shortfallReduction = shortfall.min(capacity);
+                        uint256 shortfallReduction = UtilsLib.min(shortfall, capacity);
                         uint256 newAmortizedValue = amortizedValue + shortfallReduction;
                         otherMarketData.rate =
                             (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
