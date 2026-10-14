@@ -1170,6 +1170,7 @@ contract MidnightAdapterTest is Test {
         offer.buy = true;
         offer.maker = address(adapter);
 
+        offer.market.midnight = address(midnight);
         offer.market.loanToken = address(loanToken);
         uint256 numCollaterals = bound(vm.randomUint(), 1, 3);
         CollateralParams[] memory collateralParams = new CollateralParams[](numCollaterals);
@@ -1312,6 +1313,17 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         vm.expectRevert(IMidnightAdapterBase.LoanAssetMismatch.selector);
+        adapter.isRatified(offer, data, taker);
+    }
+
+    function testRatifyNotMidnight(uint256 seed, address otherMidnight) public {
+        vm.setSeed(seed);
+        Offer memory offer = _ratificationSetup();
+        vm.assume(otherMidnight != address(midnight));
+        offer.market.midnight = otherMidnight;
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapterBase.NotMidnight.selector);
         adapter.isRatified(offer, data, taker);
     }
 
