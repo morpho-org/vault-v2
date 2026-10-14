@@ -407,7 +407,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         durations[0] = 1 days;
         IMidnightAdapter adapter =
             IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight), durations)));
-        bytes32 durationId = keccak256(abi.encode("duration", address(adapter), durations[0]));
+        bytes32 durationId = keccak256(abi.encode("this/duration", address(adapter), durations[0]));
         vault.setRelativeCap(durationId, 1e18);
         vault.setAbsoluteCap(durationId, type(uint128).max);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (30 days)));
