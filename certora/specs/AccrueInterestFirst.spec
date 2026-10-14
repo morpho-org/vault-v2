@@ -67,7 +67,7 @@ rule noAccessBeforeAccrueInterest(method f, env e, calldataarg data) {
     require !accrued, "setup ghost state";
     require !accessedBeforeAccrual, "setup ghost state";
 
-    f(e, data);
+    f@withrevert(e, data);
 
     assert accrued => !accessedBeforeAccrual;
 }
