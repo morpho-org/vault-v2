@@ -489,11 +489,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
