@@ -41,7 +41,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
-/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
+/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
@@ -454,7 +454,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256[] memory allocations = durationAllocations(affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < affectedDurationCount; i++) {
-            bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
+            bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
             uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
             require(absoluteCap > 0, DurationZeroAbsoluteCap());
             require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());

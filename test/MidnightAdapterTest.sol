@@ -2045,12 +2045,14 @@ contract MidnightAdapterTest is Test {
         decreaseDurationCap(1, 0);
         bytes memory idData = durationIdData(adapter, 7 days);
         submitAndCall(
-            realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (abi.encode("duration", uint256(7 days)), 1e18))
+            realVault,
+            abi.encodeCall(IVaultV2.increaseRelativeCap, (abi.encode("this/duration", uint256(7 days)), 1e18))
         );
         submitAndCall(
             realVault,
             abi.encodeCall(
-                IVaultV2.increaseRelativeCap, (abi.encode("duration", makeAddr("other adapter"), uint256(7 days)), 1e18)
+                IVaultV2.increaseRelativeCap,
+                (abi.encode("this/duration", makeAddr("other adapter"), uint256(7 days)), 1e18)
             )
         );
         Offer memory offer = fundedDurationOffer(7 days, 1e18);
@@ -4245,7 +4247,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function durationIdData(IMidnightAdapter target, uint256 duration) internal pure returns (bytes memory) {
-        return abi.encode("duration", address(target), duration);
+        return abi.encode("this/duration", address(target), duration);
     }
 
     function disableDurationCaps(IMidnightAdapter target) internal {
