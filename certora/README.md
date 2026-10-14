@@ -101,7 +101,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
 
 - [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
   Deposits and mints call the liquidity adapter after creating the shares, so for them it checks instead that only the caps allocations are written after the call.
-  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault.
+  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault on `transfer` and `transferFrom`.
   It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.

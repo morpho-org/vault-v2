@@ -2,8 +2,11 @@
 // Copyright (c) 2025 Morpho Association
 
 using ERC20Standard as ERC20;
+using Utils as Utils;
 
 methods {
+    function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
+
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     // Ignore changes done by accrueInterest; the state after this call is still valid even if it changed the state, as for the accrueInterest entry point.
@@ -52,9 +55,9 @@ hook ALL_TSTORE(uint _, uint _) {
     }
 }
 
-// Calls to the asset are ignored: it is assumed to be a standard ERC20 token, that does not reenter.
+// Calls to the asset's transfer and transferFrom are ignored: the asset is assumed to be a standard ERC20 token that does not reenter on them.
 hook CALL(uint256 _, address addr, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
-    if (addr != ERC20) {
+    if (addr != ERC20 || (selector != sig:transfer(address, uint256).selector && selector != sig:transferFrom(address, address, uint256).selector)) {
         hasCall = true;
         if (storageChanged) {
             hasCallAfterStore = true;
@@ -79,7 +82,7 @@ rule reentrancySafe(method f, env e, calldataarg data) filtered { f -> f.selecto
         address onBehalf;
     
         // Used to show that the penalty withdrawal does not deallocate again.
-        require forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec";
+        require forceDeallocatePenalty(e, adapter) <= Utils.maxForceDeallocatePenalty(), "see forceDeallocatePenaltyBound in Invariants.spec";
         forceDeallocate(e, adapter, adapterData, assets, onBehalf);
     } else {
         f(e, data);
