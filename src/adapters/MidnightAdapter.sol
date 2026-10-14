@@ -13,6 +13,7 @@ import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {SharesLib} from "./libraries/SharesLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
@@ -35,15 +36,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint64;
     using MathLib for uint48;
     using DurationsLib for bytes32;
+    using SharesLib for uint256;
 
     /* CONSTANTS */
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
-    /// @dev Virtual shares provide precision for ownership conversions.
-    uint256 public constant VIRTUAL_SHARES = 1e9;
-    /// @dev Virtual assets provide precision for ownership conversions.
-    uint256 public constant VIRTUAL_ASSETS = 1;
 
     /* IMMUTABLES */
 
@@ -261,10 +259,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         uint128 credit = midnightCredit(market);
         MarketData storage _marketData = marketData[marketId];
-        uint128 shares = withdrawnAssets.mulDivUp(
-                uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + VIRTUAL_ASSETS
-            )
-            .toUint128();
+        uint128 shares = withdrawnAssets.toSharesUp(credit, _marketData.totalShares).toUint128();
         _marketData.totalShares -= shares;
         _marketData.vaultShares -= shares;
 
@@ -323,8 +318,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IVaultV2(parentVault).accrueInterest();
             MarketData storage _marketData = marketData[marketId];
             uint128 credit = midnightCredit(market);
-            uint256 shares =
-                assets.mulDivDown(uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + VIRTUAL_ASSETS);
+            uint256 shares = assets.toSharesDown(credit, _marketData.totalShares);
             _marketData.vaultShares -= shares.toUint128();
             claimShares[marketId][receiver] += shares;
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -349,8 +343,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
 
-        uint256 assets = (uint256(midnightCredit(market)) + VIRTUAL_ASSETS)
-        .mulDivDown(shares, uint256(_marketData.totalShares) + VIRTUAL_SHARES);
+        uint256 assets = shares.toAssetsDown(midnightCredit(market), _marketData.totalShares);
         claimShares[marketId][msg.sender] -= shares;
         _marketData.totalShares -= shares.toUint128();
 
@@ -402,8 +395,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
-        uint256 shares =
-            boughtNetCredit.mulDivDown(_marketData.totalShares + VIRTUAL_SHARES, previousNetCredit + VIRTUAL_ASSETS);
+        uint256 shares = boughtNetCredit.toSharesDown(previousNetCredit, _marketData.totalShares);
         _marketData.totalShares = (_marketData.totalShares + shares).toUint128();
         _marketData.vaultShares = (_marketData.vaultShares + shares).toUint128();
 
@@ -489,10 +481,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (soldCredit > 0) {
             // Midnight already deducted the sale. Round up against pre-sale gross credit to protect claims.
-            uint128 shares = soldCredit.mulDivUp(
-                    uint256(_marketData.totalShares) + VIRTUAL_SHARES, uint256(credit) + soldCredit + VIRTUAL_ASSETS
-                )
-                .toUint128();
+            uint128 shares = soldCredit.toSharesUp(uint256(credit) + soldCredit, _marketData.totalShares).toUint128();
             _marketData.totalShares -= shares;
             _marketData.vaultShares -= shares;
         }
@@ -550,8 +539,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function vaultNetCredit(bytes32 marketId, uint256 credit) internal view returns (uint256) {
         MarketData storage _marketData = marketData[marketId];
-        return (credit + VIRTUAL_ASSETS)
-        .mulDivDown(_marketData.vaultShares, uint256(_marketData.totalShares) + VIRTUAL_SHARES);
+        return uint256(_marketData.vaultShares).toAssetsDown(credit, _marketData.totalShares);
     }
 
     /// @dev Removes the market from marketIds and clears vault metadata, preserving ownership for claims and forceSellable.
