@@ -1316,14 +1316,14 @@ contract MidnightAdapterTest is Test {
         adapter.isRatified(offer, data, taker);
     }
 
-    function testRatifyIncorrectMidnight(uint256 seed, address otherMidnight) public {
+    function testRatifyNotMidnight(uint256 seed, address otherMidnight) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         vm.assume(otherMidnight != address(midnight));
         offer.market.midnight = otherMidnight;
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.IncorrectMidnight.selector);
+        vm.expectRevert(IMidnightAdapterBase.NotMidnight.selector);
         adapter.isRatified(offer, data, taker);
     }
 
