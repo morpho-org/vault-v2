@@ -3486,7 +3486,9 @@ contract MidnightAdapterTest is Test {
         } else {
             bytes4 errorSelector = failure == 1
                 ? IMidnightAdapterBase.LoanAssetMismatch.selector
-                : ErrorsLib.TransferFromReverted.selector;
+                : loanTokenType == 1
+                    ? ErrorsLib.TransferFromReturnedFalse.selector
+                    : ErrorsLib.TransferFromReverted.selector;
             vm.expectRevert(errorSelector);
         }
         parentVault.forceDeallocate(address(adapter), abi.encode(offer.market, address(this)), assets, address(this));
