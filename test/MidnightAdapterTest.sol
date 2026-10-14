@@ -3343,7 +3343,6 @@ contract MidnightAdapterTest is Test {
 
         EnterGateMock gate = new EnterGateMock();
         gate.setCanIncreaseCredit(address(adapter), true);
-        gate.setCanIncreaseCredit(address(realVault), true);
         gate.setCanIncreaseDebt(taker, true);
         address vaultV2Factory = makeAddr("vaultV2Factory");
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(realVault))), abi.encode(true));

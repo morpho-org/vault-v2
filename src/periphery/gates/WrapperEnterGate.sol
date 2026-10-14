@@ -8,8 +8,8 @@ import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IVaultV2Factory} from "../../interfaces/IVaultV2Factory.sol";
 
-/// @dev Lets in, while one of its adapters is force-deallocated from a market that uses this gate, holders of shares of a vault created by vaultV2Factory and allowed by the gate, if the adapter has credit in that market.
-/// @dev The adapter is not checked to be a known adapter implementation, so the curator of an allowed vault can enable as adapter any account that implements parentVault() and forceDeallocatingMarketId().
+/// @dev Lets in, while one of its adapters is force-deallocated from a market that uses this gate, holders of shares of a vault created by vaultV2Factory, if the adapter has credit in that market.
+/// @dev The adapter is not checked to be a known adapter implementation, so the curator of any vault created by vaultV2Factory can enable as adapter any account that implements parentVault() and forceDeallocatingMarketId().
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
@@ -28,8 +28,8 @@ contract WrapperEnterGate is IEnterGate {
         require(success && data.length >= 32, Unauthorized());
         address vault = abi.decode(data, (address));
         require(
-            IVaultV2Factory(vaultV2Factory).isVaultV2(vault) && IEnterGate(gate).canIncreaseCredit(vault)
-                && IVaultV2(vault).isAdapter(adapter) && IVaultV2(vault).balanceOf(user) > 0,
+            IVaultV2Factory(vaultV2Factory).isVaultV2(vault) && IVaultV2(vault).isAdapter(adapter)
+                && IVaultV2(vault).balanceOf(user) > 0,
             Unauthorized()
         );
 
