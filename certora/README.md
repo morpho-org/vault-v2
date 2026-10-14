@@ -103,6 +103,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
   It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
+- [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault calls adapters' `allocate`, `deallocate` and `realAssets` only when it has applied all allocation changes, so adapters can read allocations in these calls.
 
 # Verification setup
 
