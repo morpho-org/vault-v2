@@ -100,7 +100,7 @@ Shares and assets move only through permitted paths and by the exact requested a
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
 - [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
-  Deposits and mints call the liquidity adapter after creating the shares, so for them it checks instead that only the caps allocations are written after the call.
+  For deposits and mints, it assumes there is no liquidity adapter. With one, they call it after creating the shares, so a second rule checks that only the caps allocations are written after that call.
   The rule assumes that the asset is a standard ERC20 token that does not reenter the vault on `transfer` and `transferFrom`.
   It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
