@@ -19,8 +19,8 @@ Global invariants and the accounting effects of each entry point.
   Deposits and mints add exactly the transferred or previewed assets, withdrawals and redemptions subtract exactly the withdrawn or previewed assets, and `forceDeallocate` subtracts exactly its rounded-up penalty.
   Every other entry point leaves `_totalAssets` unchanged.
 - [`TotalAssetsIsUpToDate.spec`](specs/TotalAssetsIsUpToDate.spec) checks that every state-changing entry point other than `accrueInterest` updates `_totalAssets` before reading it.
-- [`AccrueInterestFirst.spec`](specs/AccrueInterestFirst.spec) checks that `deposit`, `mint`, `withdraw` and `redeem` accrue interest before any storage or transient storage read or write.
-  It excludes the functions that check roles or timelocks before accruing interest, and `forceDeallocate`, which deallocates before withdrawing.
+- [`AccrueInterestFirst.spec`](specs/AccrueInterestFirst.spec) checks that functions accruing interest do not read nor write the variables written by `accrueInterest` before accruing interest.
+- [`AccrueInterestWrites.spec`](specs/AccrueInterestWrites.spec) checks that `accrueInterest` writes no storage variable other than `_totalAssets`, `lastUpdate`, `totalSupply` and `balanceOf`, and `firstTotalAssets` in transient storage.
 - [`AllocationVaultV2.spec`](specs/AllocationVaultV2.spec) checks that allocations change only through ERC-4626 entry and exit functions, `allocate`, `deallocate`, or `forceDeallocate`.
   An ERC-4626 operation can change allocations only when a liquidity adapter is set.
 - [`AllocationsHierarchy.spec`](specs/AllocationsHierarchy.spec) checks the leaf-group structure used by adapter ids.

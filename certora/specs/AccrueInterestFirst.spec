@@ -9,54 +9,65 @@ methods {
 
 ghost bool accrued;
 
-ghost bool storageAccessedBeforeAccrual;
+ghost bool accessedBeforeAccrual;
 
 function accrueInterestSummary() {
     accrued = true;
 }
 
-hook ALL_SLOAD(uint _) uint _ {
+function recordAccess() {
     if (!accrued) {
-        storageAccessedBeforeAccrual = true;
+        accessedBeforeAccrual = true;
     }
 }
 
-hook ALL_SSTORE(uint _, uint _) {
-    if (!accrued) {
-        storageAccessedBeforeAccrual = true;
-    }
+hook Sload uint128 _ _totalAssets {
+    recordAccess();
 }
 
+hook Sstore _totalAssets uint128 _ {
+    recordAccess();
+}
+
+hook Sload uint64 _ lastUpdate {
+    recordAccess();
+}
+
+hook Sstore lastUpdate uint64 _ {
+    recordAccess();
+}
+
+hook Sload uint256 _ totalSupply {
+    recordAccess();
+}
+
+hook Sstore totalSupply uint256 _ {
+    recordAccess();
+}
+
+hook Sload uint256 _ balanceOf[KEY address _] {
+    recordAccess();
+}
+
+hook Sstore balanceOf[KEY address _] uint256 _ {
+    recordAccess();
+}
+
+// firstTotalAssets is the only transient storage variable.
 hook ALL_TLOAD(uint _) uint _ {
-    if (!accrued) {
-        storageAccessedBeforeAccrual = true;
-    }
+    recordAccess();
 }
 
 hook ALL_TSTORE(uint _, uint _) {
-    if (!accrued) {
-        storageAccessedBeforeAccrual = true;
-    }
+    recordAccess();
 }
 
-// Check that functions accruing interest do it before any storage read or write.
-rule noStorageAccessBeforeAccrueInterest(method f, env e, calldataarg data)
-filtered {
-    // Functions checking roles or timelocks before accruing interest.
-    f -> f.selector != sig:setPerformanceFee(uint256).selector
-        && f.selector != sig:setManagementFee(uint256).selector
-        && f.selector != sig:setPerformanceFeeRecipient(address).selector
-        && f.selector != sig:setManagementFeeRecipient(address).selector
-        && f.selector != sig:allocate(address, bytes, uint256).selector
-        && f.selector != sig:setMaxRate(uint256).selector
-        &&
-        // forceDeallocate deallocates before withdrawing.
-        f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector
-} {
+// Check that the variables written by accrueInterest (see AccrueInterestWrites.spec) are neither read nor written before accrueInterest in functions that accrue interest.
+rule noAccessBeforeAccrueInterest(method f, env e, calldataarg data) {
     require !accrued, "setup ghost state";
-    require !storageAccessedBeforeAccrual, "setup ghost state";
+    require !accessedBeforeAccrual, "setup ghost state";
 
     f(e, data);
 
-    assert accrued => !storageAccessedBeforeAccrual;
+    assert accrued => !accessedBeforeAccrual;
 }
