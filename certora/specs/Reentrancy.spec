@@ -6,6 +6,8 @@ using Utils as Utils;
 methods {
     function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
 
+    function liquidityAdapter() external returns (address) envfree;
+
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     // Ignore changes done by accrueInterest; the state after this call is still valid even if it changed the state, as for the accrueInterest entry point.
@@ -128,7 +130,7 @@ rule reentrancySafe(method f, env e, calldataarg data) {
         require forceDeallocatePenalty(e, adapter) <= Utils.maxForceDeallocatePenalty(), "see forceDeallocatePenaltyBound in Invariants.spec";
         forceDeallocate(e, adapter, adapterData, assets, onBehalf);
     } else if (f.selector == sig:deposit(uint256, address).selector || f.selector == sig:mint(uint256, address).selector) {
-        require(currentContract.liquidityAdapter == 0, "deposits with a liquidity adapter are checked in depositOnlyWritesAllocationsAfterCall");
+        require(liquidityAdapter() == 0, "deposits with a liquidity adapter are checked in depositOnlyWritesAllocationsAfterCall");
         f(e, data);
     } else {
         f(e, data);
