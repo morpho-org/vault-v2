@@ -57,12 +57,6 @@ library MathLib {
         return uint128(x);
     }
 
-    /// @dev Returns the high 40 bits of x.
-    function high40(uint128 x) internal pure returns (uint40) {
-        // forge-lint: disable-next-item(unsafe-typecast) safe because x >> 88 < 2**40.
-        return uint40(x >> 88);
-    }
-
     /// @dev Casts from int256 to uint256, reverting if input number is negative.
     function toUint256(int256 x) internal pure returns (uint256) {
         require(x >= 0, ErrorsLib.CastOverflow());
