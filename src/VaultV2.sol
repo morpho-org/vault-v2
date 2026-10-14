@@ -569,7 +569,7 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) adapters are trusted to not reenter dangerously.
+        // forge-lint: disable-next-item(reentrancy-no-eth) this reentrancy is proven to be safe.
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
