@@ -75,6 +75,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     bytes32 transient overriddenMarketId;
     uint256 transient overriddenMarketNetCredit;
+    /// @dev Market being sold through forceDeallocate, set during the take. Lets enter gates check the market.
+    bytes32 public transient forceDeallocatingMarketId;
 
     /* TIMELOCKS STORAGE */
 
@@ -355,7 +357,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            forceDeallocatingMarketId = marketId;
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
+            forceDeallocatingMarketId = 0;
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);

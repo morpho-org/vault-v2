@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {IEnterGate} from "../../lib/midnight/src/interfaces/IGate.sol";
 import {IMidnight, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
+import {IMidnightAdapter} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {WrapperEnterGate} from "../../src/periphery/gates/WrapperEnterGate.sol";
@@ -19,7 +19,7 @@ contract WrapperEnterGateTest is Test {
     address internal vaultV2Factory = makeAddr("vaultV2Factory");
     WrapperEnterGate internal wrapper;
     address internal midnight = makeAddr("midnight");
-    Market internal market;
+    bytes32 internal constant marketId = keccak256("market");
     address internal adapter = makeAddr("adapter");
     address internal depositor = makeAddr("depositor");
     address internal recipient = makeAddr("recipient");
@@ -28,29 +28,21 @@ contract WrapperEnterGateTest is Test {
         vault = new ERC20Mock(18);
         gate = new EnterGateMock();
         gate.setCanIncreaseCredit(address(vault), true);
-        market.midnight = midnight;
         vm.mockCall(adapter, abi.encodeWithSignature("parentVault()"), abi.encode(address(vault)));
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(vault))), abi.encode(true));
         vm.mockCall(address(vault), abi.encodeCall(IVaultV2.isAdapter, (adapter)), abi.encode(true));
-        wrapper = new WrapperEnterGate(midnight, address(gate), market, vaultV2Factory);
-        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), adapter)), abi.encode(uint128(1)));
+        wrapper = new WrapperEnterGate(midnight, address(gate), vaultV2Factory);
+        vm.mockCall(adapter, abi.encodeWithSignature("forceDeallocatingMarketId()"), abi.encode(marketId));
+        Market memory market;
+        market.enterGate = address(wrapper);
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.toMarket, (marketId)), abi.encode(market));
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (marketId, adapter)), abi.encode(uint128(1)));
     }
 
     function testConstructor() public view {
         assertEq(wrapper.midnight(), midnight);
-        Market memory expectedMarket = market;
-        expectedMarket.enterGate = address(wrapper);
-        assertEq(wrapper.marketId(), IdLib.toId(expectedMarket));
         assertEq(wrapper.gate(), address(gate));
         assertEq(wrapper.vaultV2Factory(), vaultV2Factory);
-    }
-
-    function testConstructorReplacesEnterGate(address otherGate) public {
-        market.enterGate = otherGate;
-        wrapper = new WrapperEnterGate(midnight, address(gate), market, vaultV2Factory);
-        Market memory expectedMarket = market;
-        expectedMarket.enterGate = address(wrapper);
-        assertEq(wrapper.marketId(), IdLib.toId(expectedMarket));
     }
 
     function testAdapterCreditForwarded(bool allowed) public {
@@ -64,6 +56,7 @@ contract WrapperEnterGateTest is Test {
         assertFalse(wrapper.canIncreaseCredit(depositor));
         vm.prank(caller);
         wrapper.transientAllowIncreaseCredit(depositor, adapter);
+        assertEq(wrapper.transientAdapter(depositor), adapter);
         assertTrue(wrapper.isTransientlyAllowed(depositor));
         assertTrue(wrapper.canIncreaseCredit(depositor));
         assertFalse(wrapper.isTransientlyAllowed(recipient));
@@ -169,24 +162,34 @@ contract WrapperEnterGateTest is Test {
         revert("reverted");
     }
 
-    function testCreditRequiresMarketPosition(bool allowed) public {
+    function testIsTransientlyAllowedRequiresMarketCredit(bool allowed) public {
         deal(address(vault), depositor, 1);
-        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), adapter)), abi.encode(uint128(0)));
-        gate.setCanIncreaseCredit(depositor, allowed);
-        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
         wrapper.transientAllowIncreaseCredit(depositor, adapter);
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (marketId, adapter)), abi.encode(uint128(0)));
+        gate.setCanIncreaseCredit(depositor, allowed);
         assertFalse(wrapper.isTransientlyAllowed(depositor));
         assertEq(wrapper.canIncreaseCredit(depositor), allowed);
     }
 
-    function testCreditDoesNotAcceptPositionInAnotherMarket(bytes32 otherMarketId) public {
-        vm.assume(otherMarketId != wrapper.marketId());
+    function testIsTransientlyAllowedRequiresForceDeallocatingMarket() public {
         deal(address(vault), depositor, 1);
-        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), adapter)), abi.encode(uint128(0)));
-        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (otherMarketId, adapter)), abi.encode(uint128(1)));
-        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
         wrapper.transientAllowIncreaseCredit(depositor, adapter);
-        assertFalse(wrapper.canIncreaseCredit(depositor));
+        vm.mockCall(adapter, abi.encodeWithSignature("forceDeallocatingMarketId()"), abi.encode(bytes32(0)));
+        gate.setCanIncreaseCredit(depositor, true);
+        assertFalse(wrapper.isTransientlyAllowed(depositor));
+        assertTrue(wrapper.canIncreaseCredit(depositor));
+    }
+
+    function testIsTransientlyAllowedRequiresMarketGate(address otherGate) public {
+        vm.assume(otherGate != address(wrapper));
+        deal(address(vault), depositor, 1);
+        wrapper.transientAllowIncreaseCredit(depositor, adapter);
+        Market memory market;
+        market.enterGate = otherGate;
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.toMarket, (marketId)), abi.encode(market));
+        gate.setCanIncreaseCredit(depositor, true);
+        assertFalse(wrapper.isTransientlyAllowed(depositor));
+        assertTrue(wrapper.canIncreaseCredit(depositor));
     }
 
     function testMultipleVaults() public {
@@ -196,9 +199,8 @@ contract WrapperEnterGateTest is Test {
         vm.mockCall(otherAdapter, abi.encodeWithSignature("parentVault()"), abi.encode(address(otherVault)));
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(otherVault))), abi.encode(true));
         vm.mockCall(address(otherVault), abi.encodeCall(IVaultV2.isAdapter, (otherAdapter)), abi.encode(true));
-        vm.mockCall(
-            midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), otherAdapter)), abi.encode(uint128(1))
-        );
+        vm.mockCall(otherAdapter, abi.encodeWithSignature("forceDeallocatingMarketId()"), abi.encode(marketId));
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (marketId, otherAdapter)), abi.encode(uint128(1)));
         deal(address(vault), depositor, 1);
         deal(address(otherVault), recipient, 1);
 
@@ -254,20 +256,6 @@ contract WrapperEnterGateTest is Test {
         vault.transfer(recipient, 1);
         assertTrue(wrapper.canIncreaseCredit(depositor), "authorization retained until the end of the transaction");
         assertTrue(wrapper.canIncreaseCredit(recipient));
-    }
-
-    function testAuthorizationSurvivesCreditRemovalWithinTransaction() public {
-        deal(address(vault), depositor, 1);
-        wrapper.transientAllowIncreaseCredit(depositor, adapter);
-        assertTrue(wrapper.canIncreaseCredit(depositor));
-
-        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), adapter)), abi.encode(uint128(0)));
-        assertTrue(wrapper.canIncreaseCredit(depositor));
-
-        deal(address(vault), recipient, 1);
-        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
-        wrapper.transientAllowIncreaseCredit(recipient, adapter);
-        assertFalse(wrapper.canIncreaseCredit(recipient));
     }
 
     function testCreditDoesNotAcceptSharesOfAnotherVault(uint256 shares) public {

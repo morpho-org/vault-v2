@@ -20,6 +20,7 @@ import {
     IMidnightAdapterPriceRatifierV1
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
@@ -39,6 +40,11 @@ import {
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
+import {EnterGateMock} from "./mocks/EnterGateMock.sol";
+
+interface IWrapperEnterGate {
+    function transientAllowIncreaseCredit(address user, address adapter) external;
+}
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -3320,6 +3326,54 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18 - 0.01e18, "only penalty reduces totalAssets");
     }
 
+    /// forge-config: default.isolate = true
+    function testForceDeallocatingMarketIdResetAfterForceDeallocate() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        skip(1);
+
+        forceDeallocateOnRealVault(offer.market, 0.5e18);
+
+        assertEq(adapter.forceDeallocatingMarketId(), bytes32(0));
+    }
+
+    /// forge-config: default.isolate = true
+    function testForceDeallocateThroughWrapperEnterGate() public {
+        setUpRealVault();
+
+        EnterGateMock gate = new EnterGateMock();
+        gate.setCanIncreaseCredit(address(adapter), true);
+        gate.setCanIncreaseCredit(address(realVault), true);
+        gate.setCanIncreaseDebt(taker, true);
+        address vaultV2Factory = makeAddr("vaultV2Factory");
+        vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(realVault))), abi.encode(true));
+        address wrapper = deployCode(
+            "WrapperEnterGate.sol:WrapperEnterGate", abi.encode(address(midnight), address(gate), vaultV2Factory)
+        );
+
+        bytes memory enterGateIdData = abi.encode("enterGate", wrapper);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (enterGateIdData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (enterGateIdData, 1e18)));
+
+        deal(address(loanToken), address(this), 1e18);
+        address forceBuyer = makeAddr("forceBuyer");
+        realVault.deposit(1e18, forceBuyer);
+        Offer memory boughtOffer = buyOnRealVault(7 days, 1e18, wrapper);
+        skip(1);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18, MAX_TICK, forceBuyer);
+        bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        uint256 assets = 0.5e18;
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
+
+        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        realVault.forceDeallocate(address(adapter), data, assets, address(this));
+
+        this.allowAndForceDeallocateWithWrapper(wrapper, forceBuyer, data, assets);
+
+        assertEq(adapter.forceDeallocatingMarketId(), bytes32(0));
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 0.5e18);
+    }
+
     /* CALLBACKS */
 
     function testOnBuyNotMidnight(address caller) public {
@@ -4408,7 +4462,13 @@ contract MidnightAdapterTest is Test {
         internal
         returns (Offer memory offer, bytes32 root_)
     {
-        address buyer = makeAddr("buyer");
+        return makeForceDeallocateOffer(market, assets, tick, makeAddr("buyer"));
+    }
+
+    function makeForceDeallocateOffer(Market memory market, uint256 assets, uint256 tick, address buyer)
+        internal
+        returns (Offer memory offer, bytes32 root_)
+    {
         ISetterRatifier approvalRatifier =
             ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
@@ -4516,7 +4576,12 @@ contract MidnightAdapterTest is Test {
     }
 
     function buyOnRealVault(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
+        return buyOnRealVault(duration, assets, address(0));
+    }
+
+    function buyOnRealVault(uint256 duration, uint256 assets, address enterGate) internal returns (Offer memory offer) {
         offer = makeBuyOffer(duration, assets, MAX_TICK);
+        offer.market.enterGate = enterGate;
         offer.maker = address(adapter);
         offer.callback = address(adapter);
         offer.ratifier = address(adapter);
@@ -4530,6 +4595,13 @@ contract MidnightAdapterTest is Test {
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
         return realVault.forceDeallocate(address(adapter), data, assets, address(this));
+    }
+
+    function allowAndForceDeallocateWithWrapper(address wrapper, address user, bytes memory data, uint256 assets)
+        external
+    {
+        IWrapperEnterGate(wrapper).transientAllowIncreaseCredit(user, address(adapter));
+        realVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
     function submitAndCall(IVaultV2 vault, bytes memory call_) internal {

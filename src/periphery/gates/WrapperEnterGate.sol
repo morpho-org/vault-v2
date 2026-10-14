@@ -3,27 +3,23 @@
 pragma solidity 0.8.34;
 
 import {IEnterGate} from "lib/midnight/src/interfaces/IGate.sol";
-import {IMidnight, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
+import {IMidnight} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IVaultV2Factory} from "../../interfaces/IVaultV2Factory.sol";
 
-/// @dev Lets in holders of shares of a vault created by vaultV2Factory, if one of the vault's adapters has credit in the market.
-/// @dev Markets other than marketId should not use this gate as their enterGate.
-/// @dev The vault must be allowed to increase credit by the gate. The adapter is not checked to be a known adapter implementation, so the curator of an allowed vault can enable as adapter any account with credit in the market that implements parentVault().
+/// @dev Lets in, while one of its adapters is force-deallocated from a market that uses this gate, holders of shares of a vault created by vaultV2Factory and allowed by the gate, if the adapter has credit in that market.
+/// @dev The adapter is not checked to be a known adapter implementation, so the curator of an allowed vault can enable as adapter any account that implements parentVault() and forceDeallocatingMarketId().
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
     address public immutable midnight;
     address public immutable gate;
-    bytes32 public immutable marketId;
     address public immutable vaultV2Factory;
 
-    constructor(address _midnight, address _gate, Market memory market, address _vaultV2Factory) {
+    constructor(address _midnight, address _gate, address _vaultV2Factory) {
         midnight = _midnight;
         gate = _gate;
-        market.enterGate = address(this);
-        marketId = IdLib.toId(market);
         vaultV2Factory = _vaultV2Factory;
     }
 
@@ -33,22 +29,29 @@ contract WrapperEnterGate is IEnterGate {
         address vault = abi.decode(data, (address));
         require(
             IVaultV2Factory(vaultV2Factory).isVaultV2(vault) && IEnterGate(gate).canIncreaseCredit(vault)
-                && IVaultV2(vault).isAdapter(adapter) && IMidnight(midnight).credit(marketId, adapter) > 0
-                && IVaultV2(vault).balanceOf(user) > 0,
+                && IVaultV2(vault).isAdapter(adapter) && IVaultV2(vault).balanceOf(user) > 0,
             Unauthorized()
         );
 
         bytes32 slot = keccak256(abi.encode(user));
         assembly ("memory-safe") {
-            tstore(slot, 1)
+            tstore(slot, adapter)
         }
     }
 
-    function isTransientlyAllowed(address user) public view returns (bool allowed) {
+    function transientAdapter(address user) public view returns (address adapter) {
         bytes32 slot = keccak256(abi.encode(user));
         assembly ("memory-safe") {
-            allowed := tload(slot)
+            adapter := tload(slot)
         }
+    }
+
+    function isTransientlyAllowed(address user) public view returns (bool) {
+        address adapter = transientAdapter(user);
+        if (adapter == address(0)) return false;
+        bytes32 marketId = IMidnightAdapter(adapter).forceDeallocatingMarketId();
+        return marketId != 0 && IMidnight(midnight).toMarket(marketId).enterGate == address(this)
+            && IMidnight(midnight).credit(marketId, adapter) > 0;
     }
 
     function canIncreaseCredit(address account) external view returns (bool) {
