@@ -494,6 +494,36 @@ contract MidnightAdapterTest is Test {
         adapter.setSkimRecipient(recipient);
     }
 
+    /* MULTICALL */
+
+    function testMulticall(bool newNoSalesWithShortfall, bool newNoSalesBelowFaceValue) public {
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(IMidnightAdapterBase.setNoSalesWithShortfall, (newNoSalesWithShortfall));
+        data[1] = abi.encodeCall(IMidnightAdapterBase.setNoSalesBelowFaceValue, (newNoSalesBelowFaceValue));
+
+        vm.prank(curator);
+        adapter.multicall(data);
+
+        assertEq(adapter.noSalesWithShortfall(), newNoSalesWithShortfall, "wrong noSalesWithShortfall");
+        assertEq(adapter.noSalesBelowFaceValue(), newNoSalesBelowFaceValue, "wrong noSalesBelowFaceValue");
+    }
+
+    function testMulticallFailing(address rdm) public {
+        vm.assume(rdm != curator);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(IMidnightAdapterBase.setNoSalesWithShortfall, (true));
+        data[1] = abi.encodeCall(IMidnightAdapterBase.submit, (hex""));
+        vm.prank(rdm);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.multicall(data);
+    }
+
+    function testMulticallEmpty() public {
+        vm.prank(curator);
+        adapter.multicall(new bytes[](0));
+    }
+
     /* NO SALES WITH SHORTFALL */
 
     function testNoSalesWithShortfallDefault() public view {
