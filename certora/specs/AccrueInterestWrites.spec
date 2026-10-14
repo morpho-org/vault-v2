@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-ghost mathint sstoreCount;
+persistent ghost mathint sstoreCount;
 
-ghost mathint expectedSstoreCount;
+persistent ghost mathint expectedSstoreCount;
 
 hook ALL_SSTORE(uint _, uint _) {
     sstoreCount = sstoreCount + 1;

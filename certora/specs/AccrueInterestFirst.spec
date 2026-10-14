@@ -7,9 +7,9 @@ methods {
     function accrueInterest() internal => accrueInterestSummary();
 }
 
-ghost bool accrued;
+persistent ghost bool accrued;
 
-ghost bool accessedBeforeAccrual;
+persistent ghost bool accessedBeforeAccrual;
 
 function accrueInterestSummary() {
     accrued = true;
