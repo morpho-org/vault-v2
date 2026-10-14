@@ -25,7 +25,7 @@ contract RealizeLossTest is BaseTest {
         vault.addAdapter(address(adapter));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         increaseAbsoluteCap(expectedIdData[0], type(uint128).max);
         increaseAbsoluteCap(expectedIdData[1], type(uint128).max);

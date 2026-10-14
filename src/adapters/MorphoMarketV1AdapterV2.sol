@@ -23,6 +23,7 @@ import {
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev Donated shares are lost forever.
+/// @dev Shouldn't be used with a token whose max allowance is small and decreases on transfers, because the adapter only approves type(uint256).max once, in the constructor.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.

@@ -24,7 +24,7 @@ contract MorphoVaultV1IntegrationDonationTest is MorphoVaultV1IntegrationTest {
 
         deal(address(underlyingToken), donor, donatedAssets);
         vm.startPrank(donor);
-        underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morphoVaultV1), type(uint256).max);
         morphoVaultV1.deposit(donatedAssets, address(morphoVaultV1Adapter));
         vm.stopPrank();
 
