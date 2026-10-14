@@ -10,7 +10,7 @@ import {IVaultV2Factory} from "../../interfaces/IVaultV2Factory.sol";
 
 /// @dev Lets in holders of shares of a vault created by vaultV2Factory, if one of the vault's adapters has credit in the market.
 /// @dev Markets other than marketId should not use this gate as their enterGate.
-/// @dev The adapter is not checked to be a known adapter implementation, so a curator can enable as adapter any account with credit in the market that implements parentVault().
+/// @dev The vault must be allowed to increase credit by the gate. The adapter is not checked to be a known adapter implementation, so the curator of an allowed vault can enable as adapter any account with credit in the market that implements parentVault().
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
@@ -32,8 +32,9 @@ contract WrapperEnterGate is IEnterGate {
         require(success && data.length >= 32, Unauthorized());
         address vault = abi.decode(data, (address));
         require(
-            IVaultV2Factory(vaultV2Factory).isVaultV2(vault) && IVaultV2(vault).isAdapter(adapter)
-                && IMidnight(midnight).credit(marketId, adapter) > 0 && IVaultV2(vault).balanceOf(user) > 0,
+            IVaultV2Factory(vaultV2Factory).isVaultV2(vault) && IEnterGate(gate).canIncreaseCredit(vault)
+                && IVaultV2(vault).isAdapter(adapter) && IMidnight(midnight).credit(marketId, adapter) > 0
+                && IVaultV2(vault).balanceOf(user) > 0,
             Unauthorized()
         );
 

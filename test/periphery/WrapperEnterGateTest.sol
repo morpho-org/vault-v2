@@ -27,6 +27,7 @@ contract WrapperEnterGateTest is Test {
     function setUp() public {
         vault = new ERC20Mock(18);
         gate = new EnterGateMock();
+        gate.setCanIncreaseCredit(address(vault), true);
         market.midnight = midnight;
         vm.mockCall(adapter, abi.encodeWithSignature("parentVault()"), abi.encode(address(vault)));
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(vault))), abi.encode(true));
@@ -90,6 +91,7 @@ contract WrapperEnterGateTest is Test {
 
     function testTransientAllowIncreaseCreditUsesParentVault() public {
         ERC20Mock otherVault = new ERC20Mock(18);
+        gate.setCanIncreaseCredit(address(otherVault), true);
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(otherVault))), abi.encode(true));
         vm.mockCall(address(otherVault), abi.encodeCall(IVaultV2.isAdapter, (adapter)), abi.encode(true));
         deal(address(otherVault), depositor, 1);
@@ -142,6 +144,18 @@ contract WrapperEnterGateTest is Test {
         assertTrue(wrapper.canIncreaseCredit(depositor));
     }
 
+    function testRequiresVaultAllowedByGate() public {
+        deal(address(vault), depositor, 1);
+        gate.setCanIncreaseCredit(address(vault), false);
+        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
+        wrapper.transientAllowIncreaseCredit(depositor, adapter);
+        assertFalse(wrapper.canIncreaseCredit(depositor));
+
+        gate.setCanIncreaseCredit(address(vault), true);
+        wrapper.transientAllowIncreaseCredit(depositor, adapter);
+        assertTrue(wrapper.canIncreaseCredit(depositor));
+    }
+
     function testAuthorizationRevertsWithCaller() public {
         deal(address(vault), depositor, 1);
         vm.expectRevert(bytes("reverted"));
@@ -177,6 +191,7 @@ contract WrapperEnterGateTest is Test {
 
     function testMultipleVaults() public {
         ERC20Mock otherVault = new ERC20Mock(18);
+        gate.setCanIncreaseCredit(address(otherVault), true);
         address otherAdapter = makeAddr("otherAdapter");
         vm.mockCall(otherAdapter, abi.encodeWithSignature("parentVault()"), abi.encode(address(otherVault)));
         vm.mockCall(vaultV2Factory, abi.encodeCall(IVaultV2Factory.isVaultV2, (address(otherVault))), abi.encode(true));
@@ -203,7 +218,7 @@ contract WrapperEnterGateTest is Test {
     }
 
     function testCreditForwarded(address account, bool allowed) public {
-        vm.assume(account != adapter);
+        vm.assume(account != adapter && account != address(vault));
         gate.setCanIncreaseCredit(account, allowed);
         gate.setCanIncreaseDebt(account, !allowed);
 
