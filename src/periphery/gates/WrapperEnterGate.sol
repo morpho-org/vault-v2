@@ -35,7 +35,7 @@ contract WrapperEnterGate is IEnterGate {
     }
 
     function roleSetter() public view returns (address) {
-        return IRoleSetter(gate).roleSetter();
+        return IRoleSetter(gate).roleSetter(true);
     }
 
     function setCanAdmit(address account) external {

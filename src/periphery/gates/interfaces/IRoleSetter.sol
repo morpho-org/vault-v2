@@ -3,5 +3,5 @@
 pragma solidity >=0.5.0;
 
 interface IRoleSetter {
-    function roleSetter() external view returns (address);
+    function roleSetter(bool creditSide) external view returns (address);
 }
