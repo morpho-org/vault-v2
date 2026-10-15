@@ -4474,7 +4474,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function setUpRealVault() internal {
-        realVault = IVaultV2(deployCode("src/VaultV2.sol:VaultV2", abi.encode(owner, address(loanToken))));
+        realVault = IVaultV2(deployCode("out/VaultV2.sol/VaultV2.json", abi.encode(owner, address(loanToken))));
         vm.prank(owner);
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), allDurations, bytes32(0)));
