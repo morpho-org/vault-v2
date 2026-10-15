@@ -70,7 +70,7 @@ contract ForceDeallocationEnterGateTest is Test {
     }
 
     function testAddAdapterFactory() public {
-        address newFactory = address(new MidnightAdapterFactory(midnight));
+        address newFactory = address(new MidnightAdapterFactory(midnight, makeAddr("forceGateFactory")));
         vm.expectEmit(true, false, false, true, address(gate));
         emit IForceDeallocationEnterGate.AddAdapterFactory(newFactory);
         gate.addAdapterFactory(newFactory);
@@ -81,7 +81,7 @@ contract ForceDeallocationEnterGateTest is Test {
     }
 
     function testAddAdapterFactoryTwice() public {
-        address newFactory = address(new MidnightAdapterFactory(midnight));
+        address newFactory = address(new MidnightAdapterFactory(midnight, makeAddr("forceGateFactory")));
         gate.addAdapterFactory(newFactory);
 
         vm.expectRevert(IForceDeallocationEnterGate.AlreadyAdapterFactory.selector);
@@ -94,7 +94,8 @@ contract ForceDeallocationEnterGateTest is Test {
     }
 
     function testAddAdapterFactoryRejectsFactoryWithDifferentMidnight() public {
-        address newFactory = address(new MidnightAdapterFactory(makeAddr("otherMidnight")));
+        address newFactory =
+            address(new MidnightAdapterFactory(makeAddr("otherMidnight"), makeAddr("forceGateFactory")));
 
         vm.expectRevert(IForceDeallocationEnterGate.IncorrectMidnight.selector);
         gate.addAdapterFactory(newFactory);
@@ -158,7 +159,8 @@ contract ForceDeallocationEnterGateTest is Test {
         IMidnight realMidnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         ForceDeallocationEnterGate realGate =
             new ForceDeallocationEnterGate(address(realMidnight), address(this), address(this), false, false);
-        MidnightAdapterFactory realFactory = new MidnightAdapterFactory(address(realMidnight));
+        address forceGateFactory = makeAddr("forceGateFactory");
+        MidnightAdapterFactory realFactory = new MidnightAdapterFactory(address(realMidnight), forceGateFactory);
         realGate.addAdapterFactory(address(realFactory));
 
         ERC20Mock parentVault = new ERC20Mock(18);
@@ -173,7 +175,8 @@ contract ForceDeallocationEnterGateTest is Test {
         bytes32 userAdapterSalt = bytes32(uint256(2));
         bytes32 initCodeHash = keccak256(
             abi.encodePacked(
-                type(MidnightAdapter).creationCode, abi.encode(address(parentVault), address(realMidnight), durations)
+                type(MidnightAdapter).creationCode,
+                abi.encode(address(parentVault), address(realMidnight), forceGateFactory, durations)
             )
         );
         address predictedUserAdapter = address(
