@@ -66,14 +66,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         externalRatifier =
             ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
-        vm.prank(curator);
-        adapter.increaseMaxTtm(90 days);
+        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
 
-        _submitAndSetVaultChange(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
-        _submitAndSetVaultChange(abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
-        _submitAndSetVaultChange(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
         vm.prank(allocator);
         vault.setMaxRate(1e18 / uint256(365 days));
         vm.prank(allocator);
@@ -456,11 +453,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
     }
 
-    function _submitAndSetVaultChange(bytes memory data) internal {
+    function _submitAndSet(address target, bytes memory data) internal {
         vm.prank(curator);
-        vault.submit(data);
+        IVaultV2(target).submit(data);
         vm.prank(curator);
-        (bool success, bytes memory returnData) = address(vault).call(data);
+        (bool success, bytes memory returnData) = target.call(data);
         if (!success) {
             assembly ("memory-safe") {
                 revert(add(returnData, 32), mload(returnData))
@@ -469,8 +466,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function _increaseCaps(bytes memory idData) internal {
-        _submitAndSetVaultChange(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        _submitAndSetVaultChange(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
     }
 
     function _market(uint256 duration) internal view returns (Market memory market) {
