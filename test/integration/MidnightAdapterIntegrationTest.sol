@@ -15,11 +15,13 @@ import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review (see .github/CODEOWNERS).
 contract MidnightAdapterIntegrationTest is BaseTest {
+    /// @dev Price of about 0.994 assets per unit.
+    uint256 internal constant TICK = 4400;
+
     address internal depositor = makeAddr("depositor");
     address internal borrower = makeAddr("borrower");
     address internal lender = makeAddr("lender");
@@ -39,7 +41,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         super.setUp();
 
         oneToken = 10 ** underlyingTokenDecimals;
-        initialAssets = 10 * oneToken;
+        initialAssets = 100_000 * oneToken;
 
         vm.prank(owner);
         midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
@@ -93,7 +95,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerBuyRepayWithdrawRedeem() public {
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         Market memory market = _market(7 days);
         Offer memory offer = Offer({
             market: market,
@@ -101,7 +103,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: "",
@@ -142,14 +144,14 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
     function testTakerBuy() public {
         Market memory market = _market(7 days);
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: false,
             maker: borrower,
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode("external", market.maturity, units, false)),
             callback: address(0),
             callbackData: "",
@@ -177,7 +179,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testTakerSell() public {
-        uint256 initialUnits = 2 * oneToken;
+        uint256 initialUnits = 2000 * oneToken;
         Market memory market = _market(7 days);
         Offer memory adapterBuyOffer = Offer({
             market: market,
@@ -185,7 +187,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: "",
@@ -210,14 +212,14 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: true,
             maker: lender,
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode("external", market.maturity, units, true)),
             callback: address(0),
             callbackData: "",
@@ -245,7 +247,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerSell() public {
-        uint256 initialUnits = 2 * oneToken;
+        uint256 initialUnits = 2000 * oneToken;
         Market memory market = _market(7 days);
         Offer memory adapterBuyOffer = Offer({
             market: market,
@@ -253,7 +255,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: "",
@@ -278,14 +280,14 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: false,
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode("sell", market.maturity, units)),
             callback: address(adapter),
             callbackData: "",
@@ -317,7 +319,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: "",
@@ -342,14 +344,14 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: true,
             maker: lender,
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode("external", market.maturity, units, true)),
             callback: address(0),
             callbackData: "",
@@ -387,7 +389,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: fundingMarket.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(fundingMarket.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: "",
@@ -419,7 +421,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.repay(fundingMarket, initialUnits, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = oneToken;
+        uint256 units = 1000 * oneToken;
         bytes memory callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
         Market memory market = _market(30 days);
         Offer memory offer = Offer({
@@ -428,7 +430,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: address(adapter),
             start: block.timestamp,
             expiry: market.maturity,
-            tick: MAX_TICK,
+            tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
             callbackData: callbackData,
