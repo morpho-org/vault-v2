@@ -333,7 +333,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Pays directly from Midnight, independently of vault roles, gates, or registration.
     /// @dev Liquidity is first come, first served. Failed withdrawals revert the share burn.
-    function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256) {
+    function redeemClaimWithdraw(Market memory market, uint256 shares, address receiver) external returns (uint256) {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
@@ -341,8 +341,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         IMidnight(midnight).withdraw(market, assets, address(this), receiver);
         // Keep marketData.netCredit as the last value reported to the parent vault.
-        emit RedeemClaim(msg.sender, marketId, receiver, assets, shares);
+        emit RedeemClaimWithdraw(msg.sender, marketId, receiver, assets, shares);
         return assets;
+    }
+
+    /// @dev Sells `units` of the caller's claim to a Midnight buy offer, independently of vault roles, gates, or registration.
+    /// @dev No taker callback is set, so onSell doesn't run and marketData.netCredit stays the last value reported to the parent vault.
+    /// @dev Burned shares round up against the pre-sale gross credit to protect the vault and other claims.
+    function redeemClaimSell(Offer memory offer, bytes memory ratifierData, uint256 units, address receiver)
+        external
+        returns (uint256 shares, uint256 sellerAssets)
+    {
+        require(offer.buy, NotBuyOffer());
+        bytes32 marketId = IdLib.toId(offer.market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+
+        shares = burnClaimSharesForAssets(marketId, msg.sender, units, midnightCredit(offer.market));
+
+        (, sellerAssets) = IMidnight(midnight).take(offer, ratifierData, units, address(this), receiver, address(0), "");
+        emit RedeemClaimSell(msg.sender, marketId, receiver, units, sellerAssets, shares);
     }
 
     /* MIDNIGHT CALLBACKS */
@@ -532,7 +549,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* SHARES */
 
-    // Only these four functions modify totalShares, vaultShares and claimShares, so that totalShares equals vaultShares plus the sum of claimShares.
+    // Only these five functions modify totalShares, vaultShares and claimShares, so that totalShares equals vaultShares plus the sum of claimShares.
 
     /// @dev Mints vault shares worth `assets` out of `totalAssets`, rounding down.
     function mintVaultShares(bytes32 marketId, uint256 assets, uint256 totalAssets) internal returns (uint256 shares) {
@@ -568,6 +585,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     {
         MarketData storage _marketData = marketData[marketId];
         assets = shares.toAssetsDown(totalAssets, _marketData.totalShares);
+        claimShares[marketId][holder] -= shares;
+        _marketData.totalShares -= shares.toUint128();
+    }
+
+    /// @dev Burns `holder`'s claim shares worth `assets` out of `totalAssets`, rounding up.
+    function burnClaimSharesForAssets(bytes32 marketId, address holder, uint256 assets, uint256 totalAssets)
+        internal
+        returns (uint256 shares)
+    {
+        MarketData storage _marketData = marketData[marketId];
+        shares = assets.toSharesUp(totalAssets, _marketData.totalShares);
         claimShares[marketId][holder] -= shares;
         _marketData.totalShares -= shares.toUint128();
     }

@@ -58,8 +58,16 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newGrowth
     );
 
-    event RedeemClaim(
+    event RedeemClaimWithdraw(
         address indexed caller, bytes32 indexed marketId, address receiver, uint256 assets, uint256 shares
+    );
+    event RedeemClaimSell(
+        address indexed caller,
+        bytes32 indexed marketId,
+        address indexed receiver,
+        uint256 units,
+        uint256 sellerAssets,
+        uint256 shares
     );
 
     /* ERRORS */
@@ -80,6 +88,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error InvalidLength();
     error LoanAssetMismatch();
     error NotAuthorized();
+    error NotBuyOffer();
     error NotMidnight();
     error NotSelf();
     error NonEmptyCallbackData();
@@ -137,7 +146,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function realAssets() external view returns (uint256 assets);
     function midnightCredit(Market memory market) external view returns (uint128 credit);
     function claimShares(bytes32 marketId, address holder) external view returns (uint256);
-    function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256 assets);
+    function redeemClaimWithdraw(Market memory market, uint256 shares, address receiver)
+        external
+        returns (uint256 assets);
+    function redeemClaimSell(Offer memory offer, bytes memory ratifierData, uint256 units, address receiver)
+        external
+        returns (uint256 shares, uint256 sellerAssets);
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32);
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
