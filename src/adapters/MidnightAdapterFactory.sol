@@ -3,7 +3,7 @@
 pragma solidity 0.8.37;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
-import {WrapperEnterGateFactory} from "../periphery/gates/WrapperEnterGateFactory.sol";
+import {VaultV2CompatibleEnterGateFactory} from "../periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
@@ -25,7 +25,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     constructor(address _midnight) {
         midnight = _midnight;
-        enterGateFactory = address(new WrapperEnterGateFactory());
+        enterGateFactory = address(new VaultV2CompatibleEnterGateFactory());
         emit CreateMidnightAdapterFactory(_midnight, enterGateFactory);
     }
 

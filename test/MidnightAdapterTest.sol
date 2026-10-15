@@ -39,10 +39,12 @@ import {
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {WrapperEnterGate} from "../src/periphery/gates/WrapperEnterGate.sol";
-import {WrapperEnterGateFactory} from "../src/periphery/gates/WrapperEnterGateFactory.sol";
+import {VaultV2CompatibleEnterGate} from "../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
+import {VaultV2CompatibleEnterGateFactory} from "../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
+import {EnterSubGateMock} from "./mocks/EnterSubGateMock.sol";
+import {IEnterSubGate} from "../lib/midnight/src/interfaces/IEnterSubGate.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -1920,9 +1922,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFactoryGateFactory(bytes32 salt, bool useGateFactory) public {
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), allDurations);
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         address gateFactory = newFactory.enterGateFactory();
-        assertEq(WrapperEnterGateFactory(gateFactory).adapterFactory(), address(newFactory));
+        assertGt(gateFactory.code.length, 0);
 
         address expectedGateFactory = useGateFactory ? gateFactory : address(0);
         bytes32 initCodeHash = keccak256(
@@ -1934,41 +1936,61 @@ contract MidnightAdapterTest is Test {
         address expectedAdapter =
             vm.computeCreate2Address(keccak256(abi.encode(useGateFactory, salt)), initCodeHash, address(newFactory));
         vm.expectEmit(address(newFactory));
-        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(parentVault), expectedAdapter, useGateFactory, salt);
-        address created = newFactory.createMidnightAdapter(address(parentVault), useGateFactory, salt);
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(
+            address(parentVault), allDurations, salt, expectedAdapter, useGateFactory
+        );
+        address created = newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, salt);
 
         assertEq(created, expectedAdapter);
         assertEq(IMidnightAdapter(created).enterGateFactory(), expectedGateFactory);
-        assertEq(newFactory.midnightAdapter(address(parentVault), useGateFactory, salt), created);
+        assertEq(
+            newFactory.midnightAdapter(address(parentVault), keccak256(abi.encode(allDurations)), useGateFactory, salt),
+            created
+        );
         assertTrue(newFactory.isMidnightAdapter(created));
 
         vm.expectRevert();
-        newFactory.createMidnightAdapter(address(parentVault), useGateFactory, salt);
+        newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, salt);
     }
 
     function testFactoryDifferentSalts(bytes32 firstSalt, bytes32 secondSalt, bool useGateFactory) public {
         vm.assume(firstSalt != secondSalt);
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), allDurations);
-        address first = newFactory.createMidnightAdapter(address(parentVault), useGateFactory, firstSalt);
-        address second = newFactory.createMidnightAdapter(address(parentVault), useGateFactory, secondSalt);
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, firstSalt);
+        address second =
+            newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, secondSalt);
 
         assertNotEq(first, second);
         assertTrue(newFactory.isMidnightAdapter(first));
         assertTrue(newFactory.isMidnightAdapter(second));
-        assertEq(newFactory.midnightAdapter(address(parentVault), useGateFactory, firstSalt), first);
-        assertEq(newFactory.midnightAdapter(address(parentVault), useGateFactory, secondSalt), second);
+        assertEq(
+            newFactory.midnightAdapter(
+                address(parentVault), keccak256(abi.encode(allDurations)), useGateFactory, firstSalt
+            ),
+            first
+        );
+        assertEq(
+            newFactory.midnightAdapter(
+                address(parentVault), keccak256(abi.encode(allDurations)), useGateFactory, secondSalt
+            ),
+            second
+        );
     }
 
     function testFactoryDifferentGateFactoryModes(bytes32 salt) public {
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), allDurations);
-        address enabled = newFactory.createMidnightAdapter(address(parentVault), true, salt);
-        address disabled = newFactory.createMidnightAdapter(address(parentVault), false, salt);
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        address enabled = newFactory.createMidnightAdapter(address(parentVault), allDurations, true, salt);
+        address disabled = newFactory.createMidnightAdapter(address(parentVault), allDurations, false, salt);
 
         assertNotEq(enabled, disabled);
         assertEq(IMidnightAdapter(enabled).enterGateFactory(), newFactory.enterGateFactory());
         assertEq(IMidnightAdapter(disabled).enterGateFactory(), address(0));
-        assertEq(newFactory.midnightAdapter(address(parentVault), true, salt), enabled);
-        assertEq(newFactory.midnightAdapter(address(parentVault), false, salt), disabled);
+        assertEq(
+            newFactory.midnightAdapter(address(parentVault), keccak256(abi.encode(allDurations)), true, salt), enabled
+        );
+        assertEq(
+            newFactory.midnightAdapter(address(parentVault), keccak256(abi.encode(allDurations)), false, salt), disabled
+        );
         assertTrue(newFactory.isMidnightAdapter(enabled));
         assertTrue(newFactory.isMidnightAdapter(disabled));
     }
@@ -1996,7 +2018,7 @@ contract MidnightAdapterTest is Test {
     function testDurationCapsDefaultToZero() public {
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
         IMidnightAdapter fresh =
-            IMidnightAdapter(factory.createMidnightAdapter(address(vault), allDurations, bytes32(0)));
+            IMidnightAdapter(factory.createMidnightAdapter(address(vault), allDurations, false, bytes32(0)));
         for (uint256 i; i < allDurations.length; i++) {
             assertEq(vault.relativeCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
             assertEq(vault.absoluteCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
@@ -3413,10 +3435,10 @@ contract MidnightAdapterTest is Test {
     }
 
     function testEnterGateRegisteredGate(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-        assertTrue(gate.canIncreaseCredit(address(adapter)));
+        assertTrue(gate.canIncreaseCredit(_marketId(offer.market), address(adapter)));
 
         takeEnterGateOffer(offer, adapterIsMaker);
 
@@ -3426,28 +3448,37 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateCannotBootstrap(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+    function testEnterGateAdapterBuysRequireOrdinaryApproval(bool adapterIsMaker, bool existingPosition, bool approved)
+        public
+    {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-        gate.setCanIncreaseCredit(address(adapter), false);
+        if (existingPosition) {
+            takeEnterGateOffer(offer, adapterIsMaker);
+            offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
+            offer.group = bytes32("second purchase");
+        }
+        gate.setCanIncreaseCredit(_marketId(offer.market), address(adapter), approved);
         realVault.transfer(address(adapter), 1);
         vm.prank(address(adapter));
-        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
-        WrapperEnterGate(wrapper).transientAllowIncreaseCredit(address(adapter), address(adapter));
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(adapter)));
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
+        VaultV2CompatibleEnterGate(wrapper).admit(address(adapter), address(factory));
+        assertTrue(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(adapter)));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
 
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        if (!approved) vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
 
-        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 0);
+        assertEq(
+            midnight.credit(_marketId(offer.market), address(adapter)),
+            (existingPosition ? 1e18 : 0) + (approved ? 1e18 : 0)
+        );
     }
 
     /// forge-config: default.isolate = true
     function testEnterGateMultipleVaults(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory first = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
         takeEnterGateOffer(first, adapterIsMaker);
         IMidnightAdapter firstAdapter = adapter;
@@ -3455,11 +3486,12 @@ contract MidnightAdapterTest is Test {
         realVault.transfer(recipient, 1);
 
         setUpRealVault();
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), true, bytes32(0)));
-        setUpMaxTtm(type(uint256).max);
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), allDurations, true, bytes32(0)));
+        disableDurationCaps(adapter);
+        setUpMaxTtm(type(uint32).max);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
-        addSubRatifier(adapter, address(ecrecoverRatifier));
+        addSubRatifier(adapter, address(priceRatifier));
         bytes memory idData = abi.encode("this", address(adapter));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
@@ -3468,12 +3500,12 @@ contract MidnightAdapterTest is Test {
         storedOffer.callback = address(adapter);
         Offer memory second = makeEnterGateBuyOffer(wrapper, !adapterIsMaker);
         second.group = bytes32("second vault");
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
 
         vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
         takeEnterGateOffer(second, !adapterIsMaker);
 
-        gate.setCanIncreaseCredit(address(adapter), true);
+        gate.setCanIncreaseCredit(_marketId(second.market), address(adapter), true);
         takeEnterGateOffer(second, !adapterIsMaker);
 
         assertEq(_marketId(first.market), _marketId(second.market));
@@ -3481,41 +3513,43 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(first.market), address(adapter)), 1e18);
         (Offer memory firstExit, bytes32 firstRoot) = makeForceDeallocateOffer(first.market, 0.5e18);
         firstVault.transfer(firstExit.maker, 1);
-        this.transientAllowIncreaseCreditAndForceDeallocate(
+        this.forceDeallocateFromVault(
             firstVault, firstAdapter, firstExit, abi.encode(firstRoot, 0, proof([firstExit])), 0.5e18
         );
-        assertFalse(WrapperEnterGate(wrapper).isTransientlyAllowed(firstExit.maker));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(firstExit.maker));
         (Offer memory secondExit, bytes32 secondRoot) = makeForceDeallocateOffer(second.market, 0.5e18);
         realVault.transfer(secondExit.maker, 1);
-        this.transientAllowIncreaseCreditAndForceDeallocate(
+        this.forceDeallocateFromVault(
             realVault, adapter, secondExit, abi.encode(secondRoot, 0, proof([secondExit])), 0.5e18
         );
-        assertFalse(WrapperEnterGate(wrapper).isTransientlyAllowed(secondExit.maker));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(secondExit.maker));
         assertEq(midnight.credit(_marketId(first.market), firstExit.maker), 1e18);
         assertEq(midnight.credit(_marketId(first.market), address(firstAdapter)), 0.5e18);
         assertEq(midnight.credit(_marketId(first.market), address(adapter)), 0.5e18);
     }
 
     function testEnterGateDifferentMarket(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         Market memory otherMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         otherMarket.maturity++;
-        address wrapper = gateFactory.createWrapperEnterGate(address(gate), otherMarket);
+        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(address(gate), otherMarket);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-        assertNotEq(WrapperEnterGate(wrapper).marketId(), _marketId(offer.market));
+        bytes32 wrapperMarketId = VaultV2CompatibleEnterGate(wrapper).marketId();
+        gate.setCanIncreaseCredit(wrapperMarketId, address(adapter), true);
+        gate.setCanIncreaseDebt(wrapperMarketId, taker, true);
+        gate.setCanIncreaseDebt(wrapperMarketId, makeAddr("externalSeller"), true);
+        gate.setCanIncreaseCredit(_marketId(offer.market), address(adapter), true);
+        assertNotEq(VaultV2CompatibleEnterGate(wrapper).marketId(), _marketId(offer.market));
 
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
     }
 
-    function testEnterGateMultipleMarkets(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        EnterGateMock otherGate = new EnterGateMock();
-        otherGate.setCanIncreaseDebt(taker, true);
-        otherGate.setCanIncreaseDebt(makeAddr("externalSeller"), true);
-        otherGate.setCanIncreaseCredit(address(adapter), true);
-        address firstWrapper = createWrapperEnterGate(gateFactory, gate);
-        address secondWrapper = createWrapperEnterGate(gateFactory, otherGate);
+    function testEnterGateMultipleMarkets(bool adapterIsMaker, bool sharedSubGate) public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        EnterSubGateMock otherGate = sharedSubGate ? gate : new EnterSubGateMock();
+        address firstWrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        address secondWrapper = createVaultV2CompatibleEnterGate(gateFactory, otherGate);
         Offer memory first = makeEnterGateBuyOffer(firstWrapper, adapterIsMaker);
         takeEnterGateOffer(first, adapterIsMaker);
         Offer memory second = makeEnterGateBuyOffer(secondWrapper, !adapterIsMaker);
@@ -3530,16 +3564,18 @@ contract MidnightAdapterTest is Test {
     }
 
     function testEnterGateUnregisteredGate(bool adapterIsMaker, bool wrap) public {
-        (, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        gate.setCanIncreaseCredit(address(adapter), true);
+        (, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address marketGate = wrap
-            ? address(
-                new WrapperEnterGate(address(gate), address(factory), makeBuyOffer(7 days, 1e18, MAX_TICK).market)
-            )
+            ? address(new VaultV2CompatibleEnterGate(address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market))
             : address(gate);
         Offer memory offer = makeEnterGateBuyOffer(marketGate, adapterIsMaker);
+        bytes32 marketId = _marketId(offer.market);
+        gate.setCanIncreaseCredit(marketId, address(adapter), true);
+        gate.setCanIncreaseDebt(marketId, taker, true);
+        gate.setCanIncreaseDebt(marketId, makeAddr("externalSeller"), true);
 
-        vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
+        if (wrap) vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
+        else vm.expectRevert(bytes(""));
         takeEnterGateOffer(offer, adapterIsMaker);
 
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0);
@@ -3547,9 +3583,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function testEnterGateDifferentFactory(bool adapterIsMaker) public {
-        (, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        WrapperEnterGateFactory otherFactory = new WrapperEnterGateFactory();
-        address wrapper = createWrapperEnterGate(otherFactory, gate);
+        (, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
+        address wrapper = createVaultV2CompatibleEnterGate(otherFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
 
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
@@ -3557,49 +3593,80 @@ contract MidnightAdapterTest is Test {
     }
 
     function testEnterGateDifferentAdapterFactory(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
-        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(midnight), allDurations);
-        adapter = IMidnightAdapter(otherFactory.createMidnightAdapter(address(realVault), true, bytes32(0)));
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(midnight));
+        adapter =
+            IMidnightAdapter(otherFactory.createMidnightAdapter(address(realVault), allDurations, true, bytes32(0)));
+        setUpMaxTtm(type(uint32).max);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
-        addSubRatifier(adapter, address(ecrecoverRatifier));
+        addSubRatifier(adapter, address(priceRatifier));
         bytes memory idData = abi.encode("this", address(adapter));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
         storedOffer.maker = address(adapter);
         storedOffer.ratifier = address(adapter);
         storedOffer.callback = address(adapter);
-        gate.setCanIncreaseCredit(address(adapter), true);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-        assertTrue(gateFactory.isGate(wrapper));
-        assertFalse(WrapperEnterGateFactory(adapter.enterGateFactory()).isGate(wrapper));
-        assertTrue(WrapperEnterGate(wrapper).canIncreaseCredit(address(adapter)));
+        gate.setCanIncreaseCredit(_marketId(offer.market), address(adapter), true);
+        assertTrue(gateFactory.isGate(wrapper, _marketId(offer.market)));
+        assertFalse(
+            VaultV2CompatibleEnterGateFactory(adapter.enterGateFactory()).isGate(wrapper, _marketId(offer.market))
+        );
+        assertTrue(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(adapter)));
 
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateSameVaultOtherAdapter(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address otherAdapter = factory.createMidnightAdapter(address(realVault), true, bytes32(uint256(1)));
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
-        gate.setCanIncreaseCredit(address(adapter), true);
+    function testEnterGateSameVaultOtherAdapterCannotAdmitWithoutCredit(bool adapterIsMaker) public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address otherAdapter =
+            factory.createMidnightAdapter(address(realVault), allDurations, true, bytes32(uint256(1)));
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
 
         takeEnterGateOffer(offer, adapterIsMaker);
 
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
-        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
-        WrapperEnterGate(wrapper).transientAllowIncreaseCredit(address(this), otherAdapter);
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
-        WrapperEnterGate(wrapper).transientAllowIncreaseCredit(address(this), address(adapter));
-        assertTrue(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (otherAdapter)));
+        (Offer memory exitOffer, bytes32 root_) = makeForceDeallocateOffer(offer.market, 0.5e18);
+        realVault.transfer(exitOffer.maker, 1);
+        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        realVault.forceDeallocate(
+            otherAdapter, abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
+        );
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(exitOffer.maker));
+        assertEq(midnight.credit(_marketId(offer.market), otherAdapter), 0);
+    }
+
+    function testEnterGateCreditInOtherMarketDoesNotAdmit() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address firstWrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(firstWrapper, true);
+        take(boughtOffer);
+
+        address otherWrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory otherMarketOffer = makeEnterGateBuyOffer(otherWrapper, true);
+        (Offer memory exitOffer, bytes32 root_) = makeForceDeallocateOffer(otherMarketOffer.market, 0.5e18);
+        realVault.transfer(exitOffer.maker, 1);
+        assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 1e18);
+        assertEq(midnight.credit(_marketId(exitOffer.market), address(adapter)), 0);
+
+        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
+        );
+        assertFalse(VaultV2CompatibleEnterGate(otherWrapper).canIncreaseCredit(exitOffer.maker));
     }
 
     function testEnterGateFactoryDisabled(bool adapterIsMaker) public {
-        (, EnterGateMock gate) = setUpEnterGateRealVault(false);
+        setUpEnterGateRealVault(false);
+        EnterGateMock gate = new EnterGateMock();
+        gate.setCanIncreaseDebt(taker, true);
+        gate.setCanIncreaseDebt(makeAddr("externalSeller"), true);
         gate.setCanIncreaseCredit(address(adapter), true);
         Offer memory offer = makeEnterGateBuyOffer(address(gate), adapterIsMaker);
         assertEq(adapter.enterGateFactory(), address(0));
@@ -3611,57 +3678,144 @@ contract MidnightAdapterTest is Test {
 
     /// forge-config: default.isolate = false
     function testEnterGateDepositorDebtStillRestricted(bool adapterIsMaker) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
         takeEnterGateOffer(offer, adapterIsMaker);
         offer.group = bytes32("debt still restricted");
         address borrower = adapterIsMaker ? taker : offer.maker;
         realVault.transfer(borrower, 1);
-        vm.prank(borrower);
-        WrapperEnterGate(wrapper).transientAllowIncreaseCredit(borrower, address(adapter));
-        gate.setCanIncreaseDebt(borrower, false);
-        assertTrue(WrapperEnterGate(wrapper).canIncreaseCredit(borrower));
+        vm.prank(address(adapter));
+        VaultV2CompatibleEnterGate(wrapper).admit(borrower, address(factory));
+        gate.setCanIncreaseDebt(_marketId(offer.market), borrower, false);
+        assertTrue(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(borrower));
 
         vm.expectRevert(IMidnight.SellerGatedFromIncreasingDebt.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateForceDeallocateRequiresExplicitAllowance(bool previouslyAllowed, bool hasShares) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+    function testEnterGateForceDeallocateAdmitsShareholders(bool hasShares) public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
         take(boughtOffer);
-        gate.setCanIncreaseCredit(address(adapter), false);
-        if (previouslyAllowed) {
-            WrapperEnterGate(wrapper).transientAllowIncreaseCredit(address(this), address(adapter));
-        }
+        gate.setCanIncreaseCredit(_marketId(boughtOffer.market), address(adapter), false);
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
         if (hasShares) realVault.transfer(offer.maker, 1);
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(offer.maker));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(offer.maker));
 
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        loanToken.approve(address(adapter), 0.5e18);
+        if (!hasShares) vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
         realVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
         );
 
-        if (hasShares) {
-            this.transientAllowIncreaseCreditAndForceDeallocate(
-                realVault, adapter, offer, abi.encode(root_, 0, proof([offer])), 0.5e18
-            );
-        }
-
-        assertEq(WrapperEnterGate(wrapper).isTransientlyAllowed(address(this)), previouslyAllowed);
-        assertEq(WrapperEnterGate(wrapper).isTransientlyAllowed(offer.maker), hasShares);
-        assertEq(WrapperEnterGate(wrapper).canIncreaseCredit(offer.maker), hasShares);
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(offer.maker));
         assertEq(midnight.credit(_marketId(offer.market), offer.maker), hasShares ? 0.5e18 : 0);
+    }
+
+    /// forge-config: default.isolate = false
+    function testEnterGateShareholderExitBypassesRevertingSubGate() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        realVault.transfer(offer.maker, 1);
+        vm.mockCallRevert(
+            address(gate),
+            abi.encodeCall(IEnterSubGate.canIncreaseCredit, (_marketId(offer.market), offer.maker)),
+            "subgate reverted"
+        );
+
+        loanToken.approve(address(adapter), 0.5e18);
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
+        );
+        assertEq(midnight.credit(_marketId(offer.market), offer.maker), 0.5e18);
+        vm.expectRevert(bytes("subgate reverted"));
+        VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(offer.maker);
+    }
+
+    function testEnterGateRepaymentExitDoesNotNeedAdmission() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        assertEq(realVault.balanceOf(taker), 0);
+
+        Offer memory exitOffer = makeBuyOffer(7 days, 0.5e18, MAX_TICK);
+        exitOffer.market = boughtOffer.market;
+        exitOffer.maker = taker;
+        exitOffer.ratifier = address(this);
+        exitOffer.callback = address(0);
+        vm.startPrank(taker);
+        midnight.setIsAuthorized(address(this), true, taker);
+        loanToken.approve(address(midnight), type(uint256).max);
+        vm.stopPrank();
+        vm.mockCallRevert(
+            address(gate),
+            abi.encodeCall(IEnterSubGate.canIncreaseCredit, (_marketId(exitOffer.market), taker)),
+            "subgate reverted"
+        );
+
+        loanToken.approve(address(adapter), 0.5e18);
+        realVault.forceDeallocate(address(adapter), abi.encode(exitOffer, hex""), 0.5e18, address(this));
+        assertEq(midnight.debt(_marketId(exitOffer.market), taker), 0.5e18);
+        assertEq(midnight.credit(_marketId(exitOffer.market), taker), 0);
+        assertEq(realVault.balanceOf(taker), 0);
+    }
+
+    /// forge-config: default.isolate = false
+    function testEnterGateAdmissionCannotBuyAgainInCallback() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        midnight.supplyCollateral(boughtOffer.market, 0, 0.1e18, taker);
+        midnight.supplyCollateral(boughtOffer.market, 1, 0.1e18, taker);
+
+        ForceDeallocateBuyer buyer = new ForceDeallocateBuyer(address(midnight));
+        realVault.transfer(address(buyer), 1);
+        deal(address(loanToken), address(buyer), 1e18);
+        buyer.exec(address(loanToken), abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
+        buyer.exec(address(midnight), abi.encodeCall(IMidnight.setIsAuthorized, (address(this), true, address(buyer))));
+        vm.prank(taker);
+        midnight.setIsAuthorized(address(buyer), true, taker);
+
+        Offer memory nestedOffer = makeBuyOffer(7 days, 0.1e18, MAX_TICK);
+        nestedOffer.market = boughtOffer.market;
+        nestedOffer.maker = address(buyer);
+        nestedOffer.ratifier = address(this);
+        nestedOffer.callback = address(buyer);
+        nestedOffer.group = bytes32("nested purchase");
+        buyer.push(
+            address(midnight),
+            abi.encodeCall(IMidnight.take, (nestedOffer, hex"", 0.1e18, taker, taker, address(0), hex"")),
+            IMidnight.BuyerGatedFromIncreasingCredit.selector
+        );
+
+        Offer memory exitOffer = makeBuyOffer(7 days, 0.5e18, MAX_TICK);
+        exitOffer.market = boughtOffer.market;
+        exitOffer.maker = address(buyer);
+        exitOffer.ratifier = address(this);
+        exitOffer.callback = address(buyer);
+        exitOffer.group = bytes32("shareholder exit");
+        loanToken.approve(address(adapter), 0.5e18);
+        realVault.forceDeallocate(address(adapter), abi.encode(exitOffer, hex""), 0.5e18, address(this));
+
+        assertTrue(buyer.called());
+        assertEq(midnight.credit(_marketId(exitOffer.market), address(buyer)), 0.5e18);
+        assertEq(midnight.debt(_marketId(exitOffer.market), taker), 1e18);
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(buyer)));
     }
 
     /// forge-config: default.isolate = true
     function testEnterGateForceDeallocateRequiresRecipientSharesOrGateApproval() public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
         take(boughtOffer);
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 1e18);
@@ -3670,12 +3824,14 @@ contract MidnightAdapterTest is Test {
         assertTrue(realVault.canReceiveShares(offer.maker));
         assertEq(realVault.balanceOf(offer.maker), 0);
         assertGt(realVault.balanceOf(address(this)), 0);
+        ERC20Mock otherVault = new ERC20Mock(18);
+        deal(address(otherVault), offer.maker, 1);
 
         vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
         realVault.forceDeallocate(address(adapter), data, 1e18, address(this));
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
 
-        gate.setCanIncreaseCredit(offer.maker, true);
+        gate.setCanIncreaseCredit(_marketId(offer.market), offer.maker, true);
         loanToken.approve(address(adapter), 1e18);
         realVault.forceDeallocate(address(adapter), data, 1e18, address(this));
 
@@ -3686,8 +3842,8 @@ contract MidnightAdapterTest is Test {
 
     /// forge-config: default.isolate = true
     function testEnterGateFullExitAfterVaultGateRevocation(bool fullyInvested) public {
-        (WrapperEnterGateFactory gateFactory, EnterGateMock gate) = setUpEnterGateRealVault(true);
-        address wrapper = createWrapperEnterGate(gateFactory, gate);
+        (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, true);
         uint256 investedAssets = fullyInvested ? 10e18 : 1e18;
         offer.maxUnits = uint128(investedAssets);
@@ -3701,9 +3857,8 @@ contract MidnightAdapterTest is Test {
         receiveSharesGate.setIsWhitelisted(address(this), false);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
         assertFalse(realVault.canReceiveShares(address(this)));
-        assertFalse(gate.canIncreaseCredit(address(this)));
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
-        assertFalse(WrapperEnterGate(wrapper).isTransientlyAllowed(address(this)));
+        assertFalse(gate.canIncreaseCredit(_marketId(offer.market), address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
         assertEq(loanToken.balanceOf(address(this)), 0);
 
         uint256 penalty = realVault.forceDeallocatePenalty(address(adapter));
@@ -3731,17 +3886,16 @@ contract MidnightAdapterTest is Test {
             10e18 - forceAssets - forceAssets.mulDivUp(penalty, 1e18),
             "remaining assets after purchase and penalty"
         );
-        assertFalse(WrapperEnterGate(wrapper).canIncreaseCredit(address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
     }
 
-    function transientAllowIncreaseCreditAndForceDeallocate(
+    function forceDeallocateFromVault(
         IVaultV2 vault,
         IMidnightAdapter targetAdapter,
         Offer memory offer,
         bytes memory ratifierData,
         uint256 assets
     ) external {
-        WrapperEnterGate(offer.market.enterGate).transientAllowIncreaseCredit(offer.maker, address(targetAdapter));
         loanToken.approve(address(targetAdapter), assets);
         vault.forceDeallocate(address(targetAdapter), abi.encode(offer, ratifierData), assets, address(this));
     }
@@ -3758,14 +3912,12 @@ contract MidnightAdapterTest is Test {
         loanToken.approve(address(adapter), assets[0]);
         uint256 expectedPenaltyShares =
             realVault.previewWithdraw(assets[0].mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18));
-        WrapperEnterGate(offer.market.enterGate).transientAllowIncreaseCredit(offer.maker, address(adapter));
         uint256 penaltyShares =
             realVault.forceDeallocate(address(adapter), abi.encode(offer, bytes("")), assets[0], address(this));
         assertEq(penaltyShares, expectedPenaltyShares);
-        assertTrue(WrapperEnterGate(offer.market.enterGate).isTransientlyAllowed(address(this)));
-        assertTrue(WrapperEnterGate(offer.market.enterGate).canIncreaseCredit(address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(offer.market.enterGate).canIncreaseCredit(address(this)));
         realVault.redeem(realVault.balanceOf(address(this)), address(this), address(this));
-        assertTrue(WrapperEnterGate(offer.market.enterGate).canIncreaseCredit(address(this)));
+        assertFalse(VaultV2CompatibleEnterGate(offer.market.enterGate).canIncreaseCredit(address(this)));
         return CALLBACK_SUCCESS;
     }
 
@@ -4660,21 +4812,21 @@ contract MidnightAdapterTest is Test {
 
     function setUpEnterGateRealVault(bool useGateFactory)
         internal
-        returns (WrapperEnterGateFactory gateFactory, EnterGateMock gate)
+        returns (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate)
     {
         setUpRealVault();
-        gate = new EnterGateMock();
-        gate.setCanIncreaseDebt(taker, true);
-        gate.setCanIncreaseDebt(makeAddr("externalSeller"), true);
-        factory = new MidnightAdapterFactory(address(midnight), allDurations);
-        gateFactory = WrapperEnterGateFactory(factory.enterGateFactory());
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), useGateFactory, bytes32(0)));
-        setUpMaxTtm(type(uint256).max);
-        gate.setCanIncreaseCredit(address(adapter), true);
+        gate = new EnterSubGateMock();
+        factory = new MidnightAdapterFactory(address(midnight));
+        gateFactory = VaultV2CompatibleEnterGateFactory(factory.enterGateFactory());
+        adapter = IMidnightAdapter(
+            factory.createMidnightAdapter(address(realVault), allDurations, useGateFactory, bytes32(0))
+        );
+        disableDurationCaps(adapter);
+        setUpMaxTtm(type(uint32).max);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
-        addSubRatifier(adapter, address(ecrecoverRatifier));
+        addSubRatifier(adapter, address(priceRatifier));
         bytes memory idData = abi.encode("this", address(adapter));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
@@ -4683,11 +4835,17 @@ contract MidnightAdapterTest is Test {
         storedOffer.callback = address(adapter);
     }
 
-    function createWrapperEnterGate(WrapperEnterGateFactory gateFactory, EnterGateMock gate)
+    function createVaultV2CompatibleEnterGate(VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate)
         internal
         returns (address)
     {
-        address wrapper = gateFactory.createWrapperEnterGate(address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market);
+        address wrapper =
+            gateFactory.createVaultV2CompatibleEnterGate(address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market);
+        VaultV2CompatibleEnterGate(wrapper).setCanAdmit(address(factory));
+        bytes32 marketId = VaultV2CompatibleEnterGate(wrapper).marketId();
+        gate.setCanIncreaseCredit(marketId, address(adapter), true);
+        gate.setCanIncreaseDebt(marketId, taker, true);
+        gate.setCanIncreaseDebt(marketId, makeAddr("externalSeller"), true);
         return wrapper;
     }
 
@@ -4695,7 +4853,7 @@ contract MidnightAdapterTest is Test {
         offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         offer.market.enterGate = gate;
         if (gate != address(0)) {
-            bytes memory idData = abi.encode("marketConfig", gate, address(0), uint256(0));
+            bytes memory idData = abi.encode("enterGate", gate);
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
         }
@@ -4712,7 +4870,7 @@ contract MidnightAdapterTest is Test {
             take(offer);
         } else {
             vm.prank(signerAllocator);
-            adapter.take(offer, "", offer.maxUnits);
+            adapter.take(offer, "", offer.maxUnits, hex"");
         }
     }
 

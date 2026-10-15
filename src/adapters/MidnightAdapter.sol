@@ -3,6 +3,7 @@
 pragma solidity 0.8.37;
 
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {IEnterSubGate} from "lib/midnight/src/interfaces/IEnterSubGate.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
@@ -12,9 +13,10 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
-import {WrapperEnterGate} from "../periphery/gates/WrapperEnterGate.sol";
-import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory.sol";
+import {VaultV2CompatibleEnterGate} from "../periphery/gates/VaultV2CompatibleEnterGate.sol";
+import {IEnterGateFactory} from "lib/midnight/src/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -66,6 +68,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* IMMUTABLES */
 
+    address internal immutable factory;
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
@@ -104,6 +107,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations, address _enterGateFactory) {
+        factory = msg.sender;
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
@@ -358,18 +362,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
-            bool useWrapperGate = enterGateFactory != address(0)
-                && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate)
-                && WrapperEnterGate(offer.market.enterGate).marketId() == marketId;
-            if (useWrapperGate) {
-                useWrapperGate = WrapperEnterGate(offer.market.enterGate).admit(offer.maker);
-                if (useWrapperGate) require(IERC20(parentVault).balanceOf(offer.maker) > 0, NotAuthorized());
+            bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
+                && IMidnight(midnight).credit(marketId, address(this)) > 0
+                && IERC20(parentVault).balanceOf(offer.maker) > 0;
+            if (admitted) {
+                VaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
             }
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (useWrapperGate) WrapperEnterGate(offer.market.enterGate).unadmit();
+            if (admitted) VaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -417,14 +420,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        // Prevent buying into a gated market that will then block forceDeallocate.
-        require(
-            enterGateFactory == address(0) || market.enterGate == address(0)
-                || (IEnterGateFactory(enterGateFactory).isGate(market.enterGate)
-                    && WrapperEnterGate(market.enterGate).marketId() == marketId
-                    && WrapperEnterGate(market.enterGate).canAdmit(address(this))),
-            IncorrectEnterGate()
-        );
+        if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+            // Adapters must not buy through another adapter's transient admission.
+            require(
+                IEnterSubGate(VaultV2CompatibleEnterGate(market.enterGate).subGate())
+                    .canIncreaseCredit(marketId, address(this)),
+                IncorrectEnterGate()
+            );
+        }
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
         require(ttm <= maxTtm, BuyTtmTooHigh());
@@ -449,6 +452,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
+            if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+                require(
+                    IEnterGateFactory(enterGateFactory).isGate(market.enterGate, marketId)
+                        && VaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)
+                        && IMidnightAdapterFactory(factory).isMidnightAdapter(address(this)),
+                    IncorrectEnterGate()
+                );
+            }
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
