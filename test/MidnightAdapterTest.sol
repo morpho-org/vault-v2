@@ -39,6 +39,7 @@ import {
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
+import {ForceDeallocationEnterGate} from "../src/periphery/gates/ForceDeallocationEnterGate.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -3328,6 +3329,57 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18 - 0.01e18, "only penalty reduces totalAssets");
     }
 
+    /// forge-config: default.isolate = true
+    function testForceDeallocateThroughForceDeallocationEnterGate() public {
+        _testForceDeallocateThroughForceDeallocationEnterGate(0.5e18);
+    }
+
+    /// forge-config: default.isolate = true
+    function testForceDeallocateEntireCreditThroughForceDeallocationEnterGate() public {
+        _testForceDeallocateThroughForceDeallocationEnterGate(1e18);
+    }
+
+    function _testForceDeallocateThroughForceDeallocationEnterGate(uint256 assets) internal {
+        setUpRealVault();
+
+        ForceDeallocationEnterGate gate =
+            new ForceDeallocationEnterGate(address(midnight), address(this), address(this), false, true);
+        gate.addAdapterFactory(address(factory));
+        gate.setIsWhitelister(true, address(this), true);
+        gate.setIsWhitelisted(true, address(adapter), true);
+
+        bytes memory enterGateIdData = abi.encode("enterGate", address(gate));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (enterGateIdData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (enterGateIdData, 1e18)));
+
+        address depositor = makeAddr("forceDeallocationDepositor");
+        realVault.transfer(depositor, 1e18);
+        Offer memory boughtOffer = buyOnRealVault(7 days, 1e18, address(gate));
+        skip(1);
+
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, assets, MAX_TICK, depositor);
+        bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
+
+        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        realVault.forceDeallocate(address(adapter), data, assets, address(this));
+
+        this.allowAndForceDeallocateWithGate(gate, depositor, data, assets);
+
+        assertEq(adapter.forceDeallocatingMarketId(), bytes32(0));
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18 - assets);
+    }
+
+    function allowAndForceDeallocateWithGate(
+        ForceDeallocationEnterGate gate,
+        address depositor,
+        bytes memory data,
+        uint256 assets
+    ) external {
+        gate.transientAllowIncreaseCredit(depositor, address(adapter), address(factory));
+        realVault.forceDeallocate(address(adapter), data, assets, address(this));
+    }
+
     /* CALLBACKS */
 
     function testOnBuyNotMidnight(address caller) public {
@@ -4416,7 +4468,13 @@ contract MidnightAdapterTest is Test {
         internal
         returns (Offer memory offer, bytes32 root_)
     {
-        address buyer = makeAddr("buyer");
+        return makeForceDeallocateOffer(market, assets, tick, makeAddr("buyer"));
+    }
+
+    function makeForceDeallocateOffer(Market memory market, uint256 assets, uint256 tick, address buyer)
+        internal
+        returns (Offer memory offer, bytes32 root_)
+    {
         ISetterRatifier approvalRatifier =
             ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
@@ -4524,7 +4582,12 @@ contract MidnightAdapterTest is Test {
     }
 
     function buyOnRealVault(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
+        return buyOnRealVault(duration, assets, address(0));
+    }
+
+    function buyOnRealVault(uint256 duration, uint256 assets, address enterGate) internal returns (Offer memory offer) {
         offer = makeBuyOffer(duration, assets, MAX_TICK);
+        offer.market.enterGate = enterGate;
         offer.maker = address(adapter);
         offer.callback = address(adapter);
         offer.ratifier = address(adapter);

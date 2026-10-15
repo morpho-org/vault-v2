@@ -5,6 +5,10 @@ Blue public allocator contracts are in [blue-public-allocator](./blue-public-all
 Gate contracts are in [gates](./gates/).
 Adapter registry contracts are in [registries](./registries/).
 
+## Force Deallocation Enter Gate
+
+`ForceDeallocationEnterGate` adds a temporary credit-entry path for holders of a vault whose MidnightAdapter is being force-deallocated from a market using the gate. The gate owner manages an append-only list of trusted adapter factories; removing one could prevent its vault depositors from exiting.
+
 ## Blue Public Allocator
 
 `BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `MorphoMarketV1AdapterV2`, within the vault's caps, and the public allocator's own limits.
