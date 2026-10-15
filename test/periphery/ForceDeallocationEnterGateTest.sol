@@ -54,6 +54,8 @@ contract ForceDeallocationEnterGateTest is Test {
         assertFalse(gate.CREDIT_OPEN());
         assertFalse(gate.DEBT_OPEN());
         assertTrue(gate.isAdapterFactory(adapterFactory));
+        assertEq(gate.adapterFactoriesLength(), 1);
+        assertEq(gate.adapterFactories(0), adapterFactory);
     }
 
     function testOpenSideAllowsAnyAccount() public {
@@ -70,6 +72,17 @@ contract ForceDeallocationEnterGateTest is Test {
         emit IForceDeallocationEnterGate.AddAdapterFactory(newFactory);
         gate.addAdapterFactory(newFactory);
         assertTrue(gate.isAdapterFactory(newFactory));
+        assertEq(gate.adapterFactoriesLength(), 2);
+        assertEq(gate.adapterFactories(0), adapterFactory);
+        assertEq(gate.adapterFactories(1), newFactory);
+    }
+
+    function testAddAdapterFactoryTwice() public {
+        address newFactory = makeAddr("newFactory");
+        gate.addAdapterFactory(newFactory);
+
+        vm.expectRevert(IForceDeallocationEnterGate.AlreadyAdapterFactory.selector);
+        gate.addAdapterFactory(newFactory);
     }
 
     function testAddAdapterFactoryNotCreditRoleSetter(address caller, address newFactory) public {
@@ -108,6 +121,16 @@ contract ForceDeallocationEnterGateTest is Test {
     function testTransientAllowIncreaseCreditRejectsAdapterUser() public {
         deal(address(vault), user, 1);
         _setIsAdapter(adapterFactory, user, true);
+        vm.expectRevert(IForceDeallocationEnterGate.Unauthorized.selector);
+        gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
+    }
+
+    function testTransientAllowIncreaseCreditRejectsAdapterFromAnotherTrustedFactory() public {
+        address secondFactory = makeAddr("secondFactory");
+        gate.addAdapterFactory(secondFactory);
+        _setIsAdapter(secondFactory, user, true);
+        deal(address(vault), user, 1);
+
         vm.expectRevert(IForceDeallocationEnterGate.Unauthorized.selector);
         gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
     }

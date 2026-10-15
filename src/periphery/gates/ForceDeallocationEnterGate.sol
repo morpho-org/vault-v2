@@ -32,6 +32,7 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
     mapping(bool creditSide => mapping(address account => bool)) public isWhitelisted;
     /// @dev Append-only so depositors who rely on a factory can always force-deallocate.
     mapping(address adapterFactory => bool) public isAdapterFactory;
+    address[] public adapterFactories;
 
     constructor(
         address _midnight,
@@ -69,8 +70,14 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
     /// @dev Adding a factory is restricted to the credit role setter; factories cannot be removed so depositors can exit.
     function addAdapterFactory(address adapterFactory) external {
         require(msg.sender == roleSetter[true], NotRoleSetter());
+        require(!isAdapterFactory[adapterFactory], AlreadyAdapterFactory());
         isAdapterFactory[adapterFactory] = true;
+        adapterFactories.push(adapterFactory);
         emit AddAdapterFactory(adapterFactory);
+    }
+
+    function adapterFactoriesLength() external view returns (uint256) {
+        return adapterFactories.length;
     }
 
     function setIsWhitelistedWithSig(
@@ -103,13 +110,17 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
         );
     }
 
+    /// @dev A user must not be an adapter of any trusted factory, or its own vault's users could inherit access.
     function transientAllowIncreaseCredit(address user, address adapter, address adapterFactory) external {
         require(
             isAdapterFactory[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(adapter)
-                && !IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(user)
                 && IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0,
             Unauthorized()
         );
+
+        for (uint256 i; i < adapterFactories.length; ++i) {
+            require(!IMidnightAdapterFactory(adapterFactories[i]).isMidnightAdapter(user), Unauthorized());
+        }
 
         bytes32 slot = keccak256(abi.encode(user));
         assembly ("memory-safe") {
