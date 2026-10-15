@@ -8,6 +8,16 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
 
+// Prove that the stored net credit is an upper bound of the adapter's net credit in Midnight.
+strong invariant midnightNetCreditBelowStoredNetCredit()
+    forall bytes32 marketId. ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
+    {
+        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
+            increaseMidnightNetCredit(marketId);
+        }
+    }
+
 // Prove that the market list has at most MAX_MARKETS entries.
 strong invariant marketIdsLengthBounded()
     currentContract.marketIds.length <= MAX_MARKETS();
@@ -20,6 +30,14 @@ strong invariant marketIdsIndex()
             requireInvariant marketIdsLengthBounded();
             requireInvariant nonZeroNetCreditIsListed();
             requireInvariant listedHasNonZeroNetCredit();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+        }
+        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            requireInvariant marketIdsLengthBounded();
+            requireInvariant nonZeroNetCreditIsListed();
+            requireInvariant listedHasNonZeroNetCredit();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+            increaseMidnightNetCredit(marketId);
         }
     }
 
@@ -31,6 +49,14 @@ strong invariant nonZeroNetCreditIsListed()
             requireInvariant marketIdsLengthBounded();
             requireInvariant marketIdsIndex();
             requireInvariant listedHasNonZeroNetCredit();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+        }
+        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            requireInvariant marketIdsLengthBounded();
+            requireInvariant marketIdsIndex();
+            requireInvariant listedHasNonZeroNetCredit();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+            increaseMidnightNetCredit(marketId);
         }
     }
 
@@ -42,5 +68,13 @@ strong invariant listedHasNonZeroNetCredit()
             requireInvariant marketIdsLengthBounded();
             requireInvariant marketIdsIndex();
             requireInvariant nonZeroNetCreditIsListed();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+        }
+        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            requireInvariant marketIdsLengthBounded();
+            requireInvariant marketIdsIndex();
+            requireInvariant nonZeroNetCreditIsListed();
+            requireInvariant midnightNetCreditBelowStoredNetCredit();
+            increaseMidnightNetCredit(marketId);
         }
     }
