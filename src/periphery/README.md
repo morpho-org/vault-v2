@@ -7,7 +7,7 @@ Adapter registry contracts are in [registries](./registries/).
 
 ## Force Deallocation Enter Gate
 
-`ForceDeallocationEnterGate` adds a temporary credit-entry path for holders of a vault whose MidnightAdapter is being force-deallocated from a market using the gate. The gate owner manages an append-only list of trusted adapter factories; removing one could prevent its vault depositors from exiting.
+`ForceDeallocationEnterGate` adds a temporary credit-entry path for holders of a vault whose MidnightAdapter is being force-deallocated from a market using the gate. The gate owner manages an append-only list of trusted adapter factories; removing one could prevent its vault depositors from exiting. The gate owner is trusted: adding a malicious factory could block force deallocation through the gate.
 
 ## Blue Public Allocator
 

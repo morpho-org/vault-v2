@@ -20,7 +20,8 @@ import {IForceDeallocationEnterGate} from "./interfaces/IForceDeallocationEnterG
 /// @dev As with any enter gate, it does not prevent accounts from exiting the market.
 /// @dev If block.chainid changes (hard fork), the EIP-712 domain separator changes and previously signed messages are no longer valid.
 /// @dev In addition to its whitelist, lets holders of a vault's shares increase credit while one of that vault's adapters is force-deallocated from a market using this gate.
-/// @dev The transient permission ends with the transaction. During the forced take's buyer onBuy callback, users transiently allowed earlier in the transaction can buy in this market from other sellers.
+/// @dev The transient permission ends with the transaction. canIncreaseCredit does not know the market, so during the forced take's buyer onBuy callback, users transiently allowed earlier in the transaction can buy from other sellers in any market using this gate.
+/// @dev The credit role setter is trusted: it can add a factory that reports any account as an adapter, which would block force deallocation through this gate.
 contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
     bool public immutable CREDIT_OPEN;
     bool public immutable DEBT_OPEN;
