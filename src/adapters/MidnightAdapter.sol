@@ -436,14 +436,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
         }
-        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
-        if (callbackData.length > 0 && paidAssets > idleAssets) {
+        if (callbackData.length > 0) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
             if (fundingAdapter == address(this)) {
-                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
+                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
             } else {
                 // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
             }
         }
 
