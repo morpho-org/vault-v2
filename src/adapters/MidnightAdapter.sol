@@ -15,7 +15,7 @@ import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// VALUATION
-/// @dev Approximates held assets by discounting the net credit of each market at a constant simple rate until maturity.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 ///
@@ -36,7 +36,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev minNetRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 ///
 /// DURATION CAPS
@@ -92,8 +92,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum rate of a market after a maker or taker buy, or after a loss sale.
-    uint64 public minRate;
+    /// @dev Minimum netRate of a market after a maker or taker buy, or after a loss sale.
+    uint64 public minNetRate;
     bool public noSalesWithShortfall;
     bool public noSalesBelowFaceValue;
 
@@ -233,10 +233,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setMinRate(uint256 newMinRate) external {
+    function setMinNetRate(uint256 newMinNetRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minRate = newMinRate.toUint64();
-        emit SetMinRate(newMinRate);
+        minNetRate = newMinNetRate.toUint64();
+        emit SetMinNetRate(newMinNetRate);
     }
 
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
@@ -418,9 +418,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.rate * ttm) + paidAssets;
-            _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            require(_marketData.rate >= minRate, BuyRateTooLow());
+                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
+            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            require(_marketData.netRate >= minNetRate, BuyRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -470,7 +470,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
 
         SafeERC20Lib.forceApproveMax(asset, midnight);
-        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.rate);
+        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
     }
 
@@ -494,12 +494,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
+            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
+                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(!noSalesWithShortfall && amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.rate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-                require(_marketData.rate >= minRate, ShortfallTooHigh());
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                require(_marketData.netRate >= minNetRate, ShortfallTooHigh());
             }
         }
 
@@ -515,7 +515,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.rate);
+        emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
     }
 
@@ -613,7 +613,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
-                WAD, WAD + _marketData.rate * _marketData.maturity.zeroFloorSub(block.timestamp)
+                WAD, WAD + _marketData.netRate * _marketData.maturity.zeroFloorSub(block.timestamp)
             );
         }
         return assets;
