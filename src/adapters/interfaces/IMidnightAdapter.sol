@@ -105,6 +105,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
+    function multicall(bytes[] calldata data) external;
     function submit(bytes calldata data) external;
     function revoke(bytes calldata data) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;

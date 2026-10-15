@@ -41,7 +41,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
-/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
+/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
@@ -105,12 +105,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-        SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
+    }
+
+    /* MULTICALL */
+
+    /// @dev Useful for EOAs to batch curator and allocator calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
     }
 
     /* TIMELOCK FUNCTIONS */
@@ -333,6 +346,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
+        SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
@@ -365,6 +379,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
+        require(offer.market.midnight == midnight, NotMidnight());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -440,7 +455,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256[] memory allocations = durationAllocations(affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < affectedDurationCount; i++) {
-            bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
+            bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
             require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
             uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
             require(
@@ -455,6 +470,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
 
+        SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.rate);
         return CALLBACK_SUCCESS;
     }
@@ -476,10 +492,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+        require(ttm == 0 || sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
