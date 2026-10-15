@@ -1252,6 +1252,33 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
     }
 
+    /// @dev With an outstanding claim, share burn rounds up against the vault: selling at exactly face value must
+    /// still succeed under the sale flags (the dust is a small immediate loss, not a shortfall).
+    function testSellAtExactlyFaceValueWithClaims() public {
+        Offer memory offer = buy(7 days, 32);
+        setMidnightCredit(_marketId(offer.market), address(adapter), 98);
+        forceDeallocate(offer.market, 48);
+        deal(address(loanToken), taker, 10);
+
+        vm.prank(curator);
+        adapter.setNoSalesBelowFaceValue(true);
+        sellUnits(offer.market, 10, MAX_TICK);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 37, "position sold");
+
+        Offer memory other = buy(30 days, 32);
+        bytes32 otherId = _marketId(other.market);
+        setMidnightCredit(otherId, address(adapter), 98);
+        forceDeallocate(other.market, 48);
+        deal(address(loanToken), taker, 10);
+        vm.prank(curator);
+        adapter.setNoSalesWithShortfall(true);
+        skip(30 days + 1);
+        Offer memory sellOffer = makeSellOffer(other.market, 10, MAX_TICK);
+        sellOffer.expiry = other.market.maturity + 365 days;
+        take(sellOffer);
+        assertEq(adapter.marketData(otherId).netCredit, 37, "position sold post-maturity");
+    }
+
     function testRatifyLoanAssetMismatch(uint256 seed, address otherToken) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();

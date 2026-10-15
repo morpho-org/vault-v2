@@ -535,7 +535,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         require(IMidnight(midnight).debt(marketId, address(this)) == 0, InsufficientVaultCredit());
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        uint256 previousVaultNetCredit = vaultNetCredit(marketId, uint256(positionNetCredit(marketId)) + soldNetCredit);
         uint128 credit = midnightCredit(market);
         MarketData storage _marketData = marketData[marketId];
         if (soldCredit > 0) {
@@ -550,11 +549,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         if (!_marketData.forceSellable) {
-            uint256 soldVaultNetCredit = previousVaultNetCredit - newNetCredit;
-            require(!noSalesBelowFaceValue || sellerAssets >= soldVaultNetCredit, SaleBelowFaceValue());
+            require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
 
-            uint256 shortfall =
-                soldVaultNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
+            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
                 require(!noSalesWithShortfall && amortizedValue <= newNetCredit, ShortfallTooHigh());
