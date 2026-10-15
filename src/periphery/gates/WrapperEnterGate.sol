@@ -5,6 +5,7 @@ pragma solidity 0.8.34;
 import {IEnterGate} from "lib/midnight/src/interfaces/IGate.sol";
 import {IMidnight, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
+import {IRoleSetter} from "./interfaces/IRoleSetter.sol";
 
 /// @dev Wraps an underlying gate to let vault users be temporarily "admitted" to increase their credit.
 /// @dev Lets vault users receive credit through forceDeallocate.
@@ -14,7 +15,6 @@ import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
-    event SetRoleSetter(address indexed newRoleSetter);
     event SetCanAdmit(address indexed account, bool newCanAdmit);
 
     address public immutable midnight;
@@ -22,28 +22,24 @@ contract WrapperEnterGate is IEnterGate {
     /// @dev The underlying gate.
     address public immutable gate;
 
-    address public roleSetter;
     mapping(address account => bool) public canAdmit;
 
     address transient admitted;
     address transient admitter;
 
-    constructor(address _gate, address _roleSetter, Market memory _market) {
+    constructor(address _gate, Market memory _market) {
         midnight = _market.midnight;
         gate = _gate;
-        roleSetter = _roleSetter;
         _market.enterGate = address(this);
         marketId = IdLib.toId(_market);
     }
 
-    function setRoleSetter(address newRoleSetter) external {
-        require(msg.sender == roleSetter, Unauthorized());
-        roleSetter = newRoleSetter;
-        emit SetRoleSetter(newRoleSetter);
+    function roleSetter() public view returns (address) {
+        return IRoleSetter(gate).roleSetter();
     }
 
     function setCanAdmit(address account, bool newCanAdmit) external {
-        require(msg.sender == roleSetter, Unauthorized());
+        require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[account] = newCanAdmit;
         emit SetCanAdmit(account, newCanAdmit);
     }
