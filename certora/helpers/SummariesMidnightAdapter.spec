@@ -13,8 +13,17 @@ methods {
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
-    // Views, resolved so that strong invariants are not checked at these calls, which happen in the middle of market list updates.
+    // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
     function _.lossFactor(bytes32) external => NONDET;
+    function _.liquidationLocked(bytes32, address) external => NONDET;
+    function _.balanceOf(address) external => NONDET;
+    function _.firstTotalAssets() external => NONDET;
+    function _.absoluteCap(bytes32) external => NONDET;
+    function _.relativeCap(bytes32) external => NONDET;
+
+    // Arbitrary results, as the market list doesn't depend on rates and caps, to keep the solver away from nonlinear arithmetic.
+    function MathLib.mulDivDown(uint256, uint256, uint256) internal returns (uint256) => NONDET;
+    function MathLib.mulDivUp(uint256, uint256, uint256) internal returns (uint256) => NONDET;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
