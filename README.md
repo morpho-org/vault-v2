@@ -123,7 +123,7 @@ Peripheral contracts are available in [src/periphery](./src/periphery/).
 
 ## Audits
 
-All audits are stored in the [audits](./audits/)' folder.
+All audits are stored in the [audits](./audits/) folder.
 
 ## License
 
