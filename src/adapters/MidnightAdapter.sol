@@ -26,8 +26,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
+/// @dev If the idle liquidity is enough to cover the buy or if the callback data is set to "", the liquidity is not deallocated.
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
