@@ -1,70 +1,141 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+using Utils as Utils;
 
 methods {
+    function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
+
+    function liquidityAdapter() external returns (address) envfree;
+
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function isAdapter(address) external returns (bool) envfree;
+    // Ignore changes done by accrueInterest; the state after this call is still valid even if it changed the state, as for the accrueInterest entry point.
+    function accrueInterest() internal => NONDET;
 
-    function _.accrueInterest(MorphoMarketV1AdapterV2.MarketParams) external => ignoredCallVoidSummary() expect void;
-
-    // Assume that adapters are either MorphoMarketV1AdapterV2 or MorphoVaultV1Adapter.
-    function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-
-    function _.supply(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, bytes) external => ignoredCallUintPairSummary() expect(uint256, uint256);
-    function _.withdraw(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, address) external => ignoredCallUintPairSummary() expect(uint256, uint256);
-    function _.deposit(uint256, address) external => ignoredCallUintSummary() expect(uint256);
-    function _.withdraw(uint256, address, address) external => ignoredCallUintSummary() expect(uint256);
-
-    function _.transfer(address, uint256) external => ignoredCallBoolSummary() expect(bool);
-    function _.transferFrom(address, address, uint256) external => ignoredCallBoolSummary() expect(bool);
+    // The vault only calls transfer, transferFrom and balanceOf on the asset.
+    function _.transfer(address to, uint256 amount) external => summaryTransferFrom(currentContract, to, amount) expect(bool);
+    function _.transferFrom(address from, address to, uint256 amount) external => summaryTransferFrom(from, to, amount) expect(bool);
+    function _.balanceOf(address account) external => summaryBalanceOf(account) expect(uint256);
 }
 
-function ignoredCallVoidSummary() {
-    ignoredCall = true;
-}
-
-function ignoredCallBoolSummary() returns bool {
-    ignoredCall = true;
-    bool value;
-    return value;
-}
-
-function ignoredCallUintPairSummary() returns (uint256, uint256) {
-    ignoredCall = true;
-    uint256[2] values;
-    return (values[0], values[1]);
-}
-
-function ignoredCallUintSummary() returns uint256 {
-    ignoredCall = true;
-    uint256 value;
-    return value;
-}
-
+// Set by the transfer summaries, and reset by the CALL hook of the summarized call.
 persistent ghost bool ignoredCall;
 
+// Balance of the vault in the asset, used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
+ghost uint256 vaultBalance;
+
+function summaryTransferFrom(address from, address to, uint256 amount) returns bool {
+    ignoredCall = true;
+    if (from == currentContract) {
+        vaultBalance = require_uint256(vaultBalance - amount);
+    }
+    if (to == currentContract) {
+        vaultBalance = require_uint256(vaultBalance + amount);
+    }
+    return true;
+}
+
+function summaryBalanceOf(address account) returns uint256 {
+    if (account == currentContract) {
+        return vaultBalance;
+    }
+    uint256 balance;
+    return balance;
+}
+
+// True when at least one slot of the vault was written.
+persistent ghost bool storageChanged;
+
+// True when at least one CALL other than the asset's transfer and transferFrom is executed after a storage change.
+persistent ghost bool hasCallAfterStore;
+
+// True when at least one slot of the vault is changed after a CALL is executed after a storage change.
+persistent ghost bool unsafeCall;
+
+// True when at least one CALL other than the asset's transfer and transferFrom is executed.
 persistent ghost bool hasCall;
 
-hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
-    if (ignoredCall || addr == currentContract) {
-        ignoredCall = false;
-    } else if (addr == MorphoMarketV1AdapterV2 || addr == MorphoVaultV1Adapter) {
-        assert isAdapter(addr);
-        ignoredCall = false;
-    } else {
-        hasCall = true;
+// Number of writes to the vault's storage after a CALL other than the asset's transfer and transferFrom.
+persistent ghost mathint storesAfterCall;
+
+// Number of writes to caps allocations after a CALL other than the asset's transfer and transferFrom.
+persistent ghost mathint allocationStoresAfterCall;
+
+// True when a CALL other than the asset's transfer and transferFrom is executed after a write to caps allocations that follows a call.
+persistent ghost bool callAfterAllocationStore;
+
+hook ALL_SSTORE(uint _, uint _) {
+    if (executingContract == currentContract) {
+        storageChanged = true;
+        if (hasCallAfterStore) {
+            unsafeCall = true;
+        }
+        if (hasCall) {
+            storesAfterCall = storesAfterCall + 1;
+        }
     }
 }
 
-// Check that there are no untrusted external calls, ensuring notably reentrancy safety.
+hook ALL_TSTORE(uint _, uint _) {
+    if (executingContract == currentContract) {
+        storageChanged = true;
+        if (hasCallAfterStore) {
+            unsafeCall = true;
+        }
+        if (hasCall) {
+            storesAfterCall = storesAfterCall + 1;
+        }
+    }
+}
+
+// Calls to the asset's transfer and transferFrom are summarized and ignored: the asset is assumed to not reenter on them.
+hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
+    if (ignoredCall) {
+        ignoredCall = false;
+    } else {
+        if (allocationStoresAfterCall > 0) {
+            callAfterAllocationStore = true;
+        }
+        hasCall = true;
+        if (storageChanged) {
+            hasCallAfterStore = true;
+        }
+    }
+}
+
+hook Sstore currentContract.caps[KEY bytes32 _].allocation uint256 _ {
+    if (hasCall) {
+        allocationStoresAfterCall = allocationStoresAfterCall + 1;
+    }
+}
+
+// Check that calls are either before the first store or after the last store (excluding the effects of accrueInterest and calls to the asset).
+// Deposits are checked without liquidity adapter: with one, they are followed by an allocation, see depositOnlyWritesAllocationsAfterCall.
 rule reentrancySafe(method f, env e, calldataarg data) {
-    require(!ignoredCall && !hasCall, "set up the initial ghost state");
+    require(!storageChanged && !hasCallAfterStore && !unsafeCall && !ignoredCall, "set up the initial ghost state");
+    if (f.selector == sig:forceDeallocate(address, bytes, uint256, address).selector) {
+        address adapter;
+        bytes adapterData;
+        uint256 assets;
+        address onBehalf;
+    
+        // Used to show that the penalty withdrawal does not deallocate again.
+        require forceDeallocatePenalty(e, adapter) <= Utils.maxForceDeallocatePenalty(), "see forceDeallocatePenaltyBound in Invariants.spec";
+        forceDeallocate(e, adapter, adapterData, assets, onBehalf);
+    } else if (f.selector == sig:deposit(uint256, address).selector || f.selector == sig:mint(uint256, address).selector) {
+        require(liquidityAdapter() == 0, "deposits with a liquidity adapter are checked in depositOnlyWritesAllocationsAfterCall");
+        f(e, data);
+    } else {
+        f(e, data);
+    }
+    assert !unsafeCall;
+}
+
+// Check that deposits only write the caps allocations after calling the liquidity adapter, and make no call after starting these writes, so the adapter is called once the deposit is complete.
+rule depositOnlyWritesAllocationsAfterCall(method f, env e, calldataarg data) filtered { f -> f.selector == sig:deposit(uint256, address).selector || f.selector == sig:mint(uint256, address).selector } {
+    require(!hasCall && !ignoredCall && !callAfterAllocationStore && storesAfterCall == 0 && allocationStoresAfterCall == 0, "set up the initial ghost state");
     f(e, data);
-    assert !hasCall;
+    assert storesAfterCall == allocationStoresAfterCall;
+    assert !callAfterAllocationStore;
 }
