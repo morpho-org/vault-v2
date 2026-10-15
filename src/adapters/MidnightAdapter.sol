@@ -36,7 +36,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetRate, maxSellRate and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev minNetRate, maxSellRate, minSellPricePostMaturity and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 ///
 /// DURATION CAPS
@@ -96,7 +96,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minNetRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
+    /// @dev Only enforced before maturity, where the implied rate is meaningful.
     uint64 public maxSellRate;
+    /// @dev WAD-scaled minimum price of a maker or taker sale at or after maturity, relative to the face value of the sold net credit.
+    uint64 public minSellPricePostMaturity;
     bool public noSalesWithShortfall;
 
     /* CONSTRUCTOR */
@@ -251,6 +254,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         maxSellRate = newMaxSellRate.toUint64();
         emit SetMaxSellRate(newMaxSellRate);
+    }
+
+    function setMinSellPricePostMaturity(uint256 newMinSellPricePostMaturity) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(newMinSellPricePostMaturity <= WAD, MinSellPriceTooHigh());
+        minSellPricePostMaturity = newMinSellPricePostMaturity.toUint64();
+        emit SetMinSellPricePostMaturity(newMinSellPricePostMaturity);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -505,6 +515,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
                 require(_marketData.netRate >= minNetRate, ShortfallTooHigh());
             }
+        } else if (ttm == 0) {
+            require(sellerAssets >= soldNetCredit.mulDivUp(minSellPricePostMaturity, WAD), SellPriceTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
