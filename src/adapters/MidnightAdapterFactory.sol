@@ -9,6 +9,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
     address public immutable midnight;
+    address public immutable forceDeallocationEnterGateFactory;
 
     /* STORAGE */
 
@@ -19,9 +20,10 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* CONSTRUCTOR */
 
-    constructor(address _midnight) {
+    constructor(address _midnight, address _forceDeallocationEnterGateFactory) {
         midnight = _midnight;
-        emit CreateMidnightAdapterFactory(_midnight);
+        forceDeallocationEnterGateFactory = _forceDeallocationEnterGateFactory;
+        emit CreateMidnightAdapterFactory(_midnight, _forceDeallocationEnterGateFactory);
     }
 
     /* FUNCTIONS */
@@ -32,7 +34,9 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         external
         returns (address)
     {
-        address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
+        address _midnightAdapter = address(
+            new MidnightAdapter{salt: salt}(parentVault, midnight, forceDeallocationEnterGateFactory, durations)
+        );
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);

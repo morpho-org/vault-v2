@@ -13,6 +13,8 @@ import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {IForceDeallocationEnterGate} from "../periphery/gates/interfaces/IForceDeallocationEnterGate.sol";
+import {IForceDeallocationEnterGateFactory} from "../periphery/gates/interfaces/IForceDeallocationEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -26,6 +28,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
+/// @dev Buy offers can only enter ungated markets or markets using a force-deallocation gate that trusts this adapter's factory.
 /// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
@@ -67,6 +70,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
+    address public immutable factory;
+    address public immutable forceDeallocationEnterGateFactory;
     bytes32 public immutable adapterId;
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
@@ -102,10 +107,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(
+        address _parentVault,
+        address _midnight,
+        address _forceDeallocationEnterGateFactory,
+        uint256[] memory _durations
+    ) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
+        factory = msg.sender;
+        forceDeallocationEnterGateFactory = _forceDeallocationEnterGateFactory;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         adapterId = keccak256(abi.encode("this", address(this)));
 
@@ -433,6 +445,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
+            // The enter gate is part of the market params and the trusted factory list is append-only, so checking on entry suffices.
+            require(
+                market.enterGate == address(0)
+                    || (IForceDeallocationEnterGateFactory(forceDeallocationEnterGateFactory)
+                            .isForceDeallocationEnterGate(market.enterGate)
+                        && IForceDeallocationEnterGate(market.enterGate).isAdapterFactory(factory)),
+                IncorrectEnterGate()
+            );
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.

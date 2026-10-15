@@ -40,6 +40,16 @@ import {
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
 import {ForceDeallocationEnterGate} from "../src/periphery/gates/ForceDeallocationEnterGate.sol";
+import {ForceDeallocationEnterGateFactory} from "../src/periphery/gates/ForceDeallocationEnterGateFactory.sol";
+import {
+    IWhitelistEnterGate
+} from "../lib/midnight/src/periphery/whitelist-enter-gate/interfaces/IWhitelistEnterGate.sol";
+
+interface IWhitelistEnterGateTestDeployer {
+    function deploy(address creditRoleSetter, address debtRoleSetter, bool creditOpen, bool debtOpen)
+        external
+        returns (address);
+}
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -171,6 +181,7 @@ contract MidnightAdapterTest is Test {
 
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
+    ForceDeallocationEnterGateFactory internal forceDeallocationEnterGateFactory;
     IMidnightAdapter internal adapter;
     MidnightAdapterPriceRatifierV1 internal priceRatifier;
     VaultV2Mock internal parentVault;
@@ -217,7 +228,8 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(address(midnight));
+        forceDeallocationEnterGateFactory = new ForceDeallocationEnterGateFactory(address(midnight));
+        factory = new MidnightAdapterFactory(address(midnight), address(forceDeallocationEnterGateFactory));
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32(0)));
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
@@ -1837,7 +1849,10 @@ contract MidnightAdapterTest is Test {
 
         bytes32 initCodeHash = keccak256(
             abi.encodePacked(
-                type(MidnightAdapter).creationCode, abi.encode(address(newVault), address(midnight), allDurations)
+                type(MidnightAdapter).creationCode,
+                abi.encode(
+                    address(newVault), address(midnight), address(forceDeallocationEnterGateFactory), allDurations
+                )
             )
         );
         address expected =
@@ -1897,9 +1912,17 @@ contract MidnightAdapterTest is Test {
 
     function testFactoryConstructor() public {
         vm.expectEmit();
-        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight));
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(
+            address(midnight), address(forceDeallocationEnterGateFactory)
+        );
+        MidnightAdapterFactory newFactory =
+            new MidnightAdapterFactory(address(midnight), address(forceDeallocationEnterGateFactory));
         assertEq(newFactory.midnight(), address(midnight), "midnight");
+        assertEq(
+            newFactory.forceDeallocationEnterGateFactory(),
+            address(forceDeallocationEnterGateFactory),
+            "forceDeallocationEnterGateFactory"
+        );
     }
 
     /* DURATIONS */
@@ -1908,6 +1931,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
+        assertEq(adapter.factory(), address(factory), "factory");
+        assertEq(
+            adapter.forceDeallocationEnterGateFactory(),
+            address(forceDeallocationEnterGateFactory),
+            "forceDeallocationEnterGateFactory"
+        );
         assertEq(loanToken.allowance(address(adapter), address(midnight)), 0, "midnight allowance");
         assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
@@ -2377,9 +2406,14 @@ contract MidnightAdapterTest is Test {
     function testMarketConfigCaps(uint256 configField) public {
         configField = bound(configField, 0, 2);
         setUpRealVault();
-        address gate = makeAddr("marketGate");
-        vm.etch(gate, hex"01");
-        vm.mockCall(gate, bytes(""), abi.encode(true));
+        address gate;
+        if (configField == 0) {
+            gate = address(_createForceDeallocationEnterGate(true, true, true));
+        } else {
+            gate = makeAddr("marketGate");
+            vm.etch(gate, hex"01");
+            vm.mockCall(gate, bytes(""), abi.encode(true));
+        }
 
         Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         offer.maker = address(adapter);
@@ -2412,6 +2446,42 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(realVault.allocation(keccak256(idData)), 0, "config allocation after sell");
+    }
+
+    function testBuyInUngatedMarket() public {
+        Offer memory offer = _buyWithEnterGate(address(0));
+
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits);
+    }
+
+    function testBuyInTrustedFactoryEnterGate() public {
+        ForceDeallocationEnterGate gate = _createForceDeallocationEnterGate(true, true, true);
+        Offer memory offer = _buyWithEnterGate(address(gate));
+
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits);
+    }
+
+    function testBuyRejectsNonFactoryEnterGate() public {
+        IWhitelistEnterGate gate = IWhitelistEnterGate(
+            IWhitelistEnterGateTestDeployer(
+                    deployCode("WhitelistEnterGateTestDeployer.sol:WhitelistEnterGateTestDeployer")
+                )
+                .deploy(address(this), address(this), false, true)
+        );
+        gate.setIsWhitelister(true, address(this), true);
+        gate.setIsWhitelisted(true, address(adapter), true);
+
+        Offer memory offer = _prepareBuyWithEnterGate(address(gate));
+        vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
+        take(offer);
+    }
+
+    function testBuyRejectsFactoryEnterGateThatDoesNotTrustAdapterFactory() public {
+        ForceDeallocationEnterGate gate = _createForceDeallocationEnterGate(true, true, false);
+
+        Offer memory offer = _prepareBuyWithEnterGate(address(gate));
+        vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
+        take(offer);
     }
 
     function testOnBuyAfterFullLossKeepsMarketTracked() public {
@@ -3342,9 +3412,7 @@ contract MidnightAdapterTest is Test {
     function _testForceDeallocateThroughForceDeallocationEnterGate(uint256 assets) internal {
         setUpRealVault();
 
-        ForceDeallocationEnterGate gate =
-            new ForceDeallocationEnterGate(address(midnight), address(this), address(this), false, true);
-        gate.addAdapterFactory(address(factory));
+        ForceDeallocationEnterGate gate = _createForceDeallocationEnterGate(false, true, true);
         gate.setIsWhitelister(true, address(this), true);
         gate.setIsWhitelisted(true, address(adapter), true);
 
@@ -4415,6 +4483,29 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         take(offer);
+    }
+
+    function _buyWithEnterGate(address enterGate) internal returns (Offer memory offer) {
+        offer = _prepareBuyWithEnterGate(enterGate);
+        take(offer);
+    }
+
+    function _prepareBuyWithEnterGate(address enterGate) internal returns (Offer memory offer) {
+        offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offer.market.enterGate = enterGate;
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+    }
+
+    function _createForceDeallocationEnterGate(bool creditOpen, bool debtOpen, bool trustAdapterFactory)
+        internal
+        returns (ForceDeallocationEnterGate gate)
+    {
+        address gateAddress = forceDeallocationEnterGateFactory.createForceDeallocationEnterGate(
+            address(this), address(this), creditOpen, debtOpen, bytes32(vm.randomUint())
+        );
+        gate = ForceDeallocationEnterGate(gateAddress);
+        if (trustAdapterFactory) gate.addAdapterFactory(address(factory));
     }
 
     function buyMaxNetCredit() internal returns (Offer memory) {

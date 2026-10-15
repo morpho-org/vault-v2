@@ -66,6 +66,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
+    error IncorrectEnterGate();
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
@@ -97,6 +98,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function MAX_MARKETS() external view returns (uint256);
     function midnight() external view returns (address);
     function forceDeallocatingMarketId() external view returns (bytes32);
+    function factory() external view returns (address);
+    function forceDeallocationEnterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
