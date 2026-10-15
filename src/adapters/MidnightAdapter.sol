@@ -258,10 +258,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         uint128 credit = midnightCredit(market);
-        MarketData storage _marketData = marketData[marketId];
-        uint128 shares = withdrawnAssets.toSharesUp(credit, _marketData.totalShares).toUint128();
-        _marketData.totalShares -= shares;
-        _marketData.vaultShares -= shares;
+        burnVaultShares(marketId, withdrawnAssets, credit);
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
@@ -318,9 +315,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IVaultV2(parentVault).accrueInterest();
             MarketData storage _marketData = marketData[marketId];
             uint128 credit = midnightCredit(market);
-            uint256 shares = assets.toSharesDown(credit, _marketData.totalShares);
-            _marketData.vaultShares -= shares.toUint128();
-            claimShares[marketId][receiver] += shares;
+            uint256 shares = moveVaultSharesToClaim(marketId, receiver, assets, credit);
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
@@ -341,11 +336,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function redeemClaim(Market memory market, uint256 shares, address receiver) external returns (uint256) {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        MarketData storage _marketData = marketData[marketId];
 
-        uint256 assets = shares.toAssetsDown(midnightCredit(market), _marketData.totalShares);
-        claimShares[marketId][msg.sender] -= shares;
-        _marketData.totalShares -= shares.toUint128();
+        uint256 assets = burnClaimShares(marketId, msg.sender, shares, midnightCredit(market));
 
         IMidnight(midnight).withdraw(market, assets, address(this), receiver);
         // Keep marketData.netCredit as the last value reported to the parent vault.
@@ -395,9 +387,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
-        uint256 shares = boughtNetCredit.toSharesDown(previousNetCredit, _marketData.totalShares);
-        _marketData.totalShares = (_marketData.totalShares + shares).toUint128();
-        _marketData.vaultShares = (_marketData.vaultShares + shares).toUint128();
+        mintVaultShares(marketId, boughtNetCredit, previousNetCredit);
 
         uint128 newNetCredit = vaultNetCredit(marketId, rawNetCredit).toUint128();
         uint256 addedVaultNetCredit = newNetCredit - previousVaultNetCredit;
@@ -481,9 +471,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (soldCredit > 0) {
             // Midnight already deducted the sale. Round up against pre-sale gross credit to protect claims.
-            uint128 shares = soldCredit.toSharesUp(uint256(credit) + soldCredit, _marketData.totalShares).toUint128();
-            _marketData.totalShares -= shares;
-            _marketData.vaultShares -= shares;
+            burnVaultShares(marketId, soldCredit, uint256(credit) + soldCredit);
         }
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
@@ -540,6 +528,48 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function vaultNetCredit(bytes32 marketId, uint256 credit) internal view returns (uint256) {
         MarketData storage _marketData = marketData[marketId];
         return uint256(_marketData.vaultShares).toAssetsDown(credit, _marketData.totalShares);
+    }
+
+    /* SHARES */
+
+    // Only these four functions modify totalShares, vaultShares and claimShares, so that totalShares equals vaultShares plus the sum of claimShares.
+
+    /// @dev Mints vault shares worth `assets` out of `totalAssets`, rounding down.
+    function mintVaultShares(bytes32 marketId, uint256 assets, uint256 totalAssets) internal returns (uint256 shares) {
+        MarketData storage _marketData = marketData[marketId];
+        shares = assets.toSharesDown(totalAssets, _marketData.totalShares);
+        _marketData.totalShares = (_marketData.totalShares + shares).toUint128();
+        _marketData.vaultShares = (_marketData.vaultShares + shares).toUint128();
+    }
+
+    /// @dev Burns vault shares worth `assets` out of `totalAssets`, rounding up.
+    function burnVaultShares(bytes32 marketId, uint256 assets, uint256 totalAssets) internal returns (uint256 shares) {
+        MarketData storage _marketData = marketData[marketId];
+        shares = assets.toSharesUp(totalAssets, _marketData.totalShares);
+        _marketData.totalShares -= shares.toUint128();
+        _marketData.vaultShares -= shares.toUint128();
+    }
+
+    /// @dev Moves vault shares worth `assets` out of `totalAssets` to `receiver`'s claim, rounding down.
+    function moveVaultSharesToClaim(bytes32 marketId, address receiver, uint256 assets, uint256 totalAssets)
+        internal
+        returns (uint256 shares)
+    {
+        MarketData storage _marketData = marketData[marketId];
+        shares = assets.toSharesDown(totalAssets, _marketData.totalShares);
+        _marketData.vaultShares -= shares.toUint128();
+        claimShares[marketId][receiver] += shares;
+    }
+
+    /// @dev Burns `holder`'s claim `shares` and returns their value out of `totalAssets`, rounding down.
+    function burnClaimShares(bytes32 marketId, address holder, uint256 shares, uint256 totalAssets)
+        internal
+        returns (uint256 assets)
+    {
+        MarketData storage _marketData = marketData[marketId];
+        assets = shares.toAssetsDown(totalAssets, _marketData.totalShares);
+        claimShares[marketId][holder] -= shares;
+        _marketData.totalShares -= shares.toUint128();
     }
 
     /// @dev Removes the market from marketIds and clears vault metadata, preserving ownership for claims and forceSellable.
