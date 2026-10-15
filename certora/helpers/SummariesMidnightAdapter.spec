@@ -8,8 +8,10 @@ methods {
     // The adapter's net credit in each market is tracked by ghostMidnightNetCredit.
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
 
-    // Loops over marketIds are only in views, so summarizing durationAllocations avoids pruning long lists in onBuy.
+    // Summarized so that loops bounded by the number of markets or collateral params don't prune long lists or markets with many collaterals.
+    // Remaining loops are bounded by the number of durations, which is at most MAX_DURATIONS = loop_iter.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
+    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // Non-view external calls can only decrease the adapter's Midnight net credits, through losses, withdrawals or sales.
     // Increases only happen in buys, which call onBuy (see increaseMidnightNetCredit).
@@ -41,6 +43,11 @@ function decreaseMidnightNetCreditsTake() returns (uint256, uint256) {
     uint256 buyerAssets;
     uint256 sellerAssets;
     return (buyerAssets, sellerAssets);
+}
+
+function arbitraryIds() returns bytes32[] {
+    bytes32[] idsArray;
+    return idsArray;
 }
 
 function arbitraryAllocations(uint256 length) returns uint256[] {
