@@ -31,15 +31,15 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
     CollateralParams internal collateralParams;
-    uint256 internal scale;
+    uint256 internal oneToken;
     uint256 internal initialAssets;
 
     function setUp() public override {
         vm.setEvmVersion("osaka");
         super.setUp();
 
-        scale = 10 ** underlyingTokenDecimals;
-        initialAssets = 10 * scale;
+        oneToken = 10 ** underlyingTokenDecimals;
+        initialAssets = 10 * oneToken;
 
         vm.prank(owner);
         midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
@@ -50,7 +50,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        oracle.setPrice(ORACLE_PRICE_SCALE * scale / 1e18);
+        oracle.setPrice(ORACLE_PRICE_SCALE * oneToken / 1e18);
         collateralParams = CollateralParams(address(collateralToken), 1e18, 0.25e18, address(oracle));
 
         uint256[] memory durations = new uint256[](2);
@@ -96,7 +96,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerBuyRepayWithdrawRedeem() public {
-        uint256 units = scale;
+        uint256 units = oneToken;
         Market memory market = _market(7 days);
         Offer memory offer = Offer({
             market: market,
@@ -120,7 +120,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         priceRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
-        uint256 collateral = units * 2e18 / scale;
+        uint256 collateral = units * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
@@ -145,7 +145,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
     function testTakerBuy() public {
         Market memory market = _market(7 days);
-        uint256 units = scale;
+        uint256 units = oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: false,
@@ -163,7 +163,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maxAssets: 0,
             continuousFeeCap: type(uint256).max
         });
-        uint256 collateral = units * 2e18 / scale;
+        uint256 collateral = units * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         bytes32 root = HashLib.hashOffer(offer);
         bytes32[] memory proof = new bytes32[](0);
@@ -180,7 +180,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testTakerSell() public {
-        uint256 initialUnits = 2 * scale;
+        uint256 initialUnits = 2 * oneToken;
         Market memory market = _market(7 days);
         Offer memory adapterBuyOffer = Offer({
             market: market,
@@ -205,7 +205,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes32[] memory adapterProof = new bytes32[](0);
         bytes memory adapterRatifierData =
             abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / scale;
+        uint256 collateral = initialUnits * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
@@ -213,7 +213,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = scale;
+        uint256 units = oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: true,
@@ -248,7 +248,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerSell() public {
-        uint256 initialUnits = 2 * scale;
+        uint256 initialUnits = 2 * oneToken;
         Market memory market = _market(7 days);
         Offer memory adapterBuyOffer = Offer({
             market: market,
@@ -273,7 +273,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes32[] memory adapterProof = new bytes32[](0);
         bytes memory adapterRatifierData =
             abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / scale;
+        uint256 collateral = initialUnits * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
@@ -281,7 +281,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = scale;
+        uint256 units = oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: false,
@@ -337,7 +337,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes32[] memory adapterProof = new bytes32[](0);
         bytes memory adapterRatifierData =
             abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / scale;
+        uint256 collateral = initialUnits * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
@@ -345,7 +345,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = scale;
+        uint256 units = oneToken;
         Offer memory offer = Offer({
             market: market,
             buy: true,
@@ -407,7 +407,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes32[] memory fundingProof = new bytes32[](0);
         bytes memory fundingRatifierData =
             abi.encode(address(priceRatifier), abi.encode(fundingRoot, uint256(0), fundingProof, address(0)));
-        uint256 fundingCollateral = initialUnits * 2e18 / scale;
+        uint256 fundingCollateral = initialUnits * 2e18 / oneToken;
         deal(address(collateralToken), borrower, fundingCollateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), fundingCollateral);
@@ -422,7 +422,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.repay(fundingMarket, initialUnits, borrower, address(0), "");
         vm.stopPrank();
 
-        uint256 units = scale;
+        uint256 units = oneToken;
         bytes memory callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
         Market memory market = _market(30 days);
         Offer memory offer = Offer({
@@ -447,7 +447,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         priceRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
-        uint256 collateral = units * 2e18 / scale;
+        uint256 collateral = units * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
