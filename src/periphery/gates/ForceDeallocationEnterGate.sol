@@ -113,8 +113,7 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
 
     function transientAllowIncreaseCredit(address user, address adapter, address adapterFactory) external {
         require(
-            isAdapterFactory[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(adapter)
-                && IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0,
+            isAdapterFactory[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(adapter),
             Unauthorized()
         );
 
@@ -131,14 +130,16 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
         }
     }
 
-    /// @dev A user must not be an adapter of any trusted factory. Check this when using the permission because an adapter may
-    /// be deployed at a precomputed address later in the transaction.
+    /// @dev A user must hold vault shares and not be an adapter of any trusted factory. Check this when using the permission
+    /// because a share or adapter may be transferred or deployed later in the transaction.
     function isTransientlyAllowed(address user) public view returns (bool) {
         address adapter = transientAdapter(user);
         if (adapter == address(0)) return false;
         for (uint256 i; i < adapterFactories.length; ++i) {
             if (IMidnightAdapterFactory(adapterFactories[i]).isMidnightAdapter(user)) return false;
         }
+        bool hasShares = IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0;
+        if (!hasShares) return false;
         bytes32 marketId = IMidnightAdapter(adapter).forceDeallocatingMarketId();
         return marketId != 0 && IMidnight(midnight).toMarket(marketId).enterGate == address(this)
             && IMidnight(midnight).credit(marketId, adapter) > 0;

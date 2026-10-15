@@ -5522,6 +5522,10 @@ contract MidnightAdapterTest is Test {
         return realVault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData_), assets, address(this));
     }
 
+    function checkForceDeallocatingMarketId(bytes32 expected) external view {
+        require(adapter.forceDeallocatingMarketId() == expected, "wrong force deallocating market");
+    }
+
     /// forge-config: default.isolate = true
     /// @dev Valuation is a no-op (the adapter accrued the vault before the take), the adapter cannot be valued on its own, deposits and withdrawals go through at the snapshot price, same-market mutations are blocked.
     function testCbVaultAndAdapterReentry() public {
@@ -5601,6 +5605,9 @@ contract MidnightAdapterTest is Test {
                 IVaultV2.forceDeallocate, (address(adapter), abi.encode(nested, nestedData), 1e18, address(buyer))
             ),
             bytes4(0)
+        );
+        buyer.push(
+            address(this), abi.encodeCall(this.checkForceDeallocatingMarketId, (_marketId(initial.market))), bytes4(0)
         );
 
         callbackForceDeallocate(initial.market, 4e18, buyer);

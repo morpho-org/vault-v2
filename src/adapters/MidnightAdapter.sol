@@ -357,10 +357,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            bytes32 previousForceDeallocatingMarketId = forceDeallocatingMarketId;
             forceDeallocatingMarketId = marketId;
+            // forge-lint: disable-next-line(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            forceDeallocatingMarketId = 0;
+            forceDeallocatingMarketId = previousForceDeallocatingMarketId;
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);

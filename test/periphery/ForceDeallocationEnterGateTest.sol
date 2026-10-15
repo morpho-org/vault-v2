@@ -207,9 +207,22 @@ contract ForceDeallocationEnterGateTest is Test {
         assertFalse(realGate.canIncreaseCredit(predictedUserAdapter));
     }
 
-    function testTransientAllowIncreaseCreditRejectsUserWithoutShares() public {
-        vm.expectRevert(IForceDeallocationEnterGate.Unauthorized.selector);
+    function testTransientPermissionWithoutSharesCannotIncreaseCredit() public {
         gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
+        assertFalse(gate.canIncreaseCredit(user));
+    }
+
+    function testTransientPermissionIsRevokedAfterUserTransfersVaultShares() public {
+        address recipient = makeAddr("recipient");
+        deal(address(vault), user, 1);
+
+        gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
+        assertTrue(gate.canIncreaseCredit(user));
+
+        vm.prank(user);
+        IERC20(address(vault)).transfer(recipient, 1);
+
+        assertFalse(gate.canIncreaseCredit(user));
     }
 
     function testFallsBackToWhitelistWithoutForceDeallocation() public {
