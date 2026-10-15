@@ -45,7 +45,7 @@ contract WrapperEnterGate is IEnterGate {
     }
 
     /// @dev Transiently allow a account to increase credit in the market if the account cannot already do so.
-    /// @dev TheA contract calling this function should not have debt.
+    /// @dev The contract calling this function should not have debt.
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev Returns whether permission was opened.
     function admit(address user) external returns (bool) {
