@@ -1170,6 +1170,7 @@ contract MidnightAdapterTest is Test {
         offer.buy = true;
         offer.maker = address(adapter);
 
+        offer.market.midnight = address(midnight);
         offer.market.loanToken = address(loanToken);
         uint256 numCollaterals = bound(vm.randomUint(), 1, 3);
         CollateralParams[] memory collateralParams = new CollateralParams[](numCollaterals);
@@ -1277,23 +1278,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
     }
 
-    function testForceSellableOverridesNoSalesBelowFaceValue() public {
-        Offer memory initial = buy(30 days, 1e18, discountTick);
-        bytes32 marketId = _marketId(initial.market);
-        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
-        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
-        deal(address(loanToken), taker, 1e18);
-
-        vm.prank(curator);
-        adapter.setNoSalesBelowFaceValue(true);
-        vm.expectRevert(IMidnightAdapterBase.SaleBelowFaceValue.selector);
-        sellUnits(initial.market, 1e18, tick);
-
-        setForceSellable(marketId);
-        sellUnits(initial.market, 1e18, tick);
-        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
-    }
-
     function testNoSalesBelowFaceValueDoesNotBlockForceDeallocate() public {
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         deal(address(loanToken), address(this), 0.25e18);
@@ -1312,6 +1296,17 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         vm.expectRevert(IMidnightAdapterBase.LoanAssetMismatch.selector);
+        adapter.isRatified(offer, data, taker);
+    }
+
+    function testRatifyNotMidnight(uint256 seed, address otherMidnight) public {
+        vm.setSeed(seed);
+        Offer memory offer = _ratificationSetup();
+        vm.assume(otherMidnight != address(midnight));
+        offer.market.midnight = otherMidnight;
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapterBase.NotMidnight.selector);
         adapter.isRatified(offer, data, taker);
     }
 

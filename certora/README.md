@@ -19,6 +19,8 @@ Global invariants and the accounting effects of each entry point.
   Deposits and mints add exactly the transferred or previewed assets, withdrawals and redemptions subtract exactly the withdrawn or previewed assets, and `forceDeallocate` subtracts exactly its rounded-up penalty.
   Every other entry point leaves `_totalAssets` unchanged.
 - [`TotalAssetsIsUpToDate.spec`](specs/TotalAssetsIsUpToDate.spec) checks that every state-changing entry point other than `accrueInterest` updates `_totalAssets` before reading it.
+- [`AccrueInterestFirst.spec`](specs/AccrueInterestFirst.spec) checks that functions accruing interest do not read nor write the variables written by `accrueInterest` before accruing interest.
+- [`AccrueInterestWrites.spec`](specs/AccrueInterestWrites.spec) checks that `accrueInterest` writes no storage variable other than `_totalAssets`, `lastUpdate`, `totalSupply` and `balanceOf`, and no transient storage variable other than `firstTotalAssets`.
 - [`AllocationVaultV2.spec`](specs/AllocationVaultV2.spec) checks that allocations change only through ERC-4626 entry and exit functions, `allocate`, `deallocate`, or `forceDeallocate`.
   An ERC-4626 operation can change allocations only when a liquidity adapter is set.
 - [`AllocationsHierarchy.spec`](specs/AllocationsHierarchy.spec) checks the leaf-group structure used by adapter ids.
@@ -99,10 +101,12 @@ Shares and assets move only through permitted paths and by the exact requested a
 
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Blue, and Morpho Vault V1 (MetaMorpho), ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
+- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
+  For deposits and mints, it assumes there is no liquidity adapter. With one, they call it after creating the shares, so a second rule checks that only the caps allocations are written after that call.
+  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault on `transfer` and `transferFrom`.
+  It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
-  It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
 - [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault calls adapters' `allocate`, `deallocate` and `realAssets` only when it has applied all allocation changes, so adapters can read allocations in these calls.
 
 # Verification setup

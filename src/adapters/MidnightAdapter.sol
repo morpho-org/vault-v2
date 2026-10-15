@@ -378,6 +378,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
+        require(offer.market.midnight == midnight, NotMidnight());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -489,11 +490,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
         if (!_marketData.forceSellable) {
-            require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
-
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.rate * ttm) + shortfall;
