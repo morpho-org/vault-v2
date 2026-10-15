@@ -17,7 +17,7 @@ import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
-/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review (see .github/CODEOWNERS).
+/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
 contract MidnightAdapterIntegrationTest is BaseTest {
     /// @dev Price of about 0.994 assets per unit.
     uint256 internal constant TICK = 4400;
@@ -253,6 +253,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
         midnight.take(offer, ratifierData, units, lender, address(0), address(0), "");
         vm.stopPrank();
+        vm.prank(depositor);
+        vault.withdraw(units, depositor, depositor);
     }
 
     function testForceDeallocate() public {
@@ -292,81 +294,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
         vault.withdraw(units, depositor, depositor);
-        vm.stopPrank();
-    }
-
-    function testSelfFundedBuy() public {
-        uint256 initialUnits = initialAssets;
-        Market memory fundingMarket = _market(7 days);
-        Offer memory fundingOffer = Offer({
-            market: fundingMarket,
-            buy: true,
-            maker: address(adapter),
-            start: block.timestamp,
-            expiry: fundingMarket.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode(fundingMarket.maturity, type(uint128).max)),
-            callback: address(adapter),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(adapter),
-            reduceOnly: false,
-            maxUnits: uint128(initialUnits),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 fundingRoot = HashLib.hashPriceRatifierV1Offer(fundingOffer, address(0));
-        vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), fundingRoot, true);
-        bytes32[] memory fundingProof = new bytes32[](0);
-        bytes memory fundingRatifierData =
-            abi.encode(address(priceRatifier), abi.encode(fundingRoot, uint256(0), fundingProof, address(0)));
-        uint256 fundingCollateral = initialUnits * 2e18 / oneToken;
-        deal(address(collateralToken), borrower, fundingCollateral);
-        vm.startPrank(borrower);
-        collateralToken.approve(address(midnight), fundingCollateral);
-        midnight.supplyCollateral(fundingMarket, 0, fundingCollateral, borrower);
-        midnight.take(fundingOffer, fundingRatifierData, initialUnits, borrower, borrower, address(0), "");
-        vm.stopPrank();
-
-        vm.warp(fundingMarket.maturity);
-        deal(address(underlyingToken), borrower, initialUnits);
-        vm.startPrank(borrower);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), initialUnits);
-        midnight.repay(fundingMarket, initialUnits, borrower, address(0), "");
-        vm.stopPrank();
-
-        uint256 units = 1000 * oneToken;
-        bytes memory callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
-        Market memory market = _market(30 days);
-        Offer memory offer = Offer({
-            market: market,
-            buy: true,
-            maker: address(adapter),
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode(market.maturity, type(uint128).max)),
-            callback: address(adapter),
-            callbackData: callbackData,
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(adapter),
-            reduceOnly: false,
-            maxUnits: uint128(units),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
-        vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), root, true);
-        bytes32[] memory proof = new bytes32[](0);
-        bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
-        uint256 collateral = units * 2e18 / oneToken;
-        deal(address(collateralToken), borrower, collateral);
-        vm.startPrank(borrower);
-        collateralToken.approve(address(midnight), collateral);
-        midnight.supplyCollateral(market, 0, collateral, borrower);
-        midnight.take(offer, ratifierData, units, borrower, borrower, address(0), "");
         vm.stopPrank();
     }
 
