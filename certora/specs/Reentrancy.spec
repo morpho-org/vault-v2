@@ -14,7 +14,7 @@ methods {
     function accrueInterest() internal => NONDET;
 
     // The vault only calls transfer, transferFrom and balanceOf on the asset.
-    function _.transfer(address to, uint256 amount) external => summaryTransfer(to, amount) expect(bool);
+    function _.transfer(address to, uint256 amount) external => summaryTransferFrom(currentContract, to, amount) expect(bool);
     function _.transferFrom(address from, address to, uint256 amount) external => summaryTransferFrom(from, to, amount) expect(bool);
     function _.balanceOf(address account) external => summaryBalanceOf(account) expect(uint256);
 }
@@ -25,25 +25,13 @@ persistent ghost bool ignoredCall;
 // Balance of the vault in the asset, used to show that the penalty withdrawal of forceDeallocate does not deallocate again.
 ghost uint256 vaultBalance;
 
-function summaryTransfer(address to, uint256 amount) returns bool {
-    ignoredCall = true;
-    require(vaultBalance >= amount, "the transfer reverts otherwise");
-    vaultBalance = assert_uint256(vaultBalance - amount);
-    if (to == currentContract) {
-        vaultBalance = assert_uint256(vaultBalance + amount);
-    }
-    return true;
-}
-
 function summaryTransferFrom(address from, address to, uint256 amount) returns bool {
     ignoredCall = true;
     if (from == currentContract) {
-        require(vaultBalance >= amount, "the transfer reverts otherwise");
-        vaultBalance = assert_uint256(vaultBalance - amount);
+        vaultBalance = require_uint256(vaultBalance - amount);
     }
     if (to == currentContract) {
-        require(vaultBalance + amount <= max_uint256, "the total supply of the asset fits in a uint256");
-        vaultBalance = assert_uint256(vaultBalance + amount);
+        vaultBalance = require_uint256(vaultBalance + amount);
     }
     return true;
 }
