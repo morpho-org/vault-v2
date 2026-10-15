@@ -94,8 +94,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
     }
 
-    function testMakerBuyRepayWithdrawRedeem() public {
-        uint256 units = 1000 * oneToken;
+    function testMakerBuy() public {
+        uint256 units = 2000 * oneToken;
         Market memory market = _market(7 days);
         Offer memory offer = Offer({
             market: market,
@@ -126,7 +126,12 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.supplyCollateral(market, 0, collateral, borrower);
         midnight.take(offer, ratifierData, units, borrower, borrower, address(0), "");
         vm.stopPrank();
+    }
 
+    function testRepayWithdrawRedeem() public {
+        testMakerBuy();
+        Market memory market = _market(7 days);
+        uint256 units = 2000 * oneToken;
         vm.warp(market.maturity);
         deal(address(underlyingToken), borrower, units);
         vm.startPrank(borrower);
@@ -179,38 +184,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testTakerSell() public {
-        uint256 initialUnits = 2000 * oneToken;
+        testMakerBuy();
         Market memory market = _market(7 days);
-        Offer memory adapterBuyOffer = Offer({
-            market: market,
-            buy: true,
-            maker: address(adapter),
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode(market.maturity, type(uint128).max)),
-            callback: address(adapter),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(adapter),
-            reduceOnly: false,
-            maxUnits: uint128(initialUnits),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 adapterRoot = HashLib.hashPriceRatifierV1Offer(adapterBuyOffer, address(0));
-        vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), adapterRoot, true);
-        bytes32[] memory adapterProof = new bytes32[](0);
-        bytes memory adapterRatifierData =
-            abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / oneToken;
-        deal(address(collateralToken), borrower, collateral);
-        vm.startPrank(borrower);
-        collateralToken.approve(address(midnight), collateral);
-        midnight.supplyCollateral(market, 0, collateral, borrower);
-        midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
-        vm.stopPrank();
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
@@ -247,38 +222,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerSell() public {
-        uint256 initialUnits = 2000 * oneToken;
+        testMakerBuy();
         Market memory market = _market(7 days);
-        Offer memory adapterBuyOffer = Offer({
-            market: market,
-            buy: true,
-            maker: address(adapter),
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode(market.maturity, type(uint128).max)),
-            callback: address(adapter),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(adapter),
-            reduceOnly: false,
-            maxUnits: uint128(initialUnits),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 adapterRoot = HashLib.hashPriceRatifierV1Offer(adapterBuyOffer, address(0));
-        vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), adapterRoot, true);
-        bytes32[] memory adapterProof = new bytes32[](0);
-        bytes memory adapterRatifierData =
-            abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / oneToken;
-        deal(address(collateralToken), borrower, collateral);
-        vm.startPrank(borrower);
-        collateralToken.approve(address(midnight), collateral);
-        midnight.supplyCollateral(market, 0, collateral, borrower);
-        midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
-        vm.stopPrank();
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
@@ -311,38 +256,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testForceDeallocate() public {
-        uint256 initialUnits = initialAssets;
+        testMakerBuy();
         Market memory market = _market(7 days);
-        Offer memory adapterBuyOffer = Offer({
-            market: market,
-            buy: true,
-            maker: address(adapter),
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode(market.maturity, type(uint128).max)),
-            callback: address(adapter),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(adapter),
-            reduceOnly: false,
-            maxUnits: uint128(initialUnits),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 adapterRoot = HashLib.hashPriceRatifierV1Offer(adapterBuyOffer, address(0));
-        vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), adapterRoot, true);
-        bytes32[] memory adapterProof = new bytes32[](0);
-        bytes memory adapterRatifierData =
-            abi.encode(address(priceRatifier), abi.encode(adapterRoot, uint256(0), adapterProof, address(0)));
-        uint256 collateral = initialUnits * 2e18 / oneToken;
-        deal(address(collateralToken), borrower, collateral);
-        vm.startPrank(borrower);
-        collateralToken.approve(address(midnight), collateral);
-        midnight.supplyCollateral(market, 0, collateral, borrower);
-        midnight.take(adapterBuyOffer, adapterRatifierData, initialUnits, borrower, borrower, address(0), "");
-        vm.stopPrank();
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
