@@ -18,7 +18,7 @@ import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISett
 import {MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
-/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review (see .github/CODEOWNERS). Do not modify these tests to make a code change pass.
+/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review (see .github/CODEOWNERS).
 contract MidnightAdapterIntegrationTest is BaseTest {
     address internal depositor = makeAddr("depositor");
     address internal borrower = makeAddr("borrower");
