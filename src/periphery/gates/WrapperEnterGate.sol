@@ -11,11 +11,11 @@ import {IRoleSetter} from "./interfaces/IRoleSetter.sol";
 /// @dev Lets vault users receive credit through forceDeallocate.
 /// @dev Markets other than marketId should not use this gate as their enterGate.
 /// @dev roleSetter must register only contracts that follow the admission rules, including after upgrades.
-/// @dev Revoking underlying-gate approval does not revoke canAdmit. Revoking canAdmit can block exits.
+/// @dev Registration is permanent. Revoking underlying-gate approval does not revoke canAdmit.
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
-    event SetCanAdmit(address indexed account, bool newCanAdmit);
+    event SetCanAdmit(address indexed account);
 
     address public immutable midnight;
     bytes32 public immutable marketId;
@@ -38,10 +38,10 @@ contract WrapperEnterGate is IEnterGate {
         return IRoleSetter(gate).roleSetter();
     }
 
-    function setCanAdmit(address account, bool newCanAdmit) external {
+    function setCanAdmit(address account) external {
         require(msg.sender == roleSetter(), Unauthorized());
-        canAdmit[account] = newCanAdmit;
-        emit SetCanAdmit(account, newCanAdmit);
+        canAdmit[account] = true;
+        emit SetCanAdmit(account);
     }
 
     /// @dev Transiently allow a account to increase credit in the market if the account cannot already do so.
