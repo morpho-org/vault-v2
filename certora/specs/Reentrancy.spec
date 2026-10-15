@@ -62,6 +62,9 @@ persistent ghost mathint storesAfterCall;
 // Number of writes to caps allocations after a CALL other than the asset's transfer and transferFrom.
 persistent ghost mathint allocationStoresAfterCall;
 
+// True when a CALL other than the asset's transfer and transferFrom is executed after a write to caps allocations that follows a call.
+persistent ghost bool callAfterAllocationStore;
+
 hook ALL_SSTORE(uint _, uint _) {
     if (executingContract == currentContract) {
         storageChanged = true;
@@ -91,6 +94,9 @@ hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint
     if (ignoredCall) {
         ignoredCall = false;
     } else {
+        if (allocationStoresAfterCall > 0) {
+            callAfterAllocationStore = true;
+        }
         hasCall = true;
         if (storageChanged) {
             hasCallAfterStore = true;
@@ -126,9 +132,10 @@ rule reentrancySafe(method f, env e, calldataarg data) {
     assert !unsafeCall;
 }
 
-// Check that deposits only write the caps allocations after calling the liquidity adapter, so the adapter is called once the deposit is complete.
+// Check that deposits only write the caps allocations after calling the liquidity adapter, and make no call after starting these writes, so the adapter is called once the deposit is complete.
 rule depositOnlyWritesAllocationsAfterCall(method f, env e, calldataarg data) filtered { f -> f.selector == sig:deposit(uint256, address).selector || f.selector == sig:mint(uint256, address).selector } {
-    require(!hasCall && !ignoredCall && storesAfterCall == 0 && allocationStoresAfterCall == 0, "set up the initial ghost state");
+    require(!hasCall && !ignoredCall && !callAfterAllocationStore && storesAfterCall == 0 && allocationStoresAfterCall == 0, "set up the initial ghost state");
     f(e, data);
     assert storesAfterCall == allocationStoresAfterCall;
+    assert !callAfterAllocationStore;
 }
