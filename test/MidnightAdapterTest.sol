@@ -2416,7 +2416,7 @@ contract MidnightAdapterTest is Test {
         MarketData memory expected = adapter.marketData(marketId);
         expected.netCredit = 0;
         expected.lossFactor = 0;
-        expected.rate = 0;
+        expected.netRate = 0;
         expected.maturity = 0;
         expected.index = 0;
         expected.totalShares -= expected.vaultShares;
@@ -3863,7 +3863,7 @@ contract MidnightAdapterTest is Test {
             take(next);
             // Two credit units were bought for one cash, but only one goes to the vault.
             assertEq(adapter.realAssets(), 4);
-            assertEq(adapter.marketData(id).rate, 0, "no unearned vault interest");
+            assertEq(adapter.marketData(id).netRate, 0, "no unearned vault interest");
         }
     }
 
