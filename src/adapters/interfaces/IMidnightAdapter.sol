@@ -11,12 +11,12 @@ struct MarketData {
     uint128 netCredit;
     /// @dev Midnight's loss factor of the market when netCredit was last updated.
     uint128 lossFactor;
-    /// @dev WAD-scaled simple interest rate per second.
-    uint64 rate;
+    /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
+    uint64 netRate;
     uint48 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market.
-    /// @dev When activated, rate isn't reduced on losses due to selling.
+    /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
 }
@@ -34,7 +34,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed sender, address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetMinRate(uint256 newMinRate);
+    event SetMinNetRate(uint256 newMinNetRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
@@ -46,10 +46,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event Buy(
-        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newRate
+        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
-        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newRate
+        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
 
     /* ERRORS */
@@ -60,6 +60,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DataNotTimelocked();
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
+    error DurationZeroAbsoluteCap();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
@@ -99,7 +100,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
-    function minRate() external view returns (uint64);
+    function minNetRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
     function maxSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
@@ -111,7 +112,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setMinRate(uint256 newMinRate) external;
+    function setMinNetRate(uint256 newMinNetRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
@@ -138,7 +139,14 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint128 lossFactor, uint64 rate, uint48 maturity, uint8 index, bool forceSellable);
+        returns (
+            uint128 netCredit,
+            uint128 lossFactor,
+            uint64 netRate,
+            uint48 maturity,
+            uint8 index,
+            bool forceSellable
+        );
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.

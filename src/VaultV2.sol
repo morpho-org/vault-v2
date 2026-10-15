@@ -61,7 +61,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - The totalAssets() calculation ignores markets for which the vault has no allocation.
-/// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator must not interact with markets that can re-enter the vault.
+/// - During realAssets and allocate, they must not reenter the vault, directly or indirectly, via CALL or STATICCALL, except to call allocation. They might not statically prevent it, but the curator must not interact with markets that can re-enter the vault.
 /// - After an update, the sum of the changes returned after interactions with a given market must be exactly the current estimated position.
 /// @dev Ids being reused are useful to cap multiple investments that have a common property.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using the same ids.
@@ -569,7 +569,7 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) adapters are trusted to not reenter.
+        // forge-lint: disable-next-item(reentrancy-no-eth) this reentrancy is proven to be safe.
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
