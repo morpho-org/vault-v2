@@ -128,3 +128,5 @@ All audits are stored in the [audits](./audits/)' folder.
 ## License
 
 Files in this repository are publicly available under license `GPL-2.0-or-later`, see [`LICENSE`](./LICENSE).
+
+<!-- Dummy test PR, do not merge. -->
