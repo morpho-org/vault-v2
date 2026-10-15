@@ -39,7 +39,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev minNetRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 /// @dev Sales in forceSellable markets ignore noSalesWithShortfall and minNetRate, but not noSalesBelowFaceValue.
-/// @dev forceDeallocate does not call onSell, so it ignores noSalesBelowFaceValue and noSalesWithShortfall.
+/// @dev forceDeallocate does not call onSell, so it ignores all three.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
