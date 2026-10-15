@@ -13,6 +13,12 @@ methods {
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
+    // Views, resolved so that strong invariants are not checked at these calls, which happen in the middle of market list updates.
+    function _.lossFactor(bytes32) external => NONDET;
+
+    // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
+    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
+
     // Non-view external calls can only decrease the adapter's Midnight net credits, through losses, withdrawals or sales.
     // Increases only happen in buys, which call onBuy (see increaseMidnightNetCredit).
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => decreaseMidnightNetCreditsTake() expect(uint256, uint256);
