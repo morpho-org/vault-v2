@@ -403,7 +403,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             enterGateFactory == address(0) || market.enterGate == address(0)
                 || (IEnterGateFactory(enterGateFactory).isGate(market.enterGate)
                     && WrapperEnterGate(market.enterGate).marketId() == marketId
-                    && !WrapperEnterGate(market.enterGate).cannotAdmit(address(this))),
+                    && WrapperEnterGate(market.enterGate).canAdmit(address(this))),
             IncorrectEnterGate()
         );
         require(block.timestamp <= market.maturity, BuyPostMaturity());

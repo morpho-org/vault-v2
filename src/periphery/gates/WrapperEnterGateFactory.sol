@@ -7,14 +7,16 @@ import {WrapperEnterGate} from "./WrapperEnterGate.sol";
 import {IEnterGateFactory} from "./interfaces/IEnterGateFactory.sol";
 
 contract WrapperEnterGateFactory is IEnterGateFactory {
-    event CreateWrapperEnterGate(address indexed wrapperEnterGate, address indexed gate, bytes32 marketId);
+    event CreateWrapperEnterGate(
+        address indexed wrapperEnterGate, address indexed gate, address indexed roleSetter, bytes32 marketId
+    );
 
     mapping(address account => bool) public isGate;
 
-    function createWrapperEnterGate(address gate, Market memory market) external returns (address) {
-        address wrapperEnterGate = address(new WrapperEnterGate(gate, market));
+    function createWrapperEnterGate(address gate, address roleSetter, Market memory market) external returns (address) {
+        address wrapperEnterGate = address(new WrapperEnterGate(gate, roleSetter, market));
         isGate[wrapperEnterGate] = true;
-        emit CreateWrapperEnterGate(wrapperEnterGate, gate, WrapperEnterGate(wrapperEnterGate).marketId());
+        emit CreateWrapperEnterGate(wrapperEnterGate, gate, roleSetter, WrapperEnterGate(wrapperEnterGate).marketId());
         return wrapperEnterGate;
     }
 }

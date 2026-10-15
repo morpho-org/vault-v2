@@ -9,52 +9,55 @@ import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 /// @dev Wraps an underlying gate to let vault users be temporarily "admitted" to increase their credit.
 /// @dev Lets vault users receive credit through forceDeallocate.
 /// @dev Markets other than marketId should not use this gate as their enterGate.
-/// @dev The underlying gate must admit only contracts that follow the exit rules, including after revocation.
-/// @dev Ordinary contract wallets that can execute arbitrary calls must not receive underlying-gate approval
-/// unless cannotAdmit is already set for them.
-/// @dev There is no administrative recovery if an unsafe ordinary contract gains credit with cannotAdmit unset.
-/// @dev Revoking its underlying-gate approval does not stop it from admitting others while it retains credit.
-/// @dev Adapters must reject purchases in their buy callback if cannotAdmit is set for them.
+/// @dev roleSetter must register only contracts that follow the admission rules, including after upgrades.
+/// @dev Revoking underlying-gate approval does not revoke canAdmit. Revoking canAdmit can block exits.
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
-    event CannotAdmit(address indexed account);
+    event SetRoleSetter(address indexed newRoleSetter);
+    event SetCanAdmit(address indexed account, bool newCanAdmit);
 
     address public immutable midnight;
     bytes32 public immutable marketId;
     /// @dev The underlying gate.
     address public immutable gate;
 
-    /// @dev Once admitted an account cannot admit another account.
-    mapping(address account => bool) public cannotAdmit;
+    address public roleSetter;
+    mapping(address account => bool) public canAdmit;
 
     address transient admitted;
     address transient admitter;
 
-    constructor(address _gate, Market memory _market) {
+    constructor(address _gate, address _roleSetter, Market memory _market) {
         midnight = _market.midnight;
         gate = _gate;
+        roleSetter = _roleSetter;
         _market.enterGate = address(this);
         marketId = IdLib.toId(_market);
+    }
+
+    function setRoleSetter(address newRoleSetter) external {
+        require(msg.sender == roleSetter, Unauthorized());
+        roleSetter = newRoleSetter;
+        emit SetRoleSetter(newRoleSetter);
+    }
+
+    function setCanAdmit(address account, bool newCanAdmit) external {
+        require(msg.sender == roleSetter, Unauthorized());
+        canAdmit[account] = newCanAdmit;
+        emit SetCanAdmit(account, newCanAdmit);
     }
 
     /// @dev Transiently allow a account to increase credit in the market if the account cannot already do so.
     /// @dev TheA contract calling this function should not have debt.
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
-    /// @dev Returns whether permission was opened. The buyer's flag is permanent.
+    /// @dev Returns whether permission was opened.
     function admit(address user) external returns (bool) {
-        // Skip the blacklist so buying does not prevent approved buyers from admitting others.
-        // Approved buyers also do not need vault shares.
+        // Buyers already allowed by the underlying gate do not need vault shares.
         if (IEnterGate(gate).canIncreaseCredit(user)) {
             return false;
         } else {
-            require(
-                msg.sender.code.length > 0 && msg.sender.code[0] != 0xef && !cannotAdmit[msg.sender], Unauthorized()
-            );
-
-            require(IMidnight(midnight).credit(marketId, msg.sender) > 0, Unauthorized());
-            cannotAdmit[user] = true;
-            emit CannotAdmit(user);
+            require(canAdmit[msg.sender], Unauthorized());
 
             admitted = user;
             admitter = msg.sender;
