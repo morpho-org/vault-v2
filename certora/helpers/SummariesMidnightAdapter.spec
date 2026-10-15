@@ -19,20 +19,22 @@ methods {
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Non-view external calls can only decrease the adapter's Midnight net credits, through losses, withdrawals or sales.
+    // Midnight calls that can decrease the adapter's Midnight net credits, through losses, withdrawals or sales.
     // Increases only happen in buys, which call onBuy (see increaseMidnightNetCredit).
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => decreaseMidnightNetCreditsTake() expect(uint256, uint256);
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => decreaseMidnightNetCredits() expect void;
-    function _.setConsumed(bytes32, uint128, address) external => decreaseMidnightNetCredits() expect void;
-    function _.setIsAuthorized(address, bool, address) external => decreaseMidnightNetCredits() expect void;
-    function _.accrueInterest() external => decreaseMidnightNetCredits() expect void;
-    function _.allocate(address, bytes, uint256) external => decreaseMidnightNetCredits() expect void;
-    function _.deallocate(address, bytes, uint256) external => decreaseMidnightNetCredits() expect void;
+
+    // Calls that don't change the adapter's Midnight net credits, resolved so that they don't havoc the adapter's state.
+    function _.setConsumed(bytes32, uint128, address) external => NONDET;
+    function _.setIsAuthorized(address, bool, address) external => NONDET;
+    function _.accrueInterest() external => NONDET;
+    function _.allocate(address, bytes, uint256) external => NONDET;
+    function _.deallocate(address, bytes, uint256) external => NONDET;
 
     // The asset is assumed to be a standard ERC20 token.
-    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => decreaseMidnightNetCredits();
-    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => decreaseMidnightNetCredits();
-    function SafeERC20Lib.forceApproveMax(address, address) internal => decreaseMidnightNetCredits();
+    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
