@@ -8,6 +8,9 @@ methods {
     // The adapter's net credit in each market is tracked by ghostMidnightNetCredit.
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
 
+    // Loops over marketIds are only in views, so summarizing durationAllocations avoids pruning long lists in onBuy.
+    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
+
     // Non-view external calls can only decrease the adapter's Midnight net credits, through losses, withdrawals or sales.
     // Increases only happen in buys, which call onBuy (see increaseMidnightNetCredit).
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => decreaseMidnightNetCreditsTake() expect(uint256, uint256);
@@ -38,6 +41,12 @@ function decreaseMidnightNetCreditsTake() returns (uint256, uint256) {
     uint256 buyerAssets;
     uint256 sellerAssets;
     return (buyerAssets, sellerAssets);
+}
+
+function arbitraryAllocations(uint256 length) returns uint256[] {
+    uint256[] allocations;
+    require allocations.length == length, "durationAllocations returns length allocations";
+    return allocations;
 }
 
 // Midnight credits the bought units to the adapter before calling onBuy.
