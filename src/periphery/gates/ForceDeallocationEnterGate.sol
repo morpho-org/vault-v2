@@ -70,6 +70,7 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
     /// @dev Adding a factory is restricted to the credit role setter; factories cannot be removed so depositors can exit.
     function addAdapterFactory(address adapterFactory) external {
         require(msg.sender == roleSetter[true], NotRoleSetter());
+        require(IMidnightAdapterFactory(adapterFactory).midnight() == midnight, IncorrectMidnight());
         require(!isAdapterFactory[adapterFactory], AlreadyAdapterFactory());
         isAdapterFactory[adapterFactory] = true;
         adapterFactories.push(adapterFactory);
@@ -110,17 +111,12 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
         );
     }
 
-    /// @dev A user must not be an adapter of any trusted factory, or its own vault's users could inherit access.
     function transientAllowIncreaseCredit(address user, address adapter, address adapterFactory) external {
         require(
             isAdapterFactory[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(adapter)
                 && IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0,
             Unauthorized()
         );
-
-        for (uint256 i; i < adapterFactories.length; ++i) {
-            require(!IMidnightAdapterFactory(adapterFactories[i]).isMidnightAdapter(user), Unauthorized());
-        }
 
         bytes32 slot = keccak256(abi.encode(user));
         assembly ("memory-safe") {
@@ -135,9 +131,14 @@ contract ForceDeallocationEnterGate is IForceDeallocationEnterGate {
         }
     }
 
+    /// @dev A user must not be an adapter of any trusted factory. Check this when using the permission because an adapter may
+    /// be deployed at a precomputed address later in the transaction.
     function isTransientlyAllowed(address user) public view returns (bool) {
         address adapter = transientAdapter(user);
         if (adapter == address(0)) return false;
+        for (uint256 i; i < adapterFactories.length; ++i) {
+            if (IMidnightAdapterFactory(adapterFactories[i]).isMidnightAdapter(user)) return false;
+        }
         bytes32 marketId = IMidnightAdapter(adapter).forceDeallocatingMarketId();
         return marketId != 0 && IMidnight(midnight).toMarket(marketId).enterGate == address(this)
             && IMidnight(midnight).credit(marketId, adapter) > 0;

@@ -7,6 +7,7 @@ import {IWhitelistEnterGate} from "lib/midnight/src/periphery/whitelist-enter-ga
 interface IForceDeallocationEnterGate is IWhitelistEnterGate {
     error Unauthorized();
     error AlreadyAdapterFactory();
+    error IncorrectMidnight();
 
     event AddAdapterFactory(address indexed adapterFactory);
 

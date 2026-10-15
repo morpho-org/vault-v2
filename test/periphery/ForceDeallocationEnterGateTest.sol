@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IMidnight, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {MidnightAdapter} from "../../src/adapters/MidnightAdapter.sol";
+import {MidnightAdapterFactory} from "../../src/adapters/MidnightAdapterFactory.sol";
 import {IMidnightAdapterBase} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "../../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
@@ -37,6 +39,7 @@ contract ForceDeallocationEnterGateTest is Test {
     function setUp() public {
         vault = new ERC20Mock(18);
         gate = new ForceDeallocationEnterGate(midnight, address(this), address(this), false, false);
+        vm.mockCall(adapterFactory, abi.encodeCall(IMidnightAdapterFactory.midnight, ()), abi.encode(midnight));
         gate.addAdapterFactory(adapterFactory);
 
         _setIsAdapter(adapterFactory, adapter, true);
@@ -67,7 +70,7 @@ contract ForceDeallocationEnterGateTest is Test {
     }
 
     function testAddAdapterFactory() public {
-        address newFactory = makeAddr("newFactory");
+        address newFactory = address(new MidnightAdapterFactory(midnight));
         vm.expectEmit(true, false, false, true, address(gate));
         emit IForceDeallocationEnterGate.AddAdapterFactory(newFactory);
         gate.addAdapterFactory(newFactory);
@@ -78,10 +81,22 @@ contract ForceDeallocationEnterGateTest is Test {
     }
 
     function testAddAdapterFactoryTwice() public {
-        address newFactory = makeAddr("newFactory");
+        address newFactory = address(new MidnightAdapterFactory(midnight));
         gate.addAdapterFactory(newFactory);
 
         vm.expectRevert(IForceDeallocationEnterGate.AlreadyAdapterFactory.selector);
+        gate.addAdapterFactory(newFactory);
+    }
+
+    function testAddAdapterFactoryRejectsEoa() public {
+        vm.expectRevert();
+        gate.addAdapterFactory(makeAddr("eoa"));
+    }
+
+    function testAddAdapterFactoryRejectsFactoryWithDifferentMidnight() public {
+        address newFactory = address(new MidnightAdapterFactory(makeAddr("otherMidnight")));
+
+        vm.expectRevert(IForceDeallocationEnterGate.IncorrectMidnight.selector);
         gate.addAdapterFactory(newFactory);
     }
 
@@ -118,21 +133,78 @@ contract ForceDeallocationEnterGateTest is Test {
         gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
     }
 
-    function testTransientAllowIncreaseCreditRejectsAdapterUser() public {
+    function testTransientPermissionRejectsAdapterUser() public {
         deal(address(vault), user, 1);
         _setIsAdapter(adapterFactory, user, true);
-        vm.expectRevert(IForceDeallocationEnterGate.Unauthorized.selector);
         gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
+
+        assertFalse(gate.isTransientlyAllowed(user));
+        assertFalse(gate.canIncreaseCredit(user));
     }
 
-    function testTransientAllowIncreaseCreditRejectsAdapterFromAnotherTrustedFactory() public {
+    function testTransientPermissionRejectsAdapterFromAnotherTrustedFactory() public {
         address secondFactory = makeAddr("secondFactory");
+        vm.mockCall(secondFactory, abi.encodeCall(IMidnightAdapterFactory.midnight, ()), abi.encode(midnight));
         gate.addAdapterFactory(secondFactory);
         _setIsAdapter(secondFactory, user, true);
         deal(address(vault), user, 1);
 
-        vm.expectRevert(IForceDeallocationEnterGate.Unauthorized.selector);
         gate.transientAllowIncreaseCredit(user, adapter, adapterFactory);
+        assertFalse(gate.isTransientlyAllowed(user));
+        assertFalse(gate.canIncreaseCredit(user));
+    }
+
+    function testTransientPermissionRejectsCounterfactualAdapterAfterDeployment() public {
+        IMidnight realMidnight = IMidnight(deployCode("Midnight.sol:Midnight"));
+        ForceDeallocationEnterGate realGate =
+            new ForceDeallocationEnterGate(address(realMidnight), address(this), address(this), false, false);
+        MidnightAdapterFactory realFactory = new MidnightAdapterFactory(address(realMidnight));
+        realGate.addAdapterFactory(address(realFactory));
+
+        ERC20Mock parentVault = new ERC20Mock(18);
+        vm.mockCall(address(parentVault), abi.encodeWithSignature("asset()"), abi.encode(makeAddr("asset")));
+
+        uint256[] memory durations = new uint256[](1);
+        durations[0] = 1;
+        bytes32 forceDeallocationSalt = bytes32(uint256(1));
+        address forceDeallocatingAdapter =
+            realFactory.createMidnightAdapter(address(parentVault), durations, forceDeallocationSalt);
+
+        bytes32 userAdapterSalt = bytes32(uint256(2));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(MidnightAdapter).creationCode, abi.encode(address(parentVault), address(realMidnight), durations)
+            )
+        );
+        address predictedUserAdapter = address(
+            uint160(
+                uint256(keccak256(abi.encodePacked(uint8(0xff), address(realFactory), userAdapterSalt, initCodeHash)))
+            )
+        );
+        deal(address(parentVault), predictedUserAdapter, 1);
+
+        vm.mockCall(
+            forceDeallocatingAdapter,
+            abi.encodeCall(IMidnightAdapterBase.forceDeallocatingMarketId, ()),
+            abi.encode(marketId)
+        );
+        Market memory market;
+        market.enterGate = address(realGate);
+        vm.mockCall(address(realMidnight), abi.encodeCall(IMidnight.toMarket, (marketId)), abi.encode(market));
+        vm.mockCall(
+            address(realMidnight),
+            abi.encodeCall(IMidnight.credit, (marketId, forceDeallocatingAdapter)),
+            abi.encode(uint128(1))
+        );
+
+        realGate.transientAllowIncreaseCredit(predictedUserAdapter, forceDeallocatingAdapter, address(realFactory));
+        assertTrue(realGate.canIncreaseCredit(predictedUserAdapter));
+        assertFalse(realFactory.isMidnightAdapter(predictedUserAdapter));
+
+        address deployedUserAdapter =
+            realFactory.createMidnightAdapter(address(parentVault), durations, userAdapterSalt);
+        assertEq(deployedUserAdapter, predictedUserAdapter);
+        assertFalse(realGate.canIncreaseCredit(predictedUserAdapter));
     }
 
     function testTransientAllowIncreaseCreditRejectsUserWithoutShares() public {
@@ -285,6 +357,7 @@ contract ForceDeallocationEnterGateTransientPermissionTest is Test {
     function setUp() public {
         ERC20Mock vault = new ERC20Mock(18);
         gate = new ForceDeallocationEnterGate(midnight, address(this), address(this), false, false);
+        vm.mockCall(adapterFactory, abi.encodeCall(IMidnightAdapterFactory.midnight, ()), abi.encode(midnight));
         gate.addAdapterFactory(adapterFactory);
         vm.mockCall(
             adapterFactory, abi.encodeCall(IMidnightAdapterFactory.isMidnightAdapter, (adapter)), abi.encode(true)
