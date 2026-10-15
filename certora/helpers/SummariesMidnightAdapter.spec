@@ -19,8 +19,8 @@ methods {
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Midnight's take, called as taker by the adapter, either buys or sells the adapter's credit and calls back onBuy or onSell.
-    function _.take(MidnightAdapter.Offer offer, bytes ratifierData, uint256 units, address taker, address receiverIfTakerIsSeller, address takerCallback, bytes takerCallbackData) external => takeSummary(calledContract, offer, takerCallbackData) expect(uint256, uint256);
+    // Midnight's take, called as taker by the adapter, either buys or sells the adapter's credit and calls back onBuy or onSell if the adapter is the taker callback.
+    function _.take(MidnightAdapter.Offer offer, bytes ratifierData, uint256 units, address taker, address receiverIfTakerIsSeller, address takerCallback, bytes takerCallbackData) external => takeSummary(calledContract, offer, takerCallback, takerCallbackData) expect(uint256, uint256);
 
     // Withdrawals can only decrease the adapter's Midnight net credits.
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => decreaseMidnightNetCredits() expect void;
@@ -47,25 +47,25 @@ function decreaseMidnightNetCredits() {
     havoc ghostMidnightNetCredit assuming forall bytes32 marketId. ghostMidnightNetCredit@new[marketId] <= ghostMidnightNetCredit@old[marketId];
 }
 
-function takeSummary(address midnight, MidnightAdapter.Offer offer, bytes takerCallbackData) returns (uint256, uint256) {
+function takeSummary(address midnight, MidnightAdapter.Offer offer, address takerCallback, bytes takerCallbackData) returns (uint256, uint256) {
     bytes32 marketId;
     env e;
     require e.msg.sender == midnight, "Midnight calls back the taker";
     if (offer.buy) {
-        // The adapter sells: its net credit in the market decreases, then Midnight calls onSell.
+        // The adapter sells: its net credit in the market decreases, then Midnight calls onSell if the adapter is the taker callback (deallocate passes no callback).
         uint256 sellerAssets;
         uint256 soldCredit;
         uint256 sellPendingFeeDecrease;
         address receiver;
         decreaseMidnightNetCredits();
-        onSell(e, marketId, offer.market, sellerAssets, soldCredit, sellPendingFeeDecrease, currentContract, receiver, takerCallbackData);
+        if (takerCallback == currentContract) onSell(e, marketId, offer.market, sellerAssets, soldCredit, sellPendingFeeDecrease, currentContract, receiver, takerCallbackData);
     } else {
-        // The adapter buys: its net credit in the market increases, then Midnight calls onBuy.
+        // The adapter buys: its net credit in the market increases, then Midnight calls onBuy if the adapter is the taker callback.
         uint256 paidAssets;
         uint256 boughtCredit;
         uint256 buyPendingFeeIncrease;
         increaseMidnightNetCredit(marketId);
-        onBuy(e, marketId, offer.market, paidAssets, boughtCredit, buyPendingFeeIncrease, currentContract, takerCallbackData);
+        if (takerCallback == currentContract) onBuy(e, marketId, offer.market, paidAssets, boughtCredit, buyPendingFeeIncrease, currentContract, takerCallbackData);
     }
     uint256 buyerAssets;
     uint256 sellerAssetsReturned;
