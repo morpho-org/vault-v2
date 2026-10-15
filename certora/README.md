@@ -101,10 +101,12 @@ Shares and assets move only through permitted paths and by the exact requested a
 
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Blue, and Morpho Vault V1 (MetaMorpho), ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
+- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
+  For deposits and mints, it assumes there is no liquidity adapter. With one, they call it after creating the shares, so a second rule checks that only the caps allocations are written after that call.
+  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault on `transfer` and `transferFrom`.
+  It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
-  It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
 
 # Verification setup
 
