@@ -609,12 +609,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Removes the market from marketIds and clears vault metadata, preserving ownership for claims and forceSellable.
+    /// @dev The vault's residual shares are forfeited to the claim holders: removal only happens when the vault's
+    /// net credit rounds to zero, so the forfeit costs nothing and keeps unregistered markets' vault credit at zero.
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
+        _marketData.totalShares -= _marketData.vaultShares;
+        _marketData.vaultShares = 0;
         _marketData.netCredit = 0;
         _marketData.lossFactor = 0;
         _marketData.rate = 0;

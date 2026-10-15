@@ -2386,6 +2386,8 @@ contract MidnightAdapterTest is Test {
         expected.rate = 0;
         expected.maturity = 0;
         expected.index = 0;
+        expected.totalShares -= expected.vaultShares;
+        expected.vaultShares = 0;
         setMidnightCredit(marketId, address(adapter), 0);
 
         offer.group = bytes32("zero buy");
@@ -3649,6 +3651,34 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(stdError.arithmeticError);
         adapter.redeemClaim(offer.market, _marketData.totalShares, recipient);
         assertEq(adapter.realAssets(), 1e18);
+    }
+
+    /// @dev Removing a market can leave residual vault shares worth 0; removal forfeits them so the vault's
+    /// credit cannot resurface on an unregistered market and make the next buy skip the marketIds insert.
+    function testRemovalForfeitsResidualVaultShares() public {
+        Offer memory offer = buy(7 days, 11);
+        bytes32 id = _marketId(offer.market);
+        // The vault keeps residual shares after deallocating most of the position.
+        forceDeallocate(offer.market, 7);
+        assertGt(adapter.marketData(id).vaultShares, 0, "residual shares");
+        // A loss makes them worth 0: the market is removed.
+        setMidnightCredit(id, address(adapter), 1);
+        forceDeallocate(offer.market, 0);
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.marketData(id).vaultShares, 0, "residual shares forfeited");
+
+        // The price per share rises again without any vault action.
+        deal(address(loanToken), taker, 10);
+        vm.prank(taker);
+        midnight.repay(offer.market, 10, taker, address(0), "");
+        // Permissionless path that would resurface the residual as stored net credit.
+        forceDeallocate(offer.market, 0);
+        assertEq(adapter.marketData(id).netCredit, 0, "vault credit stays zero");
+
+        buyAdditionalCredit(offer.market, 10);
+        assertMarkets([id]);
+        assertGt(adapter.marketData(id).netCredit, 0, "netCredit");
+        assertGt(adapter.realAssets(), 0, "realAssets");
     }
 
     function testZeroCreditPurchasePreservesClaimAccounting() public {
