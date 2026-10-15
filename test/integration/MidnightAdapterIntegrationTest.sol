@@ -63,7 +63,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         );
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
         priceRatifier = IMidnightAdapterPriceRatifierV1(
-            deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
+            deployCode("out/MidnightAdapterPriceRatifierV1.sol/MidnightAdapterPriceRatifierV1.json")
         );
         externalRatifier =
             ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
