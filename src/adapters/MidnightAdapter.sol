@@ -92,7 +92,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum netRate of a market after a maker or taker buy, or after a loss sale.
+    /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minNetRate;
     bool public noSalesWithShortfall;
     bool public noSalesBelowFaceValue;
