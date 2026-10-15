@@ -45,6 +45,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
+/// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// TIMELOCKS
@@ -455,7 +456,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < affectedDurationCount; i++) {
             bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
-            require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
+            uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
+            require(absoluteCap > 0, DurationZeroAbsoluteCap());
+            require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());
             uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
             require(
                 relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),

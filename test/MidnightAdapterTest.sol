@@ -1988,6 +1988,17 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
+    function testDurationAbsoluteCapZeroRejectsZeroUnitBuy() public {
+        setUpRealVault();
+        decreaseDurationAbsoluteCap(1, 0);
+        Offer memory offer = fundedDurationOffer(7 days, 1e18);
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterBase.DurationZeroAbsoluteCap.selector);
+        midnight.take(offer, data, 0, taker, taker, address(0), "");
+    }
+
+    /// forge-config: default.isolate = true
     function testDurationAbsoluteCapZeroDoesNotBlockShorterBuys() public {
         setUpRealVault();
         uint256 longestDurationIndex = allDurations.length - 1;
