@@ -6,6 +6,8 @@ import "../lib/forge-std/src/Test.sol";
 import {MorphoMarketV1AdapterV2} from "../src/adapters/MorphoMarketV1AdapterV2.sol";
 import {MorphoMarketV1AdapterV2Factory} from "../src/adapters/MorphoMarketV1AdapterV2Factory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {newTokenOfType} from "./mocks/TokenMocks.sol";
+import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
@@ -55,7 +57,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
-        loanToken = IERC20(address(new ERC20Mock(18)));
+        loanToken = newTokenOfType(vm.envOr("TOKEN_TYPE", uint256(0)), 18);
         collateralToken = IERC20(address(new ERC20Mock(18)));
         rewardToken = IERC20(address(new ERC20Mock(18)));
         oracle = new OracleMock();
@@ -356,7 +358,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         address donor = makeAddr("donor");
         deal(address(loanToken), donor, donation);
         vm.startPrank(donor);
-        loanToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(morpho), type(uint256).max);
         morpho.supply(otherMarketParams, donation, 0, address(adapter), "");
         vm.stopPrank();
 

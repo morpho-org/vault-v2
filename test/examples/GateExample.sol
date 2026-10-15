@@ -18,8 +18,7 @@ interface IBundlerAdapter {
 /// - It is a receive assets gate, i.e. it checks users who receive assets from the vault.
 /// - It has a single whitelist for all permissions.
 /// - It works with Bundler3.
-///   To enable transfers to/from a Bundler3 adapter (for whitelisted users only), set isBundlerAdapter[bundlerAdapter]
-/// to true.
+///   To enable transfers to/from a Bundler3 adapter (for whitelisted users only), set isBundlerAdapter[bundlerAdapter] to true.
 ///   Only trusted Bundler3 adapters should be added.
 contract GateExample is IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate {
     address public owner;

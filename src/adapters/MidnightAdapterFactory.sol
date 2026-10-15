@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
-pragma solidity 0.8.34;
+pragma solidity 0.8.37;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {WrapperEnterGateFactory} from "../periphery/gates/WrapperEnterGateFactory.sol";
@@ -14,39 +14,38 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* STORAGE */
 
-    mapping(address parentVault => mapping(bool useGateFactory => mapping(bytes32 salt => address))) public
-        midnightAdapter;
+    /// @dev durationsHash is keccak256(abi.encode(durations)).
+    mapping(
+        address parentVault
+            => mapping(bytes32 durationsHash => mapping(bool useGateFactory => mapping(bytes32 salt => address)))
+    ) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
-    uint256[] public durations;
 
     /* CONSTRUCTOR */
 
-    /// @dev Durations are checked only when an adapter is created.
-    constructor(address _midnight, uint256[] memory _durations) {
+    constructor(address _midnight) {
         midnight = _midnight;
         enterGateFactory = address(new WrapperEnterGateFactory());
-        durations = _durations;
-        emit CreateMidnightAdapterFactory(_midnight, _durations, enterGateFactory);
-    }
-
-    /* GETTERS */
-
-    function durationsLength() external view returns (uint256) {
-        return durations.length;
+        emit CreateMidnightAdapterFactory(_midnight, enterGateFactory);
     }
 
     /* FUNCTIONS */
 
-    function createMidnightAdapter(address parentVault, bool useGateFactory, bytes32 salt) external returns (address) {
+    /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on
+    /// 32 bits.
+    function createMidnightAdapter(address parentVault, uint256[] memory durations, bool useGateFactory, bytes32 salt)
+        external
+        returns (address)
+    {
         address _enterGateFactory = useGateFactory ? enterGateFactory : address(0);
         address _midnightAdapter = address(
             new MidnightAdapter{salt: keccak256(abi.encode(useGateFactory, salt))}(
                 parentVault, midnight, durations, _enterGateFactory
             )
         );
-        midnightAdapter[parentVault][useGateFactory][salt] = _midnightAdapter;
+        midnightAdapter[parentVault][keccak256(abi.encode(durations))][useGateFactory][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, _midnightAdapter, useGateFactory, salt);
+        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, useGateFactory);
         return _midnightAdapter;
     }
 }

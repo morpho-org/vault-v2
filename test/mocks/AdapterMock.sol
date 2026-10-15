@@ -6,6 +6,7 @@ import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
+import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 
 contract AdapterMock is IAdapter {
     using MathLib for uint256;
@@ -27,7 +28,7 @@ contract AdapterMock is IAdapter {
     constructor(address _vault) {
         vault = _vault;
         if (_vault != address(0)) {
-            IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
+            SafeERC20Lib.safeApprove(address(IVaultV2(_vault).asset()), _vault, type(uint256).max);
         }
 
         _ids.push(keccak256("id-0"));

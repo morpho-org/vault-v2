@@ -7,16 +7,13 @@ using RevertCondition as RevertCondition;
 
 methods {
 
-    // Assume the adaptive IRM borrow rate is constant, since skim does not interact with borrowing
-    // and accrueInterest should not depend on the skim operation.
+    // Assume the adaptive IRM borrow rate is constant, since skim does not interact with borrowing and accrueInterest should not depend on the skim operation.
     function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => CONSTANT;
 
-    // safeTransfer summarised to track the adapter's token balances in a ghost mapping,
-    // avoiding the need to model full ERC20 contracts.
+    // safeTransfer summarised to track the adapter's token balances in a ghost mapping, avoiding the need to model full ERC20 contracts.
     function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
 
-    // balanceOf summarised to return the adapter's ghost-tracked balance when queried for the adapter,
-    // and a non-deterministic value otherwise.
+    // balanceOf summarised to return the adapter's ghost-tracked balance when queried for the adapter, and a non-deterministic value otherwise.
     function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
@@ -46,8 +43,7 @@ function summarySafeTransferFrom(address token, address from, address to, uint25
     }
 }
 
-// Verifies that calling skim does not change the adapter's accounting (realAssets) and
-// skim only transfers tokens already held by the adapter to skimRecipient.
+// Verifies that calling skim does not change the adapter's accounting (realAssets) and skim only transfers tokens already held by the adapter to skimRecipient.
 rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
     uint256 realAssetsBefore = realAssets(e);
 

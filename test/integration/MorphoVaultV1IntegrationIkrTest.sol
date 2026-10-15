@@ -63,8 +63,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
     }
 
     // This method to redeem in-kind is not always available, notably when Morpho Vault V1 deposits are paused.
-    // In that case, use the redemption of the underlying Morpho Blue shares
-    // (the markets the Morpho Vault V1 supplies into).
+    // In that case, use the redemption of the underlying Morpho Blue shares (the markets the Morpho Vault V1 supplies into).
     function testRedeemSharesOfMorphoVaultV1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
@@ -73,7 +72,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morphoVaultV1), type(uint256).max);
         morphoVaultV1.deposit(deallocatedAssets, address(this));
         vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
@@ -103,7 +102,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
         morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
         vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
