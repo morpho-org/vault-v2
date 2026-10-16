@@ -1422,8 +1422,8 @@ contract MidnightAdapterTest is Test {
         sellUnits(initial.market, 1e18, discountTick);
     }
 
-    /// @dev Post-maturity the price floor applies to force-sellable markets, where no other guard does.
-    function testMinSellPricePostMaturityBlocksForceSellableSale() public {
+    /// @dev Post-maturity the price floor is the only guard on force-sellable markets, and forceSellable does not bypass it.
+    function testForceSellableDoesNotBypassMinSellPricePostMaturity() public {
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(initial.market);
         deal(address(loanToken), taker, 1e18);
