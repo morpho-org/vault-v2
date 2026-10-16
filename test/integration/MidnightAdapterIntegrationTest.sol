@@ -30,8 +30,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
     IMidnight internal midnight;
     IMidnightAdapter internal adapter;
-    IMidnightAdapterPriceRatifierV1 internal priceRatifier;
-    ISetterRatifier internal externalRatifier;
+    IMidnightAdapterPriceRatifierV1 internal priceSubRatifier;
+    ISetterRatifier internal setterRatifier;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
     CollateralParams internal collateralParams;
@@ -64,11 +64,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
-        priceRatifier = IMidnightAdapterPriceRatifierV1(
+        priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("out/MidnightAdapterPriceRatifierV1.sol/MidnightAdapterPriceRatifierV1.json")
         );
-        externalRatifier =
-            ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
+        setterRatifier = ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
         _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
 
@@ -78,7 +77,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.prank(allocator);
         vault.setMaxRate(1e18 / uint256(365 days));
         vm.prank(allocator);
-        adapter.setIsSubRatifier(address(priceRatifier), true);
+        adapter.setIsSubRatifier(address(priceSubRatifier), true);
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
@@ -118,9 +117,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
-        bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
+        bytes memory ratifierData =
+            abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
         uint256 collateral = units * 2e18 / oneToken;
         deal(address(collateralToken), borrower, collateral);
         vm.startPrank(borrower);
@@ -163,7 +163,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             callback: address(0),
             callbackData: "",
             receiverIfMakerIsSeller: borrower,
-            ratifier: address(externalRatifier),
+            ratifier: address(setterRatifier),
             reduceOnly: false,
             maxUnits: uint128(units),
             maxAssets: 0,
@@ -177,8 +177,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.startPrank(borrower);
         collateralToken.approve(address(midnight), collateral);
         midnight.supplyCollateral(market, 0, collateral, borrower);
-        midnight.setIsAuthorized(address(externalRatifier), true, borrower);
-        externalRatifier.setIsRootRatified(borrower, root, true);
+        midnight.setIsAuthorized(address(setterRatifier), true, borrower);
+        setterRatifier.setIsRootRatified(borrower, root, true);
         vm.stopPrank();
 
         vm.prank(allocator);
@@ -201,7 +201,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             callback: address(0),
             callbackData: "",
             receiverIfMakerIsSeller: address(0),
-            ratifier: address(externalRatifier),
+            ratifier: address(setterRatifier),
             reduceOnly: false,
             maxUnits: uint128(units),
             maxAssets: 0,
@@ -213,8 +213,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes memory ratifierData = abi.encode(root, uint256(0), proof);
         vm.startPrank(lender);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(address(externalRatifier), true, lender);
-        externalRatifier.setIsRootRatified(lender, root, true);
+        midnight.setIsAuthorized(address(setterRatifier), true, lender);
+        setterRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
         vm.prank(allocator);
@@ -248,9 +248,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
-        bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
+        bytes memory ratifierData =
+            abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
         deal(address(underlyingToken), lender, units);
         vm.startPrank(lender);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
@@ -278,7 +279,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             callback: address(0),
             callbackData: "",
             receiverIfMakerIsSeller: address(0),
-            ratifier: address(externalRatifier),
+            ratifier: address(setterRatifier),
             reduceOnly: false,
             maxUnits: uint128(units),
             maxAssets: 0,
@@ -288,8 +289,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData = abi.encode(root, uint256(0), proof);
         vm.startPrank(lender);
-        midnight.setIsAuthorized(address(externalRatifier), true, lender);
-        externalRatifier.setIsRootRatified(lender, root, true);
+        midnight.setIsAuthorized(address(setterRatifier), true, lender);
+        setterRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
         vm.prank(allocator);
@@ -312,7 +313,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             callback: address(0),
             callbackData: "",
             receiverIfMakerIsSeller: address(0),
-            ratifier: address(externalRatifier),
+            ratifier: address(setterRatifier),
             reduceOnly: false,
             maxUnits: uint128(units),
             maxAssets: 0,
@@ -324,8 +325,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         bytes memory ratifierData = abi.encode(root, uint256(0), proof);
         vm.startPrank(lender);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(address(externalRatifier), true, lender);
-        externalRatifier.setIsRootRatified(lender, root, true);
+        midnight.setIsAuthorized(address(setterRatifier), true, lender);
+        setterRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
         deal(address(underlyingToken), depositor, units);
