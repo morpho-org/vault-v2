@@ -5664,8 +5664,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Realizing a default inside the callback and exiting at the snapshot price gives the same result as doing it without any callback (see testNoCbAccrueLiquidateRedeem): the callback adds nothing.
-    function testCbLossDuringForceDeallocateThenRedeem() public {
+    /// @dev A callback redemption cannot value the adapter while its market is locked.
+    function testCbLossDuringForceDeallocateBlocksCallbackRedeem() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
         buyer.exec(address(realVault), abi.encodeCall(realVault.deposit, (2e18, address(buyer))));
@@ -5678,19 +5678,20 @@ contract MidnightAdapterTest is Test {
         buyer.push(
             address(realVault),
             abi.encodeCall(realVault.redeem, (buyerShares, address(buyer), address(buyer))),
-            bytes4(0)
+            IMidnightAdapterBase.OtherSellInProgress.selector
         );
 
         callbackForceDeallocate(initial.market, 1e15, buyer);
         assertTrue(buyer.called(), "callback ran");
 
-        // Exited whole at the pre-loss price (minus the 1e15 paid for the credit bought).
-        assertEq(loanToken.balanceOf(address(buyer)), buyerBalanceBefore + 2e18 - 1e15, "buyer proceeds");
-        assertEq(realVault.totalAssets(), backing(), "loss visible after the tx");
+        assertEq(loanToken.balanceOf(address(buyer)), buyerBalanceBefore - 1e15, "buyer paid for credit");
+        assertEq(realVault.balanceOf(address(buyer)), buyerShares, "callback redemption reverted");
+        uint256 penaltyAssets = uint256(1e15).mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18);
+        assertEq(realVault.totalAssets(), backing() - penaltyAssets, "loss and penalty visible after the tx");
         assertEq(
             realVault.allocation(adapter.adapterId()), adapter.marketData(_marketId(initial.market)).netCredit, "caps"
         );
-        assertApproxEqAbs(backing(), 10e18 - 4e18 + 1e15 / 2, 2, "half of the remaining credit is lost");
+        assertApproxEqAbs(backing(), 12e18 - 4e18 + 1e15 / 2, 2, "half of the remaining credit is lost");
     }
 
     /// forge-config: default.isolate = true
