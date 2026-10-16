@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.37;
 
-import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
-import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
-import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
+import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
+import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -429,7 +429,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            require(_marketData.netRate >= minNetRate, BuyRateTooLow());
+            require(_marketData.netRate >= minNetRate, NetRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -503,12 +503,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
         if (shortfall > 0) {
-            require(!noSalesWithShortfall, ShortfallTooHigh());
+            require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             if (!_marketData.forceSellable) {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-                require(_marketData.netRate >= minNetRate, ShortfallTooHigh());
+                require(_marketData.netRate >= minNetRate, NetRateTooLow());
             }
         }
 
