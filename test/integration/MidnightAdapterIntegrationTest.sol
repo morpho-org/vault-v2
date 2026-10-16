@@ -105,7 +105,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             start: block.timestamp,
             expiry: market.maturity,
             tick: TICK,
-            group: keccak256(abi.encode(market.maturity, type(uint128).max)),
+            group: keccak256(abi.encode("buy", market.maturity, units)),
             callback: address(adapter),
             callbackData: abi.encode(address(0), ""),
             receiverIfMakerIsSeller: address(0),
