@@ -253,14 +253,12 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         priceRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
-        deal(address(underlyingToken), lender, units);
-        vm.startPrank(lender);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
-        vm.stopPrank();
         uint256 idleAssets = underlyingToken.balanceOf(address(vault));
         vm.prank(depositor);
         vault.withdraw(idleAssets, depositor, depositor);
+        deal(address(underlyingToken), lender, units);
         vm.startPrank(lender);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
         midnight.take(offer, ratifierData, units, lender, address(0), address(0), "");
         vm.stopPrank();
         // Only the sale's proceeds (price ~0.994) are idle.
