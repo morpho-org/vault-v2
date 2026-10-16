@@ -3,32 +3,7 @@
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
-
-    function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
-
-    function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
-
-    function _.isInRegistry(address) external => ignoredBoolStaticcall() expect(bool);
-
-    function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
-    function _.canSendShares(address) external => ignoredBoolStaticcall() expect(bool);
-    function _.canReceiveAssets(address) external => ignoredBoolStaticcall() expect(bool);
-    function _.canSendAssets(address) external => ignoredBoolStaticcall() expect(bool);
 }
-
-function ignoredBoolStaticcall() returns bool {
-    ignoredStaticcall = true;
-    bool value;
-    return value;
-}
-
-function ignoredUintStaticcall() returns uint256 {
-    ignoredStaticcall = true;
-    uint256 value;
-    return value;
-}
-
-persistent ghost bool ignoredStaticcall;
 
 // True when at least one slot was written.
 persistent ghost bool storageChanged;
@@ -46,24 +21,45 @@ hook ALL_SSTORE(uint _, uint _) {
     }
 }
 
-hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    // address(1) is ignored because it's the ecrecover function.
-    if (!ignoredStaticcall && storageChanged && addr != 0x1) {
-        staticCallAfterSStore = true;
+hook ALL_TSTORE(uint _, uint _) {
+    storageChanged = true;
+    if (staticCallAfterSStore) {
+        staticCallUnsafe = true;
     }
-    ignoredStaticcall = false;
 }
 
-// Check that there are no reentrancy unsafe calls except potentially for balanceOf on the asset, realAssets on the adapters and canReceiveShares, canSendShares, canReceiveAssets and canSendAssets on the gates, and isInRegistry on adapter registry.
-rule reentrancyViewSafe(method f, env e, calldataarg data) filtered {
-// forceDeallocate is a composition of deallocate and withdraw.
-f -> f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector } {
-    require ignoredStaticcall == false, "setup ghost state";
-    require storageChanged == false, "setup ghost state";
-    require staticCallAfterSStore == false, "setup ghost state";
-    require staticCallUnsafe == false, "setup ghost state";
+// address(1) is ignored because it's the ecrecover function.
+// These calls are assumed to not re-enter (documented). 0x56c07573 is realAssets() and 0xe4bb26f2 is isInRegistry(address).
+hook STATICCALL(uint256 _, address addr, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
+    if (
+        storageChanged
+            && addr != 0x1
+            && selector != 0x56c07573
+            && selector != 0xe4bb26f2
+            && selector != sig:balanceOf(address).selector
+            && selector != sig:canReceiveShares(address).selector
+            && selector != sig:canSendShares(address).selector
+            && selector != sig:canReceiveAssets(address).selector
+            && selector != sig:canSendAssets(address).selector
+    ) {
+        staticCallAfterSStore = true;
+    }
+}
 
-    f(e, data);
-
+// Check that static calls are either before the first store or after the last store.
+rule reentrancyViewSafe(method f, env e, calldataarg data) {
+    require(!storageChanged && !staticCallAfterSStore && !staticCallUnsafe, "set up the initial ghost state");
+    if (f.selector == sig:forceDeallocate(address, bytes, uint256, address).selector) {
+        address adapter;
+        bytes adapterData;
+        uint256 assets;
+        address onBehalf;
+    
+        // Used to show that the penalty withdrawal does not deallocate again.
+        require forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec";
+        forceDeallocate(e, adapter, adapterData, assets, onBehalf);
+    } else {
+        f(e, data);
+    }
     assert !staticCallUnsafe;
 }
