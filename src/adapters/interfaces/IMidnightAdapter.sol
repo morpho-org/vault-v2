@@ -1,24 +1,24 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
+import {Market, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IBuyCallback, ISellCallback} from "../../../lib/midnight/src/interfaces/ICallbacks.sol";
+import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
     /// @dev High 40 bits of Midnight's loss factor of the market when netCredit was last updated.
     /// @dev Only used while the market has lost less than 255/256 of its units. Until then, a loss of at least 2^-32 of the remaining units changes them.
     uint40 lossFactorHigh40;
-    /// @dev WAD-scaled simple interest rate per second.
-    uint48 rate;
+    /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
+    uint48 netRate;
     uint40 maturity;
     /// @dev The fields above fill one slot. The fields below are not read by realAssets.
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market.
-    /// @dev When activated, rate isn't reduced on losses due to selling.
+    /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
 }
@@ -36,7 +36,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed sender, address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetMinRate(uint256 newMinRate);
+    event SetMinNetRate(uint256 newMinNetRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
@@ -48,10 +48,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event Buy(
-        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newRate
+        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
-        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newRate
+        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
 
     /* ERRORS */
@@ -62,6 +62,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DataNotTimelocked();
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
+    error DurationZeroAbsoluteCap();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
@@ -79,7 +80,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotSelf();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
-    error BuyRateTooLow();
+    error NetRateTooLow();
+    error SalesWithShortfallDisabled();
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
@@ -101,18 +103,19 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
-    function minRate() external view returns (uint64);
+    function minNetRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
     function noSalesBelowFaceValue() external view returns (bool);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
+    function multicall(bytes[] calldata data) external;
     function submit(bytes calldata data) external;
     function revoke(bytes calldata data) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setMinRate(uint256 newMinRate) external;
+    function setMinNetRate(uint256 newMinNetRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
@@ -142,7 +145,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         returns (
             uint128 netCredit,
             uint40 lossFactorHigh40,
-            uint48 rate,
+            uint48 netRate,
             uint40 maturity,
             uint8 index,
             bool forceSellable
