@@ -2,11 +2,11 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.37;
 
-import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
-import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
-import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
-import {UtilsLib} from "lib/midnight/src/libraries/UtilsLib.sol";
+import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
+import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
+import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {UtilsLib} from "../../lib/midnight/src/libraries/UtilsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
