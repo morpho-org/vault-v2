@@ -327,7 +327,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         setterRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
-        deal(address(underlyingToken), depositor, units);
+        uint256 sellerAssets = units * TickLib.tickToPrice(TICK) / 1e18;
+        deal(address(underlyingToken), depositor, units - sellerAssets);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
