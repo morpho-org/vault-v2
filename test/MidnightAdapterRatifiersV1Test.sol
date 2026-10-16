@@ -239,6 +239,18 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         submitSignature(bytes32(0), true, 0, block.timestamp, sig);
     }
 
+    function testSignatureOfAnotherAllocatorRejected() public {
+        (address otherAllocator, uint256 otherKey) = makeAddrAndKey("otherAllocator");
+        vm.mockCall(address(vault), abi.encodeWithSignature("isAllocator(address)", otherAllocator), abi.encode(true));
+        Signature memory sig = signature(bytes32(0), true, 0, block.timestamp, otherKey);
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), true, 0, block.timestamp, sig);
+        vm.prank(otherAllocator);
+        submitSignature(bytes32(0), true, 0, block.timestamp, sig);
+        assertTrue(ratifier.isRootRatified(maker, bytes32(0)));
+    }
+
     function testSentinelSignatureCanOnlyUnratify() public {
         setRoot(bytes32(0), true);
         Signature memory sig = signature(bytes32(0), false, 0, block.timestamp, sentinelKey);
@@ -246,7 +258,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         submitSignature(bytes32(0), false, 0, block.timestamp, sig);
         assertFalse(ratifier.isRootRatified(maker, bytes32(0)));
         sig = signature(bytes32(0), true, 1, block.timestamp, sentinelKey);
-        vm.prank(allocator);
+        vm.prank(sentinel);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         submitSignature(bytes32(0), true, 1, block.timestamp, sig);
     }
@@ -256,7 +268,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         setRoot(root, true);
         Signature memory sig = signature(root, false, 0, block.timestamp, allocatorKey);
         vm.mockCall(address(vault), abi.encodeWithSignature("isAllocator(address)", allocator), abi.encode(false));
-        vm.prank(sentinel);
+        vm.prank(allocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         submitSignature(root, false, 0, block.timestamp, sig);
         assertEq(ratifier.isRatified(offer, data(root, 0, new bytes32[](0), 0, address(0)), taker), CALLBACK_SUCCESS);

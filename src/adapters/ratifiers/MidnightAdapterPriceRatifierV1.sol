@@ -15,7 +15,7 @@ import {HashLib} from "../../../lib/midnight/src/ratifiers/libraries/HashLib.sol
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
-/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
+/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses, and that the signer of setIsRootRatifiedWithSig must be the caller.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
@@ -41,7 +41,7 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
         return SET_IS_ROOT_RATIFIED_SUCCESS;
     }
 
-    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though the batch reverted. Both the caller and the signer are subject to the same authorization as setIsRootRatified.
+    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though the batch reverted. The caller is subject to the same authorization as setIsRootRatified and must be the signer.
     function setIsRootRatifiedWithSig(
         address maker,
         bytes32 root,
@@ -69,11 +69,7 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
         // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
         address _signer = ecrecover(digest, v, r, s);
         require(_signer != address(0), InvalidSignature());
-        require(
-            IVaultV2(parentVault).isAllocator(_signer)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(_signer)),
-            Unauthorized()
-        );
+        require(_signer == msg.sender, Unauthorized());
         Ratification memory _ratification = ratification[maker][root];
         if (nonce == _ratification.rootNonce) {
             ratification[maker][root] = Ratification({isRootRatified: newIsRootRatified, rootNonce: nonce + 1});
