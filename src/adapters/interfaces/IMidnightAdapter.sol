@@ -38,7 +38,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
-    event SetMaxSellRate(uint256 newMaxSellRate);
+    event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinSellNetPriceForceSellable(bytes32 indexed marketId, uint256 newMinSellNetPrice);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
@@ -85,7 +85,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error SelfAllocationOnly();
     error SellInProgress();
     error SellNetPriceTooLow();
-    error SellRateTooHigh();
+    error NetSellRateTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -105,7 +105,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skimRecipient() external view returns (address);
     function minNetRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
-    function maxSellRate() external view returns (uint64);
+    function maxNetSellRate() external view returns (uint64);
     function minSellNetPriceForceSellable(bytes32 marketId) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -120,7 +120,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
-    function setMaxSellRate(uint256 newMaxSellRate) external;
+    function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function setMinSellNetPriceForceSellable(bytes32 marketId, uint256 newMinSellNetPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
