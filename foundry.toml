@@ -70,6 +70,11 @@ optimizer_runs = 800
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
+paths = "src/adapters/ratifiers/**"
+optimizer_runs = 800
+evm_version = "osaka"
+
+[[profile.default.compilation_restrictions]]
 paths = "lib/midnight/src/**"
 evm_version = "osaka"
 
