@@ -108,7 +108,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             tick: TICK,
             group: keccak256(abi.encode(market.maturity, type(uint128).max)),
             callback: address(adapter),
-            callbackData: "",
+            callbackData: abi.encode(address(0), ""),
             receiverIfMakerIsSeller: address(0),
             ratifier: address(adapter),
             reduceOnly: false,
@@ -182,7 +182,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
 
         vm.prank(allocator);
-        adapter.take(offer, ratifierData, units, "");
+        adapter.take(offer, ratifierData, units, abi.encode(address(0), ""));
     }
 
     function testTakerSell() public {
