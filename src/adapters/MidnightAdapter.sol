@@ -98,7 +98,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minNetRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
-    /// @dev Only enforced before maturity, where the implied rate is meaningful.
     uint64 public maxSellRate;
     /// @dev WAD-scaled minimum price of a maker or taker sale at or after maturity, relative to the face value of the sold net credit.
     uint64 public minSellPricePostMaturity;
