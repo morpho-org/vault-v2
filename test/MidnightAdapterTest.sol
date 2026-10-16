@@ -730,13 +730,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
     }
 
-    function testForceSellableOverridesNoSalesWithShortfallAndMinNetRate(bool takerSale) public {
+    function testForceSellableOverridesMinNetRate(bool takerSale) public {
         Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(boughtOffer.market);
         uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
         uint256 rate = adapter.marketData(marketId).netRate;
         setMinNetRate(rate);
-        setNoSalesWithShortfall(true);
 
         uint256 soldUnits = 0.5e18;
         uint256 tick = TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING);
@@ -777,6 +776,33 @@ contract MidnightAdapterTest is Test {
             shortfall,
             "shortfall realized immediately"
         );
+    }
+
+    function testForceSellableDoesNotOverrideNoSalesWithShortfall(bool takerSale) public {
+        Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 netCredit = adapter.marketData(marketId).netCredit;
+        uint256 rate = adapter.marketData(marketId).netRate;
+
+        uint256 soldUnits = 0.5e18;
+        uint256 tick = TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING);
+        Offer memory offer = takerSale
+            ? makeExternalOffer(boughtOffer.market, true, soldUnits, MAX_TICK)
+            : makeSellOffer(boughtOffer.market, soldUnits, tick);
+        offer.tick = tick;
+
+        setForceSellable(marketId);
+        setNoSalesWithShortfall(true);
+
+        vm.expectRevert(IMidnightAdapterBase.SalesWithShortfallDisabled.selector);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", soldUnits, "");
+        } else {
+            take(offer);
+        }
+        assertEq(adapter.marketData(marketId).netCredit, netCredit, "netCredit unchanged after rejected sale");
+        assertEq(adapter.marketData(marketId).netRate, rate, "rate unchanged after rejected sale");
     }
 
     function testForceSellableIsPerMarketAndCanBeDisabled() public {
