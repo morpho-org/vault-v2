@@ -457,6 +457,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
     }
 
     function take(IMidnight midnight, MidnightAdapterRateRatifierV1 ratifier, Offer memory offer) internal {
+        offer.callbackData = offer.buy ? abi.encode(address(0), bytes("")) : bytes("");
         uint256 rate = 1e9;
         bytes32 root = HashLib.hashRateRatifierV1Offer(offer, rate, address(this));
         ratifier.setIsRootRatified(offer.maker, root, true);
