@@ -214,6 +214,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
+    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
