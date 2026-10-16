@@ -216,10 +216,14 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         externalRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
+        uint256 idleAssets = underlyingToken.balanceOf(address(vault));
+        vm.prank(depositor);
+        vault.withdraw(idleAssets, depositor, depositor);
         vm.prank(allocator);
         adapter.take(offer, ratifierData, units, "");
+        // Only the sale's proceeds (price ~0.994) are idle.
         vm.prank(depositor);
-        vault.withdraw(units, depositor, depositor);
+        vault.withdraw(units * 99 / 100, depositor, depositor);
     }
 
     function testMakerSell() public {
@@ -252,10 +256,16 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         deal(address(underlyingToken), lender, units);
         vm.startPrank(lender);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
+        vm.stopPrank();
+        uint256 idleAssets = underlyingToken.balanceOf(address(vault));
+        vm.prank(depositor);
+        vault.withdraw(idleAssets, depositor, depositor);
+        vm.startPrank(lender);
         midnight.take(offer, ratifierData, units, lender, address(0), address(0), "");
         vm.stopPrank();
+        // Only the sale's proceeds (price ~0.994) are idle.
         vm.prank(depositor);
-        vault.withdraw(units, depositor, depositor);
+        vault.withdraw(units * 99 / 100, depositor, depositor);
     }
 
     function testForceSell() public {
@@ -328,6 +338,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         deal(address(underlyingToken), depositor, units);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
+        vault.withdraw(underlyingToken.balanceOf(address(vault)), depositor, depositor);
         vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
