@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.37;
 
@@ -447,7 +447,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            require(_marketData.netRate >= minNetRate, BuyRateTooLow());
+            require(_marketData.netRate >= minNetRate, NetRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -521,9 +521,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
         if (shortfall > 0) {
-            require(!noSalesWithShortfall, ShortfallTooHigh());
+            require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             if (!_marketData.forceSellable) {
-                for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
+                uint256 remainingShortfall = shortfall;
+                uint256 maxShortfall;
+                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
                     bytes32 id = marketIds[i];
                     MarketData storage otherMarketData = marketData[id];
                     if (
@@ -533,20 +535,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
                         uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                         uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                        maxShortfall += netCredit - amortizedValue;
                         uint256 capacity =
                             netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue);
                         if (capacity > 0) {
-                            uint256 shortfallReduction = UtilsLib.min(shortfall, capacity);
+                            uint256 shortfallReduction = UtilsLib.min(remainingShortfall, capacity);
                             uint256 newAmortizedValue = amortizedValue + shortfallReduction;
                             otherMarketData.netRate = (netCredit - newAmortizedValue)
                                 .mulDivDown(WAD, newAmortizedValue * otherTtm)
                                 .toUint64();
-                            shortfall -= shortfallReduction;
+                            remainingShortfall -= shortfallReduction;
                             emit ReduceRate(id, otherMarketData.netRate);
                         }
                     }
                 }
-                require(shortfall == 0, ShortfallTooHigh());
+                require(shortfall <= maxShortfall, ShortfallTooHigh());
+                require(remainingShortfall == 0, NetRateTooLow());
             }
         }
 
