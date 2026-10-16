@@ -56,7 +56,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ADAPTERS
 /// @dev Loose specification of adapters:
 /// - They must enforce that only the vault can call allocate/deallocate.
-/// - They must enter/exit markets only in allocate/deallocate.
+/// - They must report changes in allocation to the Vault (through allocate/deallocate).
 /// - They must return the right ids on allocate/deallocate. Returned ids must not repeat.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).

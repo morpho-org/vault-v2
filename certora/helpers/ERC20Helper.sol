@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
 import {IERC20, SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
