@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.37;
 
-import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {VaultV2CompatibleEnterGate} from "./VaultV2CompatibleEnterGate.sol";
-import {IEnterGateFactory} from "lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "../../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
 
 contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
     event CreateVaultV2CompatibleEnterGate(

@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
+import {Market, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IBuyCallback, ISellCallback} from "../../../lib/midnight/src/interfaces/ICallbacks.sol";
+import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
@@ -79,7 +79,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotSelf();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
-    error BuyRateTooLow();
+    error NetRateTooLow();
+    error SalesWithShortfallDisabled();
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();

@@ -2,10 +2,10 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.37;
 
-import {IEnterGate} from "lib/midnight/src/interfaces/IGate.sol";
-import {IEnterSubGate} from "lib/midnight/src/interfaces/IEnterSubGate.sol";
-import {IMidnight, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
+import {IEnterGate} from "../../../lib/midnight/src/interfaces/IGate.sol";
+import {IEnterSubGate} from "../../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IMidnight, Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit.

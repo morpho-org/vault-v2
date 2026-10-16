@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-import "Invariants.spec";
+import "./Invariants.spec";
 
 definition shares() returns mathint = currentContract.totalSupply + currentContract.virtualShares;
 
