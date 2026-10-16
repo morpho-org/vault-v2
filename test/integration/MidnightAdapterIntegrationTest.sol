@@ -57,9 +57,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         oracle.setPrice(ORACLE_PRICE_SCALE * oneToken / 1e18);
         collateralParams = CollateralParams(address(collateralToken), 1e18, 0.25e18, address(oracle));
 
-        uint256[] memory durations = new uint256[](2);
+        uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
-        durations[1] = 30 days;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
@@ -86,7 +85,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         _increaseCaps(abi.encode("liquidatorGate", address(0)));
         _increaseCaps(abi.encode("rcfThreshold", uint256(0)));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
-        _increaseCaps(abi.encode("this/duration", address(adapter), 30 days));
 
         deal(address(underlyingToken), depositor, initialAssets);
         vm.startPrank(depositor);
