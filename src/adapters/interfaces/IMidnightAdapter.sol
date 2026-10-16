@@ -42,6 +42,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
+    event ReorderMarkets(address indexed caller, bytes32[] newMarketIds);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
@@ -51,6 +52,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Sell(
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
+    event ReduceRate(bytes32 indexed marketId, uint256 newRate);
 
     /* ERRORS */
 
@@ -73,6 +75,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
+    error NotAPermutation();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
@@ -130,6 +133,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
+    function reorderMarkets(bytes32[] calldata newMarketIds) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
 }

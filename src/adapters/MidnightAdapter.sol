@@ -6,6 +6,7 @@ import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidni
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {UtilsLib} from "../../lib/midnight/src/libraries/UtilsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -31,7 +32,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall decreases the rate of markets in marketIds order, down to minNetRate, so the amortized value of the adapter decreases only by the received assets.
+/// @dev Markets with a sale in progress or force sellable do not absorb shortfalls.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -255,6 +257,28 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* ALLOCATOR FUNCTIONS */
+
+    /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
+    /// @dev newMarketIds must be a permutation of marketIds.
+    function reorderMarkets(bytes32[] calldata newMarketIds) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(newMarketIds.length == marketIds.length, InvalidLength());
+
+        uint256 seen;
+        for (uint256 i; i < newMarketIds.length; i++) {
+            uint256 index = marketData[newMarketIds[i]].index;
+            require(marketIds[index] == newMarketIds[i] && ((seen >> index) & 1) == 0, NotAPermutation());
+            seen |= 1 << index;
+        }
+
+        for (uint256 i; i < newMarketIds.length; i++) {
+            marketIds[i] = newMarketIds[i];
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+            marketData[newMarketIds[i]].index = uint8(i);
+        }
+
+        emit ReorderMarkets(msg.sender, newMarketIds);
+    }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
         external
@@ -499,10 +523,34 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (shortfall > 0) {
             require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             if (!_marketData.forceSellable) {
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-                require(_marketData.netRate >= minNetRate, NetRateTooLow());
+                uint256 remainingShortfall = shortfall;
+                uint256 maxShortfall;
+                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
+                    bytes32 id = marketIds[i];
+                    MarketData storage otherMarketData = marketData[id];
+                    if (
+                        !otherMarketData.forceSellable
+                            && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
+                    ) {
+                        uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+                        uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                        uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                        maxShortfall += netCredit - amortizedValue;
+                        uint256 capacity =
+                            netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue);
+                        if (capacity > 0) {
+                            uint256 shortfallReduction = UtilsLib.min(remainingShortfall, capacity);
+                            uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                            otherMarketData.netRate = (netCredit - newAmortizedValue)
+                                .mulDivDown(WAD, newAmortizedValue * otherTtm)
+                                .toUint64();
+                            remainingShortfall -= shortfallReduction;
+                            emit ReduceRate(id, otherMarketData.netRate);
+                        }
+                    }
+                }
+                require(shortfall <= maxShortfall, ShortfallTooHigh());
+                require(remainingShortfall == 0, NetRateTooLow());
             }
         }
 
