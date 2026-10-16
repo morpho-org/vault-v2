@@ -36,9 +36,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetRate, maxSellRate and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev minNetRate, maxSellRate, noSalesWithShortfall and minSellPriceForceSellable help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore minNetRate, but not noSalesBelowFaceValue and noSalesWithShortfall.
+/// @dev Sales in forceSellable markets ignore minNetRate, maxSellRate and noSalesWithShortfall, and are bounded by minSellPriceForceSellable instead.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -99,6 +99,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     uint64 public maxSellRate;
     bool public noSalesWithShortfall;
+    /// @dev Minimum price of a maker or taker sale in a forceSellable market, per unit of sold net credit (WAD = face value).
+    mapping(bytes32 marketId => uint256) public minSellPriceForceSellable;
 
     /* CONSTRUCTOR */
 
@@ -253,6 +255,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         maxSellRate = newMaxSellRate.toUint64();
         emit SetMaxSellRate(newMaxSellRate);
+    }
+
+    function setMinSellPriceForceSellable(bytes32 marketId, uint256 newMinSellPrice) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        minSellPriceForceSellable[marketId] = newMinSellPrice;
+        emit SetMinSellPriceForceSellable(marketId, newMinSellPrice);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -493,13 +501,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-        require(ttm == 0 || sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
         MarketData storage _marketData = marketData[marketId];
-        uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-        if (shortfall > 0) {
-            require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-            if (!_marketData.forceSellable) {
+        if (_marketData.forceSellable) {
+            require(sellerAssets >= soldNetCredit.mulDivUp(minSellPriceForceSellable[marketId], WAD), SellPriceTooLow());
+        } else {
+            uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
+            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            if (shortfall > 0) {
+                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();

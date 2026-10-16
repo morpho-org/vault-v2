@@ -15,7 +15,7 @@ struct MarketData {
     uint64 netRate;
     uint48 maturity;
     uint8 index;
-    /// @dev Allows selling with arbitrary loss on the market.
+    /// @dev Allows selling with arbitrary loss on the market, down to minSellPriceForceSellable, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
@@ -39,6 +39,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetMaxSellRate(uint256 newMaxSellRate);
+    event SetMinSellPriceForceSellable(bytes32 indexed marketId, uint256 newMinSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -83,6 +84,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
+    error SellPriceTooLow();
     error SellRateTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
@@ -104,6 +106,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function minNetRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
     function maxSellRate() external view returns (uint64);
+    function minSellPriceForceSellable(bytes32 marketId) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -118,6 +121,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setMaxSellRate(uint256 newMaxSellRate) external;
+    function setMinSellPriceForceSellable(bytes32 marketId, uint256 newMinSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
