@@ -17,7 +17,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Any loss larger than 1/2^32th of the market's remaining units are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
@@ -62,7 +62,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
-    uint128 constant MAX_CACHEABLE_LOSS_FACTOR = type(uint128).max - 2 ** 120;
 
     /* IMMUTABLES */
 
@@ -306,7 +305,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
-        marketData[marketId].lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
+        marketData[marketId].scaledNetCredit = toScaledNetCredit(marketId, newNetCredit);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -365,7 +364,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
+            marketData[marketId].scaledNetCredit = toScaledNetCredit(marketId, newNetCredit);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -429,7 +428,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
+        _marketData.scaledNetCredit = toScaledNetCredit(marketId, newNetCredit);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint40();
@@ -509,7 +508,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactorHigh40 = IMidnight(midnight).lossFactor(marketId).high40();
+        _marketData.scaledNetCredit = toScaledNetCredit(marketId, newNetCredit);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -539,6 +538,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
+    }
+
+    /// @dev Returns type(uint168).max if the scaled net credit doesn't fit, which happens only after near-total losses.
+    /// @dev Rounded up so that realAssets gets netCredit back exactly until the next loss.
+    function toScaledNetCredit(bytes32 marketId, uint256 netCredit) internal view returns (uint168) {
+        // Avoids dividing by zero after a total loss.
+        if (netCredit == 0) return 0;
+        uint256 scaledNetCredit =
+            netCredit.mulDivUp(2 ** 128, type(uint128).max - IMidnight(midnight).lossFactor(marketId));
+        // forge-lint: disable-next-item(unsafe-typecast) checked against type(uint168).max.
+        return scaledNetCredit < type(uint168).max ? uint168(scaledNetCredit) : type(uint168).max;
     }
 
     function removeMarket(bytes32 marketId) internal {
@@ -607,13 +617,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
-            uint40 lossFactorHigh40 = _marketData.lossFactorHigh40;
+            uint256 scaledNetCredit = _marketData.scaledNetCredit;
             uint256 netCredit;
-            uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (marketId == overriddenMarketId) {
                 netCredit = overriddenMarketNetCredit;
-            } else if (lossFactor.high40() == lossFactorHigh40 && lossFactor <= MAX_CACHEABLE_LOSS_FACTOR) {
-                netCredit = _marketData.netCredit;
+            } else if (scaledNetCredit < type(uint168).max) {
+                uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+                // No overflow because the loss factor only increases.
+                unchecked {
+                    netCredit = scaledNetCredit * (type(uint128).max - lossFactor) >> 128;
+                }
+                // During a sale of this market, a loss not yet synced might not be borne by the sold part.
+                // The net credit is recovered exactly until the next loss, so a different value means such a loss.
+                if (lossFactor > 0 && IMidnight(midnight).liquidationLocked(marketId, address(this))) {
+                    require(netCredit == _marketData.netCredit, OtherSellInProgress());
+                }
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
