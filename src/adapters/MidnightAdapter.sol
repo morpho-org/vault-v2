@@ -136,12 +136,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        // Exact length so that onBuy can find pending setForceSellable calls.
+        require(selector != IMidnightAdapterBase.setForceSellable.selector || data.length == 36, InvalidLength());
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];
-        // forge-lint: disable-next-item(unsafe-typecast) the market id is the first argument.
-        if (selector == IMidnightAdapterBase.setForceSellable.selector) marketData[bytes32(data[4:36])].noBuys = true;
         executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
@@ -216,11 +216,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev Buys are prevented as soon as setForceSellable is submitted, until unsetForceSellable is called.
+    /// @dev Buys are prevented as soon as setForceSellable is submitted, until it is revoked or unsetForceSellable is called.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
-        marketData[marketId].noBuys = true;
         emit SetForceSellable(marketId);
     }
 
@@ -230,7 +229,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         marketData[marketId].forceSellable = false;
-        marketData[marketId].noBuys = false;
         emit UnsetForceSellable(marketId);
     }
 
@@ -422,7 +420,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.noBuys, UnauthorizedBuy());
+        require(
+            !_marketData.forceSellable
+                && executableAt[abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId))] == 0,
+            UnauthorizedBuy()
+        );
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
@@ -552,7 +554,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketIds.pop();
         delete marketData[marketId];
         marketData[marketId].forceSellable = _marketData.forceSellable;
-        marketData[marketId].noBuys = _marketData.noBuys;
     }
 
     /* VIEWS */
