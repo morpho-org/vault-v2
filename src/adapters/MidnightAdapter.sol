@@ -365,7 +365,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
                 && IMidnight(midnight).credit(marketId, address(this)) > 0
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-              if (admitted) VaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (admitted) VaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
