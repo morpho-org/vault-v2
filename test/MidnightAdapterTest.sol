@@ -1361,9 +1361,9 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         vm.prank(signerAllocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(otherAdapter, _root, true);
+        priceRatifier.setIsRootRatified(otherAdapter, _root, true, signerAllocator);
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(otherAdapter, _root, true);
+        priceRatifier.setIsRootRatified(otherAdapter, _root, true, otherAllocator);
         bytes memory data = abi.encode(_root, uint256(0), proof([offer]), address(0));
         assertEq(priceRatifier.isRatified(offer, data, taker), CALLBACK_SUCCESS);
     }
@@ -1425,7 +1425,7 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(otherSigner);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        priceRatifier.setIsRootRatified(address(adapter), _root, true, otherSigner);
     }
 
     function testRatifySellOfferWithoutReduceOnly(uint256 seed) public {
@@ -1470,7 +1470,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(priceRatifier));
         emit IMidnightAdapterPriceRatifierV1.SetIsRootRatified(signerAllocator, address(adapter), _root, false);
         vm.prank(signerAllocator);
-        priceRatifier.setIsRootRatified(address(adapter), _root, false);
+        priceRatifier.setIsRootRatified(address(adapter), _root, false, signerAllocator);
         assertFalse(priceRatifier.isRootRatified(address(adapter), _root), "root unratified");
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
         adapter.isRatified(offer, data, taker);
@@ -1484,7 +1484,7 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         vm.prank(sentinel);
-        priceRatifier.setIsRootRatified(address(adapter), _root, false);
+        priceRatifier.setIsRootRatified(address(adapter), _root, false, sentinel);
         assertFalse(priceRatifier.isRootRatified(address(adapter), _root), "root unratified");
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
         adapter.isRatified(offer, data, taker);
@@ -1494,7 +1494,7 @@ contract MidnightAdapterTest is Test {
         vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(adapter), keccak256("some root"), false);
+        priceRatifier.setIsRootRatified(address(adapter), keccak256("some root"), false, caller);
     }
 
     function testSetIsSubRatifierUnauthorized(address caller, address subRatifier, bool newIsSubRatifier) public {
@@ -1596,7 +1596,7 @@ contract MidnightAdapterTest is Test {
         stdstore.target(address(parentVault)).sig("isAllocator(address)").with_key(signerAllocator).checked_write(false);
         vm.prank(signerAllocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        priceRatifier.setIsRootRatified(address(adapter), _root, true, signerAllocator);
     }
 
     function testSharedRatifierTwoAdapters() public {
@@ -1623,11 +1623,11 @@ contract MidnightAdapterTest is Test {
         // A's allocator cannot act on B's roots.
         vm.prank(signerAllocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), false);
+        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), false, signerAllocator);
 
         // Canceling A's root value on B does not affect A.
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerA), false);
+        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerA), false, otherAllocator);
         bytes memory dataA = ratify([offerA], signerAllocator);
         vm.prank(taker);
         midnight.take(offerA, dataA, offerA.maxUnits, taker, taker, address(0), "");
@@ -1635,7 +1635,7 @@ contract MidnightAdapterTest is Test {
 
         // B takes with its own allocator through the same ratifier deployment.
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), true);
+        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), true, otherAllocator);
         bytes memory dataB =
             abi.encode(address(priceRatifier), abi.encode(root(offerB), 0, proof([offerB]), address(0)));
         vm.prank(taker);
@@ -4722,7 +4722,7 @@ contract MidnightAdapterTest is Test {
         returns (bytes memory)
     {
         vm.prank(signer);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        priceRatifier.setIsRootRatified(address(adapter), _root, true, signer);
         return abi.encode(address(priceRatifier), abi.encode(_root, leafIndex, _proof, address(0)));
     }
 
