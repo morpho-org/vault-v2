@@ -17,8 +17,9 @@ struct MarketData {
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
-    /// @dev When activated, buying is prevented.
     bool forceSellable;
+    /// @dev Prevents buying. Set when setForceSellable is submitted, unset by unsetForceSellable.
+    bool noBuys;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -145,7 +146,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint64 netRate,
             uint48 maturity,
             uint8 index,
-            bool forceSellable
+            bool forceSellable,
+            bool noBuys
         );
 }
 
