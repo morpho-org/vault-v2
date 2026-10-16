@@ -14,7 +14,8 @@ contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
     mapping(address account => mapping(bytes32 marketId => bool)) public isGate;
 
     function createVaultV2CompatibleEnterGate(address subGate, Market memory market) external returns (address) {
-        address vaultV2CompatibleEnterGate = address(new VaultV2CompatibleEnterGate(subGate, market));
+        market.enterGate = address(0);
+        address vaultV2CompatibleEnterGate = address(new VaultV2CompatibleEnterGate{salt: bytes32(0)}(subGate, market));
         bytes32 marketId = VaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate).marketId();
         isGate[vaultV2CompatibleEnterGate][marketId] = true;
         emit CreateVaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate, subGate, marketId);
