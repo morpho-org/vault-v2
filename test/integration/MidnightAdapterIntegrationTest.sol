@@ -339,7 +339,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     function _submitAndSet(address target, bytes memory data) internal {
         vm.prank(curator);
         IVaultV2(target).submit(data);
-        vm.prank(curator);
         (bool success, bytes memory returnData) = target.call(data);
         if (!success) {
             assembly ("memory-safe") {
