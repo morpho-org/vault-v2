@@ -36,9 +36,10 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
+/// @dev minNetRate, maxSellRate, minSellPricePostMaturity and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore minNetRate, but not noSalesBelowFaceValue and noSalesWithShortfall.
+/// @dev maxSellRate applies to sales before maturity. minSellPricePostMaturity applies to sales with a shortfall at or after maturity, which are only possible in forceSellable markets.
+/// @dev Sales in forceSellable markets do not decrease the rate, so they ignore minNetRate, but not the other guardrails.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -96,8 +97,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint32 public maxTtm;
     /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
     uint64 public minNetRate;
+    /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
+    uint64 public maxSellRate;
+    /// @dev WAD-scaled minimum price of a maker or taker sale at or after maturity, relative to the face value of the sold net credit.
+    uint64 public minSellPricePostMaturity;
     bool public noSalesWithShortfall;
-    bool public noSalesBelowFaceValue;
 
     /* CONSTRUCTOR */
 
@@ -248,10 +252,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
-    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external {
+    function setMaxSellRate(uint256 newMaxSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesBelowFaceValue = newNoSalesBelowFaceValue;
-        emit SetNoSalesBelowFaceValue(newNoSalesBelowFaceValue);
+        maxSellRate = newMaxSellRate.toUint64();
+        emit SetMaxSellRate(newMaxSellRate);
+    }
+
+    function setMinSellPricePostMaturity(uint256 newMinSellPricePostMaturity) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(newMinSellPricePostMaturity <= WAD, MinSellPriceTooHigh());
+        minSellPricePostMaturity = newMinSellPricePostMaturity.toUint64();
+        emit SetMinSellPricePostMaturity(newMinSellPricePostMaturity);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -492,8 +503,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+        require(ttm == 0 || sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxSellRate * ttm), SellRateTooHigh());
         MarketData storage _marketData = marketData[marketId];
         uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
         if (shortfall > 0) {
@@ -503,6 +514,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
                 require(_marketData.netRate >= minNetRate, ShortfallTooHigh());
+            } else if (ttm == 0) {
+                require(sellerAssets >= soldNetCredit.mulDivUp(minSellPricePostMaturity, WAD), SellPriceTooLow());
             }
         }
 
