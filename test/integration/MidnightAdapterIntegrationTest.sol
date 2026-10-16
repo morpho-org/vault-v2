@@ -15,6 +15,7 @@ import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
+import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
@@ -255,6 +256,41 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
         vm.prank(depositor);
         vault.withdraw(units, depositor, depositor);
+    }
+
+    function testForceSell() public {
+        testMakerBuy();
+        Market memory market = _market(7 days);
+        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setForceSellable, (IdLib.toId(market))));
+
+        uint256 units = 1000 * oneToken;
+        Offer memory offer = Offer({
+            market: market,
+            buy: true,
+            maker: lender,
+            start: block.timestamp,
+            expiry: market.maturity,
+            tick: 0,
+            group: keccak256(abi.encode("force sell", market.maturity, units)),
+            callback: address(0),
+            callbackData: "",
+            receiverIfMakerIsSeller: address(0),
+            ratifier: address(externalRatifier),
+            reduceOnly: false,
+            maxUnits: uint128(units),
+            maxAssets: 0,
+            continuousFeeCap: type(uint256).max
+        });
+        bytes32 root = HashLib.hashOffer(offer);
+        bytes32[] memory proof = new bytes32[](0);
+        bytes memory ratifierData = abi.encode(root, uint256(0), proof);
+        vm.startPrank(lender);
+        midnight.setIsAuthorized(address(externalRatifier), true, lender);
+        externalRatifier.setIsRootRatified(lender, root, true);
+        vm.stopPrank();
+
+        vm.prank(allocator);
+        adapter.take(offer, ratifierData, units, "");
     }
 
     function testForceDeallocate() public {
