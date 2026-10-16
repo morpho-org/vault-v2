@@ -10,6 +10,7 @@ import {
 } from "../../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
+import {WAD} from "../../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
@@ -94,7 +95,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerBuy() public {
-        uint256 units = initialAssets * 1e18 / TickLib.tickToPrice(TICK);
+        uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
         Market memory market = _market(7 days);
         Offer memory offer = Offer({
             market: market,
@@ -131,7 +132,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     function testRepayWithdrawRedeem() public {
         testMakerBuy();
         Market memory market = _market(7 days);
-        uint256 units = initialAssets * 1e18 / TickLib.tickToPrice(TICK);
+        uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
         vm.warp(market.maturity);
         deal(address(underlyingToken), borrower, units);
         vm.startPrank(borrower);
@@ -327,7 +328,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         setterRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
-        uint256 sellerAssets = units * TickLib.tickToPrice(TICK) / 1e18;
+        uint256 sellerAssets = units * TickLib.tickToPrice(TICK) / WAD;
         deal(address(underlyingToken), depositor, units - sellerAssets);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
