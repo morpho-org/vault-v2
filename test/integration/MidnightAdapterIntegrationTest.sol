@@ -16,6 +16,7 @@ import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
+import {TickLib} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
@@ -96,7 +97,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testMakerBuy() public {
-        uint256 units = 2000 * oneToken;
+        uint256 units = initialAssets * 1e18 / TickLib.tickToPrice(TICK);
         Market memory market = _market(7 days);
         Offer memory offer = Offer({
             market: market,
@@ -132,7 +133,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     function testRepayWithdrawRedeem() public {
         testMakerBuy();
         Market memory market = _market(7 days);
-        uint256 units = 2000 * oneToken;
+        uint256 units = initialAssets * 1e18 / TickLib.tickToPrice(TICK);
         vm.warp(market.maturity);
         deal(address(underlyingToken), borrower, units);
         vm.startPrank(borrower);
@@ -216,9 +217,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         externalRatifier.setIsRootRatified(lender, root, true);
         vm.stopPrank();
 
-        uint256 idleAssets = underlyingToken.balanceOf(address(vault));
-        vm.prank(depositor);
-        vault.withdraw(idleAssets, depositor, depositor);
         vm.prank(allocator);
         adapter.take(offer, ratifierData, units, "");
         // Only the sale's proceeds (price ~0.994) are idle.
@@ -253,9 +251,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         priceRatifier.setIsRootRatified(address(adapter), root, true);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData = abi.encode(address(priceRatifier), abi.encode(root, uint256(0), proof, address(0)));
-        uint256 idleAssets = underlyingToken.balanceOf(address(vault));
-        vm.prank(depositor);
-        vault.withdraw(idleAssets, depositor, depositor);
         deal(address(underlyingToken), lender, units);
         vm.startPrank(lender);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
@@ -336,7 +331,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         deal(address(underlyingToken), depositor, units);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
-        vault.withdraw(underlyingToken.balanceOf(address(vault)), depositor, depositor);
         vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
