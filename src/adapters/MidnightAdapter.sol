@@ -27,7 +27,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
@@ -40,6 +40,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
+/// @dev Sales in forceSellable markets ignore minNetRate, but not noSalesBelowFaceValue and noSalesWithShortfall.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -460,15 +461,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
         }
-        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
-        if (callbackData.length > 0 && paidAssets > idleAssets) {
-            (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-            if (fundingAdapter == address(this)) {
-                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
-            } else {
-                // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
-            }
+        (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+        if (fundingAdapter == address(this)) {
+            withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
+        } else if (fundingAdapter != address(0)) {
+            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
@@ -520,32 +518,36 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!noSalesBelowFaceValue || sellerAssets >= soldNetCredit, SaleBelowFaceValue());
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         MarketData storage _marketData = marketData[marketId];
-        if (!_marketData.forceSellable) {
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-            require(!noSalesWithShortfall || shortfall == 0, ShortfallTooHigh());
-            for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
-                bytes32 id = marketIds[i];
-                MarketData storage otherMarketData = marketData[id];
-                if (
-                    !otherMarketData.forceSellable
-                        && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
-                ) {
-                    uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
-                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                    uint256 capacity =
-                        netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue);
-                    if (capacity > 0) {
-                        uint256 shortfallReduction = UtilsLib.min(shortfall, capacity);
-                        uint256 newAmortizedValue = amortizedValue + shortfallReduction;
-                        otherMarketData.netRate =
-                            (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
-                        shortfall -= shortfallReduction;
-                        emit ReduceRate(id, otherMarketData.netRate);
+        uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+        if (shortfall > 0) {
+            require(!noSalesWithShortfall, ShortfallTooHigh());
+            if (!_marketData.forceSellable) {
+                for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
+                    bytes32 id = marketIds[i];
+                    MarketData storage otherMarketData = marketData[id];
+                    if (
+                        !otherMarketData.forceSellable
+                            && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
+                    ) {
+                        uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+                        uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                        uint256 amortizedValue =
+                            netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                        uint256 capacity =
+                            netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue);
+                        if (capacity > 0) {
+                            uint256 shortfallReduction = UtilsLib.min(shortfall, capacity);
+                            uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                            otherMarketData.netRate =
+                                (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm)
+                                    .toUint64();
+                            shortfall -= shortfallReduction;
+                            emit ReduceRate(id, otherMarketData.netRate);
+                        }
                     }
                 }
+                require(shortfall == 0, ShortfallTooHigh());
             }
-            require(shortfall == 0, ShortfallTooHigh());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
