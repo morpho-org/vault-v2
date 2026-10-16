@@ -19,7 +19,7 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
 /// @dev See comments in lib/midnight/src/ratifiers/RateRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
-/// @dev Allocators and sentinels can authorize callers through the adapter's Midnight instance.
+/// @dev Allocators and sentinels can authorize signature submitters through the adapter's Midnight instance.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
     using UtilsLib for uint256;
@@ -34,18 +34,11 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         return ratification[maker][root].rootNonce;
     }
 
-    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified, address onBehalf)
-        external
-        returns (bytes32)
-    {
+    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified) external returns (bytes32) {
         address parentVault = IMidnightAdapter(maker).parentVault();
         require(
-            IVaultV2(parentVault).isAllocator(onBehalf)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(onBehalf)),
-            Unauthorized()
-        );
-        require(
-            msg.sender == onBehalf || IMidnight(IMidnightAdapter(maker).midnight()).isAuthorized(onBehalf, msg.sender),
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(msg.sender)),
             Unauthorized()
         );
         ratification[maker][root].isRootRatified = newIsRootRatified;
