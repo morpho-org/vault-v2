@@ -136,6 +136,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        // Exact length so that onBuy can find pending setForceSellable calls.
+        require(selector != IMidnightAdapterBase.setForceSellable.selector || data.length == 36, InvalidLength());
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
@@ -214,7 +216,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    /// @dev Buys are prevented as soon as setForceSellable is submitted, until it is revoked or unsetForceSellable is called.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
@@ -418,7 +420,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.forceSellable, UnauthorizedBuy());
+        require(
+            !_marketData.forceSellable
+                && executableAt[abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId))] == 0,
+            UnauthorizedBuy()
+        );
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;

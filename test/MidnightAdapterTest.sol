@@ -606,6 +606,18 @@ contract MidnightAdapterTest is Test {
         adapter.setForceSellable(marketId);
     }
 
+    function testSubmitSetForceSellableInvalidLength(bytes32 marketId, bytes memory trailing) public {
+        vm.assume(trailing.length > 0);
+        bytes memory data = bytes.concat(abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId)), trailing);
+        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
+        vm.prank(curator);
+        adapter.submit(data);
+
+        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
+        vm.prank(curator);
+        adapter.submit(abi.encodePacked(IMidnightAdapterBase.setForceSellable.selector));
+    }
+
     function testUnsetForceSellable(address caller, bytes32 marketId, bool sentinel) public {
         vm.assume(caller != curator && !parentVault.isSentinel(caller));
         setForceSellable(marketId);
@@ -693,7 +705,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).forceSellable, newForceSellable, "setting unchanged");
     }
 
-    function testForceSellablePreventsBuys(bool takerBuy) public {
+    function testForceSellablePreventsBuys(bool takerBuy, bool executed) public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
         bytes memory data;
@@ -705,7 +717,10 @@ contract MidnightAdapterTest is Test {
             data = ratify([offer], signerAllocator);
         }
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        setForceSellable(marketId);
+        bytes memory setForceSellableData = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(setForceSellableData);
+        if (executed) adapter.setForceSellable(marketId);
 
         vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
         if (takerBuy) {
@@ -720,7 +735,12 @@ contract MidnightAdapterTest is Test {
         Offer memory otherOffer = buy(7 days, 1e18);
         assertEq(adapter.marketData(_marketId(otherOffer.market)).netCredit, 1e18, "other market unaffected");
 
-        unsetForceSellable(marketId);
+        if (executed) {
+            unsetForceSellable(marketId);
+        } else {
+            vm.prank(curator);
+            adapter.revoke(setForceSellableData);
+        }
         if (takerBuy) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", offer.maxUnits, abi.encode(address(0), bytes("")));
