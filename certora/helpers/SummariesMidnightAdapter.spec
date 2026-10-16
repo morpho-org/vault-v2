@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
 // Model of the adapter's environment: Midnight, the parent vault and the asset are not in the scene.
