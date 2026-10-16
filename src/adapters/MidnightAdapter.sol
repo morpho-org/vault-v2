@@ -26,9 +26,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to abi.encode(address(this), market) to withdraw from another Midnight market on the adapter.
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
-/// @dev If the idle liquidity is enough to cover the buy or if the callback data is set to "", the liquidity is not deallocated.
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
@@ -437,15 +436,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
         }
-        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
-        if (callbackData.length > 0 && paidAssets > idleAssets) {
-            (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-            if (fundingAdapter == address(this)) {
-                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
-            } else {
-                // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
-            }
+        (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+        if (fundingAdapter == address(this)) {
+            withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
+        } else if (fundingAdapter != address(0)) {
+            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
