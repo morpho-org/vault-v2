@@ -2533,7 +2533,6 @@ contract MidnightAdapterTest is Test {
         sellUnits(middle.market, middle.maxUnits, MAX_TICK);
         assertMarketIndex(_marketId(last.market), 1);
 
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(last.market, 0);
         assertMarketIndex(_marketId(last.market), 1);
 
@@ -2562,7 +2561,6 @@ contract MidnightAdapterTest is Test {
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "market refetched");
         sell(offer.market, 0.25e18);
         forceDeallocate(offer.market, 0.25e18);
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
 
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "synchronized without refetching the market");
@@ -2954,7 +2952,6 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(_marketId(offer.market), 0, offer.maxUnits);
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.realAssets(), valueBefore, "no discount realized by synchronization");
 
@@ -3153,7 +3150,6 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, credit - pendingFee);
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
         assertEq(adapter.realAssets(), expectedValue, "cached after synchronization");
@@ -3217,7 +3213,6 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, 0);
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
 
         assertEq(adapter.marketIdsLength(), 0, "market removed");
@@ -4049,7 +4044,6 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(loanToken), address(parentVault), 1);
 
         uint256 withdrawAmount = 0.5e18;
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
 
         assertEq(adapter.marketData(marketId).netCredit, creditBefore - withdrawAmount, "netCredit after withdrawal");
@@ -4069,7 +4063,6 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
         skip(7 days);
 
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(boughtOffer.market, 0.5e18);
 
         // 0.5e18 withdrawn, 0.3e18 lost.
@@ -4208,7 +4201,6 @@ contract MidnightAdapterTest is Test {
         midnight.repay(offer.market, type(uint128).max, taker, address(0), "");
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, assets, 1);
-        vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, assets);
 
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
@@ -4903,7 +4895,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function setUpRealVault() internal {
-        realVault = IVaultV2(deployCode("VaultV2.sol:VaultV2", abi.encode(owner, address(loanToken))));
+        realVault = IVaultV2(deployCode("out/VaultV2.sol/VaultV2.json", abi.encode(owner, address(loanToken))));
         vm.prank(owner);
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), allDurations, bytes32(0)));
