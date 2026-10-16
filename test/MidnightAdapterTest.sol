@@ -858,7 +858,7 @@ contract MidnightAdapterTest is Test {
             vm.expectRevert(
                 remainingRateTooLow
                     ? IMidnightAdapterBase.ShortfallTooHigh.selector
-                    : IMidnightAdapterBase.RateTooLow.selector
+                    : IMidnightAdapterBase.NetRateTooLow.selector
             );
             sellUnits(offer.market, sold, tick);
         } else {
@@ -1035,7 +1035,7 @@ contract MidnightAdapterTest is Test {
         setMinNetRate(1);
 
         vm.prank(taker);
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
         assertEq(adapter.realAssets(), 0, "failed buy leaves no assets");
         assertEq(midnight.consumed(address(adapter), offer.group), 0, "offer not consumed");
@@ -1059,7 +1059,7 @@ contract MidnightAdapterTest is Test {
         uint256 rate = (netCredit - paidAssets) * 1e18 / (paidAssets * duration);
         setMinNetRate(rate + 1);
 
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         take(offer);
 
         setMinNetRate(rate);
@@ -1075,7 +1075,7 @@ contract MidnightAdapterTest is Test {
         uint256 rate = (offer.maxUnits - paidAssets) * 1e18 / (paidAssets * 15 days);
         setMinNetRate(rate);
 
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         take(offer);
 
         skip(15 days);
@@ -1104,7 +1104,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, 50e18, taker);
         setMinNetRate(averageRate + 1);
 
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         take(freeCredit);
 
         setMinNetRate(averageRate);
@@ -1127,7 +1127,7 @@ contract MidnightAdapterTest is Test {
         setMinNetRate(1);
 
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         adapter.take(offer, "", offer.maxUnits, "");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "failed buy leaves no allocation");
         assertEq(loanToken.balanceOf(address(realVault)), 10e18, "failed buy leaves vault funds unchanged");
@@ -1158,7 +1158,7 @@ contract MidnightAdapterTest is Test {
         setMinNetRate(rate + 1);
 
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.RateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
         adapter.take(offer, "", offer.maxUnits, "");
 
         setMinNetRate(rate);

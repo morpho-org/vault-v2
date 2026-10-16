@@ -422,7 +422,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            require(_marketData.netRate >= minNetRate, RateTooLow());
+            require(_marketData.netRate >= minNetRate, NetRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -504,7 +504,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-                require(_marketData.netRate >= minNetRate, RateTooLow());
+                require(_marketData.netRate >= minNetRate, NetRateTooLow());
             }
         }
 
