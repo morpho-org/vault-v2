@@ -11,17 +11,17 @@ import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../lib/midnight/src/ratifiers/
 import {Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {CALLBACK_SUCCESS, WAD} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TickLib} from "../../../lib/midnight/src/libraries/TickLib.sol";
-import {UtilsLib} from "../../../lib/midnight/src/libraries/UtilsLib.sol";
 import {HashLib} from "../../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
+import {MathLib} from "../../libraries/MathLib.sol";
 
 /// @dev See comments in lib/midnight/src/ratifiers/RateRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
-    using UtilsLib for uint256;
+    using MathLib for uint256;
 
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
 
@@ -98,7 +98,7 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         (bytes32 root, uint256 leafIndex, bytes32[] memory proof, uint256 rate, address allowedTaker) =
             abi.decode(ratifierData, (bytes32, uint256, bytes32[], uint256, address));
         require(allowedTaker == address(0) || taker == allowedTaker, UnauthorizedTaker());
-        uint256 timeToMaturity = UtilsLib.zeroFloorSub(offer.market.maturity, block.timestamp);
+        uint256 timeToMaturity = MathLib.zeroFloorSub(offer.market.maturity, block.timestamp);
         uint256 offerPrice = TickLib.tickToPrice(offer.tick);
         if (offer.buy) require(offerPrice <= WAD.mulDivDown(WAD, WAD + rate * timeToMaturity), WorsePrice());
         else require(offerPrice >= WAD.mulDivUp(WAD, WAD + rate * timeToMaturity), WorsePrice());
