@@ -18,17 +18,24 @@ methods {
     function _.canSendAssets(address) external => NONDET;
 }
 
-// Number of allocation writes the vault still has to do to apply the last adapter allocate or deallocate.
-persistent ghost mathint pendingAllocationWrites;
+// Ids returned by the last adapter allocate or deallocate.
+persistent ghost mapping(uint256 => bytes32) returnedIds;
+
+persistent ghost uint256 returnedIdsLength;
+
+// Whether the vault wrote the allocation of the id since the last adapter allocate or deallocate.
+persistent ghost mapping(bytes32 => bool) allocationWritten;
 
 persistent ghost bool adapterCalledWithPendingWrites;
 
 hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation {
-    pendingAllocationWrites = pendingAllocationWrites - 1;
+    allocationWritten[id] = true;
 }
 
+definition allocationsSettled() returns bool = forall uint256 i. i < returnedIdsLength => allocationWritten[returnedIds[i]];
+
 function checkSettledAllocations() {
-    if (pendingAllocationWrites != 0) {
+    if (!allocationsSettled()) {
         adapterCalledWithPendingWrites = true;
     }
 }
@@ -37,7 +44,9 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
     checkSettledAllocations();
     bytes32[] ids;
     int256 change;
-    pendingAllocationWrites = ids.length;
+    havoc returnedIds assuming forall uint256 i. i < ids.length => returnedIds@new[i] == ids[i];
+    returnedIdsLength = ids.length;
+    havoc allocationWritten assuming forall bytes32 id. !allocationWritten@new[id];
     return (ids, change);
 }
 
@@ -47,10 +56,10 @@ function adapterRealAssetsSummary() returns uint256 {
     return value;
 }
 
-// Check that adapters are only called when the allocations are settled, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
+// Check that the vault writes the allocation of every id returned by an adapter before calling an adapter again, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
 rule adaptersAreCalledWithSettledAllocations(method f, env e, calldataarg data) {
-    require(pendingAllocationWrites == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
+    require(returnedIdsLength == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
     f(e, data);
     assert !adapterCalledWithPendingWrites;
-    assert pendingAllocationWrites == 0;
+    assert allocationsSettled();
 }
