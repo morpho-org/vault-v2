@@ -532,7 +532,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         !otherMarketData.forceSellable
                             && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
                     ) {
-                        uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+                        uint128 netCredit;
+                        if (id == marketId) {
+                            netCredit = newNetCredit;
+                        } else if (IMidnight(midnight).lossFactor(id) == otherMarketData.lossFactor) {
+                            netCredit = otherMarketData.netCredit;
+                        } else {
+                            netCredit = currentNetCredit(id);
+                        }
                         uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                         uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
                         maxShortfall += netCredit - amortizedValue;
