@@ -9,15 +9,28 @@ import {
     IMidnightAdapterPriceRatifierV1
 } from "../../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {
+    IVaultV2CompatibleEnterGateFactory
+} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IMorpho} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorphoFlashLoanCallback} from "../../lib/morpho-blue/src/interfaces/IMorphoCallbacks.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
+import {
+    IWhitelistEnterSubGate
+} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGate.sol";
+import {
+    IWhitelistEnterSubGateFactory
+} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
-import {TickLib} from "../../lib/midnight/src/libraries/TickLib.sol";
+import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
@@ -61,7 +74,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
-            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
+            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), address(0)))
         );
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, false, bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
@@ -336,6 +349,132 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testWrapperGateForceDeallocateAfterRevocation() public {
+        // Deploy the gate factory next; the adapter factory stores its predicted address.
+        address enterGateFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        IMidnightAdapterFactory factory = IMidnightAdapterFactory(
+            deployCode(
+                "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
+            )
+        );
+        deployCode(
+            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(factory))
+        );
+        uint256[] memory durations = new uint256[](1);
+        durations[0] = 7 days;
+        IMidnightAdapter gatedAdapter =
+            IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, true, bytes32(0)));
+        IWhitelistEnterSubGateFactory subGateFactory =
+            IWhitelistEnterSubGateFactory(deployCode("WhitelistEnterSubGateFactory.sol:WhitelistEnterSubGateFactory"));
+        IWhitelistEnterSubGate subGate =
+            IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
+        Market memory market = _market(7 days);
+        market.enterGate = IVaultV2CompatibleEnterGateFactory(factory.enterGateFactory())
+            .createVaultV2CompatibleEnterGate(address(subGate), market, bytes32(0));
+        bytes32 marketId = IdLib.toId(market);
+
+        vm.startPrank(owner);
+        // Let the owner manage the credit whitelist.
+        subGate.setIsWhitelister(true, owner, true);
+        // Let the owner manage the debt whitelist.
+        subGate.setIsWhitelister(false, owner, true);
+        // Let the adapter buy credit in this market.
+        subGate.setIsWhitelisted(marketId, true, address(gatedAdapter), true);
+        // Let the borrower take on debt in this market.
+        subGate.setIsWhitelisted(marketId, false, borrower, true);
+        IVaultV2CompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
+        vm.stopPrank();
+
+        _submitAndSet(address(gatedAdapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.addAdapter, (address(gatedAdapter))));
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setIsAllocator, (address(gatedAdapter), true)));
+        _submitAndSet(
+            address(vault), abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(gatedAdapter), 0.02e18))
+        );
+        _increaseCaps(abi.encode("this", address(gatedAdapter)));
+        _increaseCaps(abi.encode("this/duration", address(gatedAdapter), 7 days));
+        _increaseCaps(abi.encode("enterGate", market.enterGate));
+
+        uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
+        Offer memory borrowerOffer = Offer({
+            market: market,
+            buy: false,
+            maker: borrower,
+            start: block.timestamp,
+            expiry: market.maturity,
+            tick: TICK,
+            group: keccak256(abi.encode("gated buy", marketId, units)),
+            callback: address(0),
+            callbackData: "",
+            receiverIfMakerIsSeller: borrower,
+            ratifier: address(setterRatifier),
+            reduceOnly: false,
+            maxUnits: uint128(units),
+            maxAssets: 0,
+            continuousFeeCap: type(uint256).max
+        });
+        uint256 collateral = units * 2e18 / oneToken;
+        deal(address(collateralToken), borrower, collateral);
+        bytes32 root = HashLib.hashOffer(borrowerOffer);
+        bytes32[] memory proof = new bytes32[](0);
+        bytes memory ratifierData = abi.encode(root, uint256(0), proof);
+        vm.startPrank(borrower);
+        collateralToken.approve(address(midnight), collateral);
+        midnight.supplyCollateral(market, 0, collateral, borrower);
+        midnight.setIsAuthorized(address(setterRatifier), true, borrower);
+        setterRatifier.setIsRootRatified(borrower, root, true);
+        vm.stopPrank();
+
+        vm.prank(allocator);
+        gatedAdapter.take(borrowerOffer, ratifierData, units, abi.encode(address(0), ""));
+
+        // Revoking the adapter must not block a shareholder's exit. The depositor is never whitelisted.
+        vm.startPrank(owner);
+        subGate.setIsWhitelisted(marketId, true, address(gatedAdapter), false);
+        midnight.setFeeSetter(owner);
+        // Set a 0.5 bp settlement fee at the 7-day breakpoint.
+        midnight.setMarketSettlementFee(marketId, 2, 0.00005e18);
+        vm.stopPrank();
+        units = 1000 * oneToken;
+        Offer memory exitOffer = Offer({
+            market: market,
+            buy: true,
+            maker: depositor,
+            start: block.timestamp,
+            expiry: market.maturity,
+            tick: MAX_TICK,
+            group: keccak256(abi.encode("shareholder exit", marketId, units)),
+            callback: address(0),
+            callbackData: "",
+            receiverIfMakerIsSeller: address(0),
+            ratifier: address(setterRatifier),
+            reduceOnly: false,
+            maxUnits: uint128(units),
+            maxAssets: 0,
+            continuousFeeCap: type(uint256).max
+        });
+        root = HashLib.hashOffer(exitOffer);
+        ratifierData = abi.encode(root, uint256(0), proof);
+        uint256 settlementFeeAssets =
+            units - units * (WAD - midnight.settlementFee(marketId, market.maturity - block.timestamp)) / WAD;
+        deal(address(underlyingToken), depositor, settlementFeeAssets);
+
+        // Morpho Blue provides the flashloan. No external maker buys the credit.
+        // Midnight starts with no loan tokens. The depositor funds only the settlement fee.
+        IMorpho morpho = IMorpho(deployCode("Morpho.sol:Morpho", abi.encode(owner)));
+        deal(address(underlyingToken), address(morpho), units);
+        MidnightAdapterExitRouter router = new MidnightAdapterExitRouter(address(morpho), address(gatedAdapter));
+
+        vm.startPrank(depositor);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(router), settlementFeeAssets);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
+        vault.approve(address(router), type(uint256).max);
+        midnight.setIsAuthorized(address(setterRatifier), true, depositor);
+        setterRatifier.setIsRootRatified(depositor, root, true);
+        router.exit(exitOffer, ratifierData, units);
+        vm.stopPrank();
+    }
+
     function _submitAndSet(address target, bytes memory data) internal {
         vm.prank(curator);
         IVaultV2(target).submit(data);
@@ -365,5 +504,52 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             enterGate: address(0),
             liquidatorGate: address(0)
         });
+    }
+}
+
+/// @dev Exchanges the caller's vault shares for credit with a fee-free Morpho Blue flashloan.
+/// @dev Use with a genuine MidnightAdapter and its parent vault.
+/// @dev The caller must approve this router for vault shares and the settlement fee, and Midnight for the principal.
+contract MidnightAdapterExitRouter is IMorphoFlashLoanCallback {
+    error Unauthorized();
+    error IncorrectOffer();
+
+    address public immutable morpho;
+    address public immutable adapter;
+    address public immutable parentVault;
+    address public immutable midnight;
+    address public immutable asset;
+
+    constructor(address _morpho, address _adapter) {
+        morpho = _morpho;
+        adapter = _adapter;
+        parentVault = IMidnightAdapter(_adapter).parentVault();
+        midnight = IMidnightAdapter(_adapter).midnight();
+        asset = IMidnightAdapter(_adapter).asset();
+    }
+
+    /// @dev The caller's buy offer must be at par and have no buy callback.
+    function exit(Offer memory offer, bytes memory ratifierData, uint256 units) external {
+        require(offer.maker == msg.sender, Unauthorized());
+        require(offer.buy && offer.tick == MAX_TICK && offer.callback == address(0), IncorrectOffer());
+        uint256 settlementFee = IMidnight(midnight)
+            .settlementFee(IdLib.toId(offer.market), MathLib.zeroFloorSub(offer.market.maturity, block.timestamp));
+        uint256 settlementFeeAssets = MathLib.mulDivUp(units, settlementFee, WAD);
+        if (settlementFeeAssets > 0) {
+            SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
+        }
+        IMorpho(morpho).flashLoan(asset, units, abi.encode(offer, ratifierData));
+    }
+
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
+        require(msg.sender == morpho, Unauthorized());
+        (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
+        // The caller pays Midnight directly, without an onBuy callback.
+        SafeERC20Lib.safeTransfer(asset, offer.maker, assets);
+        SafeERC20Lib.safeApprove(asset, adapter, assets);
+        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(offer, ratifierData), assets, offer.maker);
+        // The caller keeps the credit. The vault withdrawal repays the flashloan.
+        IVaultV2(parentVault).withdraw(assets, address(this), offer.maker);
+        SafeERC20Lib.safeApprove(asset, morpho, assets);
     }
 }

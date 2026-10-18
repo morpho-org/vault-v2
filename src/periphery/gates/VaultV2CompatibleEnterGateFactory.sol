@@ -11,14 +11,21 @@ contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 marketId
     );
 
+    address public immutable initialAdapterFactory;
+
     mapping(address account => mapping(bytes32 marketId => bool)) public isGate;
+
+    constructor(address _initialAdapterFactory) {
+        initialAdapterFactory = _initialAdapterFactory;
+    }
 
     function createVaultV2CompatibleEnterGate(address subGate, Market memory market, bytes32 salt)
         external
         returns (address)
     {
         market.enterGate = address(0);
-        address vaultV2CompatibleEnterGate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market));
+        address vaultV2CompatibleEnterGate =
+            address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market, initialAdapterFactory));
         bytes32 marketId = VaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate).marketId();
         isGate[vaultV2CompatibleEnterGate][marketId] = true;
         emit CreateVaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate, subGate, marketId);

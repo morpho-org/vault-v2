@@ -17,7 +17,7 @@ import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapte
 contract VaultV2CompatibleEnterGate is IEnterGate {
     error Unauthorized();
 
-    event SetCanAdmit(address indexed factory);
+    event AddAdmitterFactory(address indexed factory);
 
     address public immutable midnight;
     bytes32 public immutable marketId;
@@ -29,21 +29,23 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
     address transient admitted;
     address transient admitter;
 
-    constructor(address _subGate, Market memory _marketExceptGate) {
+    constructor(address _subGate, Market memory _marketExceptGate, address _adapterFactory) {
         midnight = _marketExceptGate.midnight;
         subGate = _subGate;
         _marketExceptGate.enterGate = address(this);
         marketId = IdLib.toId(_marketExceptGate);
+        canAdmit[_adapterFactory] = true;
+        emit AddAdmitterFactory(_adapterFactory);
     }
 
     function roleSetter() public view returns (address) {
         return IEnterSubGate(subGate).roleSetter(true);
     }
 
-    function setCanAdmit(address factory) external {
+    function addAdmitterFactory(address factory) external {
         require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[factory] = true;
-        emit SetCanAdmit(factory);
+        emit AddAdmitterFactory(factory);
     }
 
     /// @dev Transiently allow a vault shareholder to increase credit in the market.
