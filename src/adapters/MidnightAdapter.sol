@@ -6,7 +6,6 @@ import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidni
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
-import {UtilsLib} from "../../lib/midnight/src/libraries/UtilsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -523,34 +522,27 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (shortfall > 0) {
             require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             if (!_marketData.forceSellable) {
-                uint256 remainingShortfall = shortfall;
-                uint256 maxShortfall;
-                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
+                for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
                     bytes32 id = marketIds[i];
                     MarketData storage otherMarketData = marketData[id];
+                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     if (
-                        !otherMarketData.forceSellable
-                            && (id == marketId || !IMidnight(midnight).liquidationLocked(id, address(this)))
-                    ) {
-                        uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
-                        uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                        uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                        maxShortfall += netCredit - amortizedValue;
-                        uint256 capacity =
-                            netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue);
-                        if (capacity > 0) {
-                            uint256 shortfallReduction = UtilsLib.min(remainingShortfall, capacity);
-                            uint256 newAmortizedValue = amortizedValue + shortfallReduction;
-                            otherMarketData.netRate = (netCredit - newAmortizedValue)
-                                .mulDivDown(WAD, newAmortizedValue * otherTtm)
-                                .toUint64();
-                            remainingShortfall -= shortfallReduction;
-                            emit ReduceRate(id, otherMarketData.netRate);
-                        }
-                    }
+                        otherMarketData.forceSellable || otherTtm == 0 || otherMarketData.netRate <= minNetRate
+                            || (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this)))
+                    ) continue;
+                    uint128 netCredit = id == marketId ? newNetCredit : currentNetCredit(id);
+                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                    uint256 shortfallReduction = MathLib.min(
+                        shortfall, netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue)
+                    );
+                    if (shortfallReduction == 0) continue;
+                    amortizedValue += shortfallReduction;
+                    otherMarketData.netRate =
+                        (netCredit - amortizedValue).mulDivDown(WAD, amortizedValue * otherTtm).toUint64();
+                    shortfall -= shortfallReduction;
+                    emit ReduceRate(id, otherMarketData.netRate);
                 }
-                require(shortfall <= maxShortfall, ShortfallTooHigh());
-                require(remainingShortfall == 0, NetRateTooLow());
+                require(shortfall == 0, ShortfallTooHigh());
             }
         }
 

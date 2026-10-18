@@ -747,7 +747,7 @@ contract MidnightAdapterTest is Test {
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 assetsBefore = adapter.realAssets();
 
-        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", soldUnits, "");
@@ -882,11 +882,7 @@ contract MidnightAdapterTest is Test {
             : remainingRateTooLow ? 0 : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
 
         if (remainingRateTooLow || newRate < minNetRate) {
-            vm.expectRevert(
-                remainingRateTooLow
-                    ? IMidnightAdapterBase.ShortfallTooHigh.selector
-                    : IMidnightAdapterBase.NetRateTooLow.selector
-            );
+            vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
             sellUnits(offer.market, sold, tick);
         } else {
             sellUnits(offer.market, sold, tick);
@@ -4372,7 +4368,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
         uint256 sold = adapter.marketData(_marketId(offerA.market)).netCredit;
-        vm.expectRevert(IMidnightAdapterBase.NetRateTooLow.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(offerA.market, sold, tick);
     }
 
