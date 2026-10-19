@@ -2853,6 +2853,57 @@ contract MidnightAdapterTest is Test {
         assertMarkets([_marketId(first.market)]);
     }
 
+    function testZeroPositionSyncDoesNotChangeLossFactorSum() public {
+        Offer memory offerA = buy(7 days, 1e18, discountTick);
+        bytes32 idA = _marketId(offerA.market);
+        Offer memory offerU = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 idU = _marketId(offerU.market);
+        midnight.touchMarket(offerU.market);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(idU)
+            .checked_write(uint256(1e30));
+        uint256 valueBefore = adapter.realAssets();
+
+        adapter.withdrawToVault(offerU.market, 0);
+        assertEq(adapter.marketIdsLength(), 1, "withdraw: marketIdsLength");
+        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "withdraw: data");
+        assertEq(adapter.realAssets(), valueBefore, "withdraw: realAssets");
+
+        bytes memory data = ratify([offerU], signerAllocator);
+        vm.prank(taker);
+        midnight.take(offerU, data, 0, taker, taker, address(0), "");
+        assertEq(adapter.marketIdsLength(), 1, "buy: marketIdsLength");
+        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "buy: data");
+        assertEq(adapter.realAssets(), valueBefore, "buy: realAssets");
+
+        // Midnight requires a non-zero maxUnits, but the taken units are zero.
+        (Offer memory forceOffer, bytes32 root_) = makeForceDeallocateOffer(offerU.market, 1);
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(forceOffer, abi.encode(root_, 0, proof([forceOffer]))), 0, address(this)
+        );
+        assertEq(adapter.marketIdsLength(), 1, "forceDeallocate: marketIdsLength");
+        assertEq(
+            abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "forceDeallocate: data"
+        );
+        assertEq(adapter.realAssets(), valueBefore, "forceDeallocate: realAssets");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        midnight.liquidate(offerA.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        MarketData memory dataA = adapter.marketData(idA);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offerA.market, idA, address(adapter));
+        uint256 expectedValue = uint256(credit - pendingFee)
+            .mulDivDown(1e18, 1e18 + dataA.netRate * uint256(dataA.maturity).zeroFloorSub(block.timestamp));
+        assertLt(credit - pendingFee, dataA.netCredit, "loss realized");
+        assertEq(adapter.realAssets(), expectedValue, "exact loss-adjusted value");
+
+        adapter.withdrawToVault(offerA.market, 0);
+        assertEq(adapter.realAssets(), expectedValue, "unchanged by synchronization");
+    }
+
     function testBuyEvent() public {
         Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
@@ -3199,6 +3250,43 @@ contract MidnightAdapterTest is Test {
         }
     }
 
+    function testRealAssetsSkipsSyncedLossBeforeSlashedMarket() public {
+        Offer[3] memory offers =
+            [buy(1 days, 1e18, discountTick), buy(7 days, 1e18, discountTick), buy(30 days, 1e18, discountTick)];
+        bytes32[3] memory ids = [_marketId(offers[0].market), _marketId(offers[1].market), _marketId(offers[2].market)];
+        for (uint256 i = 0; i < 3; i++) {
+            assertMarketIndex(ids[i], i);
+        }
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        midnight.liquidate(offers[0].market, 0, 0, 0, taker, false, address(this), address(0), "");
+        adapter.withdrawToVault(offers[0].market, 0);
+        assertGt(adapter.marketData(ids[0]).lossFactor, 0, "synced loss");
+        midnight.liquidate(offers[2].market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        uint256 expectedValue;
+        for (uint256 i = 0; i < 2; i++) {
+            MarketData memory data = adapter.marketData(ids[i]);
+            expectedValue += uint256(data.netCredit)
+                .mulDivDown(1e18, 1e18 + data.netRate * uint256(data.maturity).zeroFloorSub(block.timestamp));
+        }
+        MarketData memory lastData = adapter.marketData(ids[2]);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offers[2].market, ids[2], address(adapter));
+        assertLt(credit - pendingFee, lastData.netCredit, "loss realized");
+        expectedValue += uint256(credit - pendingFee)
+            .mulDivDown(1e18, 1e18 + lastData.netRate * uint256(lastData.maturity).zeroFloorSub(block.timestamp));
+
+        Market memory dummyMarket;
+        vm.expectCall(
+            address(midnight), abi.encodeCall(IMidnight.updatePositionView, (dummyMarket, ids[0], address(adapter))), 0
+        );
+        vm.expectCall(
+            address(midnight), abi.encodeCall(IMidnight.updatePositionView, (dummyMarket, ids[2], address(adapter))), 1
+        );
+        assertEq(adapter.realAssets(), expectedValue, "exact value");
+    }
+
     function testFullLossCanBeRemovedWithWithdrawZero() public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
@@ -3217,6 +3305,49 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 0, "market removed");
         assertEq(adapter.marketData(marketId).netCredit, 0, "netCredit");
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation");
+    }
+
+    function testRemoveAndReAddMarketWithSyncedLoss() public {
+        Offer memory offerA = buy(7 days, 1e18, discountTick);
+        Offer memory offerB = buy(30 days, 1e18, discountTick);
+        bytes32 idA = _marketId(offerA.market);
+        bytes32 idB = _marketId(offerB.market);
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        midnight.liquidate(offerA.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        adapter.withdrawToVault(offerA.market, 0);
+        assertGt(adapter.marketData(idA).lossFactor, 0, "synced loss");
+
+        sellUnits(offerA.market, midnight.credit(idA, address(adapter)), MAX_TICK);
+        assertEq(adapter.marketIdsLength(), 1, "market removed");
+        assertEq(abi.encode(adapter.marketData(idA)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "data deleted");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        offerA.group = keccak256("re-add");
+        midnight.supplyCollateral(offerA.market, 0, offerA.maxUnits, taker);
+        midnight.supplyCollateral(offerA.market, 1, offerA.maxUnits, taker);
+        take(offerA);
+        assertMarkets([idB, idA]);
+        assertEq(adapter.marketData(idA).lossFactor, midnight.lossFactor(idA), "loss factor stored again");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        midnight.liquidate(offerB.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        MarketData memory dataA = adapter.marketData(idA);
+        MarketData memory dataB = adapter.marketData(idB);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offerB.market, idB, address(adapter));
+        assertLt(credit - pendingFee, dataB.netCredit, "loss realized");
+        uint256 expectedValue = uint256(dataA.netCredit)
+            .mulDivDown(1e18, 1e18 + dataA.netRate * uint256(dataA.maturity).zeroFloorSub(block.timestamp))
+        + uint256(credit - pendingFee)
+            .mulDivDown(1e18, 1e18 + dataB.netRate * uint256(dataB.maturity).zeroFloorSub(block.timestamp));
+        assertEq(adapter.realAssets(), expectedValue, "exact value");
+
+        adapter.withdrawToVault(offerB.market, 0);
+        assertEq(adapter.realAssets(), expectedValue, "unchanged by synchronization");
     }
 
     /* FEES */
@@ -4157,6 +4288,66 @@ contract MidnightAdapterTest is Test {
         assertEq(reads[0], reads[1], "maxTtm and minNetRate share one slot");
         assertEq(reads[1], reads[2], "noSalesWithShortfall shares the same slot");
         assertEq(reads[2], reads[3], "noSalesBelowFaceValue shares the same slot");
+    }
+
+    function testRealAssetsWithoutLossReadsFirstSlotOnly() public {
+        Offer[3] memory offers =
+            [buy(1 days, 1e18, discountTick), buy(7 days, 1e18, discountTick), buy(30 days, 1e18, discountTick)];
+
+        vm.record();
+        adapter.marketIdsLength();
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        bytes32 lengthSlot = reads[0];
+        vm.record();
+        adapter.maxTtm();
+        (reads,) = vm.accesses(address(adapter));
+        bytes32 configSlot = reads[0];
+
+        // Expected slots: the length slot, the config slot, then for each market its struct slot and its marketIds element slot.
+        bytes32[] memory expected = new bytes32[](2 + 2 * 3);
+        expected[0] = lengthSlot;
+        expected[1] = configSlot;
+        for (uint256 i = 0; i < 3; i++) {
+            bytes32 marketId = _marketId(offers[i].market);
+            vm.record();
+            uint128 netCredit = adapter.marketData(marketId).netCredit;
+            (reads,) = vm.accesses(address(adapter));
+            assertEq(uint128(uint256(vm.load(address(adapter), reads[0]))), netCredit, "struct slot");
+            expected[2 + 2 * i] = reads[0];
+            expected[3 + 2 * i] = bytes32(uint256(keccak256(abi.encode(lengthSlot))) + i);
+            assertEq(vm.load(address(adapter), expected[3 + 2 * i]), adapter.marketIds(i), "element slot");
+        }
+
+        vm.record();
+        uint256 assets = adapter.realAssets();
+        bytes32[] memory writes;
+        (reads, writes) = vm.accesses(address(adapter));
+        assertGt(assets, 0, "realAssets");
+        assertEq(writes.length, 0, "no writes");
+
+        bytes32[] memory distinct = new bytes32[](reads.length);
+        uint256 distinctLength;
+        for (uint256 i = 0; i < reads.length; i++) {
+            bool seen;
+            for (uint256 j = 0; j < distinctLength; j++) {
+                seen = seen || distinct[j] == reads[i];
+            }
+            if (!seen) distinct[distinctLength++] = reads[i];
+        }
+        assertEq(distinctLength, 2 + 2 * 3, "distinct slots read");
+        for (uint256 i = 0; i < expected.length; i++) {
+            bool found;
+            for (uint256 j = 0; j < distinctLength; j++) {
+                found = found || distinct[j] == expected[i];
+            }
+            assertTrue(found, "expected slot read");
+        }
+        for (uint256 i = 0; i < 3; i++) {
+            bytes32 secondSlot = bytes32(uint256(expected[2 + 2 * i]) + 1);
+            for (uint256 j = 0; j < distinctLength; j++) {
+                assertNotEq(distinct[j], secondSlot, "second struct slot not read");
+            }
+        }
     }
 
     function testFullSaleBelowAmortizedValueReverts() public {
