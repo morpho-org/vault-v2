@@ -69,12 +69,10 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         address _signer = ecrecover(digest, v, r, s);
         require(_signer != address(0), InvalidSignature());
         require(
-            IVaultV2(parentVault).isAllocator(_signer)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(_signer)),
-            Unauthorized()
-        );
-        require(
-            msg.sender == _signer || IMidnight(IMidnightAdapter(maker).midnight()).isAuthorized(_signer, msg.sender),
+            (IVaultV2(parentVault).isAllocator(_signer)
+                    || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(_signer)))
+                && (msg.sender == _signer
+                    || IMidnight(IMidnightAdapter(maker).midnight()).isAuthorized(_signer, msg.sender)),
             Unauthorized()
         );
         Ratification memory _ratification = ratification[maker][root];
