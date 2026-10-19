@@ -1301,7 +1301,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, netCreditAfter, "sale blocked");
     }
 
-
     /// @dev The sale is priced exactly at maxNetSellRate, so one tick lower reverts.
     function testMaxNetSellRateBoundary() public {
         uint256 price = TickLib.tickToPrice(MAX_TICK - 4);
