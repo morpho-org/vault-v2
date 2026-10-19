@@ -522,7 +522,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (shortfall > 0) {
             require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             if (!_marketData.forceSellable) {
-                for (uint256 i; i < marketIds.length && shortfall > 0; i++) {
+                uint256 remainingShortfall = shortfall;
+                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
                     bytes32 id = marketIds[i];
                     MarketData storage otherMarketData = marketData[id];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
@@ -540,16 +541,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     }
                     uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
                     uint256 shortfallReduction = MathLib.min(
-                        shortfall, netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue)
+                        remainingShortfall,
+                        netCredit.mulDivDown(WAD, WAD + minNetRate * otherTtm).zeroFloorSub(amortizedValue)
                     );
                     if (shortfallReduction == 0) continue;
-                    amortizedValue += shortfallReduction;
+                    uint256 newAmortizedValue = amortizedValue + shortfallReduction;
                     otherMarketData.netRate =
-                        (netCredit - amortizedValue).mulDivDown(WAD, amortizedValue * otherTtm).toUint64();
-                    shortfall -= shortfallReduction;
+                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
+                    remainingShortfall -= shortfallReduction;
                     emit ReduceRate(id, otherMarketData.netRate);
                 }
-                require(shortfall == 0, ShortfallTooHigh());
+                require(remainingShortfall == 0, ShortfallTooHigh());
             }
         }
 
