@@ -9,11 +9,12 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev Midnight's loss factor of the market when netCredit was last updated.
-    uint128 lossFactor;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
     uint64 netRate;
     uint48 maturity;
+    /// @dev The fields above fill one slot. The fields below are not read by realAssets when no market has an unsynced loss.
+    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    uint128 lossFactor;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
@@ -142,9 +143,9 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint128 lossFactor,
             uint64 netRate,
             uint48 maturity,
+            uint128 lossFactor,
             uint8 index,
             bool forceSellable
         );
