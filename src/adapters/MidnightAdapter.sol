@@ -36,9 +36,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetRate, maxNetSellRate, noSalesWithShortfall and minNetSellPriceForceSellable help the curator set guardrails for allocators.
+/// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minNetSellPriceForceSellable help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore minNetRate, maxNetSellRate and noSalesWithShortfall, and are bounded by minNetSellPriceForceSellable instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minNetSellPriceForceSellable instead.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -94,8 +94,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     uint32 public maxTtm;
-    /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
-    uint64 public minNetRate;
+    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
+    uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Superseded by minNetSellPriceForceSellable for forceSellable markets.
     uint64 public maxNetSellRate;
@@ -238,10 +238,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setMinNetRate(uint256 newMinNetRate) external {
+    function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minNetRate = newMinNetRate.toUint64();
-        emit SetMinNetRate(newMinNetRate);
+        minNetBuyRate = newMinNetBuyRate.toUint64();
+        emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
@@ -419,6 +419,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(ttm <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
         uint128 newNetCredit = currentNetCredit(marketId);
         (overriddenMarketId, overriddenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
@@ -431,7 +432,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            require(_marketData.netRate >= minNetRate, NetRateTooLow());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
@@ -515,7 +515,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-                require(_marketData.netRate >= minNetRate, NetRateTooLow());
             }
         }
 
