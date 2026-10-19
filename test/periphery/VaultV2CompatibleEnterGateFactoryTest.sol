@@ -80,11 +80,10 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         assertNotEq(VaultV2CompatibleEnterGate(first).marketId(), VaultV2CompatibleEnterGate(second).marketId());
     }
 
-    function testCreateReplacesEnterGate(address otherGate) public {
+    function testCreateRevertsWithEnterGate(address otherGate) public {
+        vm.assume(otherGate != address(0));
         market.enterGate = otherGate;
-        address created = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
-        Market memory expectedMarket = market;
-        expectedMarket.enterGate = created;
-        assertEq(VaultV2CompatibleEnterGate(created).marketId(), IdLib.toId(expectedMarket));
+        vm.expectRevert();
+        factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
     }
 }

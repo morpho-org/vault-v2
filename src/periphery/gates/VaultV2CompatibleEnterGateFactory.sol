@@ -23,7 +23,7 @@ contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         external
         returns (address)
     {
-        market.enterGate = address(0);
+        require(market.enterGate == address(0));
         address vaultV2CompatibleEnterGate =
             address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market, initialAdapterFactory));
         bytes32 marketId = VaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate).marketId();
