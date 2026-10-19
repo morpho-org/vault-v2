@@ -13,7 +13,6 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
-import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 import {VaultV2CompatibleEnterGate} from "../periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
@@ -464,8 +463,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
                     IEnterGateFactory(enterGateFactory).isGate(market.enterGate, marketId)
-                        && VaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)
-                        && IMidnightAdapterFactory(factory).isMidnightAdapter(address(this)),
+                        && VaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );
             }
