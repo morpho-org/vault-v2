@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.37;
 
-import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
-import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
-import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
+import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
+import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -354,8 +354,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            IVaultV2(parentVault).accrueInterest();
-
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");

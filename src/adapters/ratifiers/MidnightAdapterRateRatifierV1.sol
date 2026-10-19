@@ -7,12 +7,12 @@ import {
     Ratification,
     EIP712_DOMAIN_TYPEHASH
 } from "./interfaces/IMidnightAdapterRateRatifierV1.sol";
-import {SET_IS_ROOT_RATIFIED_SUCCESS} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
-import {Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {CALLBACK_SUCCESS, WAD} from "lib/midnight/src/libraries/ConstantsLib.sol";
-import {TickLib} from "lib/midnight/src/libraries/TickLib.sol";
-import {UtilsLib} from "lib/midnight/src/libraries/UtilsLib.sol";
-import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
+import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
+import {Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {CALLBACK_SUCCESS, WAD} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {TickLib} from "../../../lib/midnight/src/libraries/TickLib.sol";
+import {UtilsLib} from "../../../lib/midnight/src/libraries/UtilsLib.sol";
+import {HashLib} from "../../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";

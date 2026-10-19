@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IRatifiersV1Common} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
+import {IRatifiersV1Common} from "../../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 
 struct Ratification {
     bool isRootRatified;
