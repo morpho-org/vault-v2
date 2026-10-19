@@ -35,6 +35,11 @@ methods {
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 
+    // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
+    function _.realAssets() external => NONDET;
+    function _.canReceiveShares(address) external => NONDET;
+    function _.balanceOf(address) external => NONDET;
+
     // The asset is assumed to be a standard ERC20 token.
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
