@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.37;
 
@@ -7,10 +7,10 @@ import {
     Ratification,
     EIP712_DOMAIN_TYPEHASH
 } from "./interfaces/IMidnightAdapterPriceRatifierV1.sol";
-import {SET_IS_ROOT_RATIFIED_SUCCESS} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
-import {Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
-import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
+import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
+import {Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {CALLBACK_SUCCESS} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {HashLib} from "../../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";

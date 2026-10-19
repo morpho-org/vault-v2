@@ -127,4 +127,4 @@ All audits are stored in the [audits](./audits/)' folder.
 
 ## License
 
-Files in this repository are publicly available under license `GPL-2.0-or-later`, see [`LICENSE`](./LICENSE).
+`src/VaultV2.sol` and `src/VaultV2Factory.sol` are under `GPL-2.0-or-later` (see [`LICENSE`](./LICENSE)); all other files are under `MIT` (see [`LICENSE-MIT`](./LICENSE-MIT)).

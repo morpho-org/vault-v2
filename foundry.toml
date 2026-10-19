@@ -7,10 +7,10 @@ evm_version = "cancun"
 dynamic_test_linking = true
 ignored_error_codes = ["transient-storage"]
 ignored_error_codes_from = [["test", ["code-size", "init-code-size"]]]
+ignored_warnings_from = ["lib"]
 
 [lint]
 ignore = [
-    "lib/**",
     "src/imports/MorphoImport.sol",
     "src/imports/MidnightImport.sol",
     "src/imports/MetaMorphoImport.sol",
@@ -66,6 +66,11 @@ evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
+optimizer_runs = 800
+evm_version = "osaka"
+
+[[profile.default.compilation_restrictions]]
+paths = "src/adapters/ratifiers/**"
 optimizer_runs = 800
 evm_version = "osaka"
 

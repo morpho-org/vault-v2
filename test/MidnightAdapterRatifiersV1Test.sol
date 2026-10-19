@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -457,6 +457,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
     }
 
     function take(IMidnight midnight, MidnightAdapterRateRatifierV1 ratifier, Offer memory offer) internal {
+        offer.callbackData = offer.buy ? abi.encode(address(0), bytes("")) : bytes("");
         uint256 rate = 1e9;
         bytes32 root = HashLib.hashRateRatifierV1Offer(offer, rate, address(this));
         ratifier.setIsRootRatified(offer.maker, root, true);
