@@ -222,7 +222,7 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(address(midnight));
+        factory = new MidnightAdapterFactory(address(midnight), address(0));
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, false, bytes32(0)));
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
@@ -1941,19 +1941,19 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFactoryConstructor() public {
+        address expectedGateFactory = address(new VaultV2CompatibleEnterGateFactory(address(0)));
         address expectedFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
-        address expectedGateFactory = vm.computeCreateAddress(expectedFactory, 1);
         vm.expectEmit();
         emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight), expectedGateFactory);
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), expectedGateFactory);
         assertEq(address(newFactory), expectedFactory);
         assertEq(newFactory.midnight(), address(midnight), "midnight");
         assertEq(newFactory.enterGateFactory(), expectedGateFactory, "enterGateFactory");
     }
 
     function testFactoryGateFactory(bytes32 salt, bool useGateFactory) public {
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
-        address gateFactory = newFactory.enterGateFactory();
+        address gateFactory = address(new VaultV2CompatibleEnterGateFactory(address(0)));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), gateFactory);
         assertGt(gateFactory.code.length, 0);
 
         address expectedGateFactory = useGateFactory ? gateFactory : address(0);
@@ -1985,7 +1985,8 @@ contract MidnightAdapterTest is Test {
 
     function testFactoryDifferentSalts(bytes32 firstSalt, bytes32 secondSalt, bool useGateFactory) public {
         vm.assume(firstSalt != secondSalt);
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        MidnightAdapterFactory newFactory =
+            new MidnightAdapterFactory(address(midnight), address(new VaultV2CompatibleEnterGateFactory(address(0))));
         address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, firstSalt);
         address second =
             newFactory.createMidnightAdapter(address(parentVault), allDurations, useGateFactory, secondSalt);
@@ -2008,7 +2009,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFactoryDifferentGateFactoryModes(bytes32 salt) public {
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        MidnightAdapterFactory newFactory =
+            new MidnightAdapterFactory(address(midnight), address(new VaultV2CompatibleEnterGateFactory(address(0))));
         address enabled = newFactory.createMidnightAdapter(address(parentVault), allDurations, true, salt);
         address disabled = newFactory.createMidnightAdapter(address(parentVault), allDurations, false, salt);
 
@@ -3555,7 +3557,7 @@ contract MidnightAdapterTest is Test {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         Market memory otherMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         otherMarket.maturity++;
-        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(address(gate), otherMarket);
+        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(address(gate), otherMarket, bytes32(0));
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
         bytes32 wrapperMarketId = VaultV2CompatibleEnterGate(wrapper).marketId();
         gate.setCanIncreaseCredit(wrapperMarketId, address(adapter), true);
@@ -3589,7 +3591,11 @@ contract MidnightAdapterTest is Test {
     function testEnterGateUnregisteredGate(bool adapterIsMaker, bool wrap) public {
         (, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address marketGate = wrap
-            ? address(new VaultV2CompatibleEnterGate(address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market))
+            ? address(
+                new VaultV2CompatibleEnterGate(
+                    address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market, address(factory)
+                )
+            )
             : address(gate);
         Offer memory offer = makeEnterGateBuyOffer(marketGate, adapterIsMaker);
         bytes32 marketId = _marketId(offer.market);
@@ -3607,7 +3613,7 @@ contract MidnightAdapterTest is Test {
 
     function testEnterGateDifferentFactory(bool adapterIsMaker) public {
         (, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
-        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
+        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory(address(factory));
         address wrapper = createVaultV2CompatibleEnterGate(otherFactory, gate);
         Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
 
@@ -3618,7 +3624,8 @@ contract MidnightAdapterTest is Test {
     function testEnterGateDifferentAdapterFactory(bool adapterIsMaker) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
-        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(midnight));
+        MidnightAdapterFactory otherFactory =
+            new MidnightAdapterFactory(address(midnight), address(new VaultV2CompatibleEnterGateFactory(address(0))));
         adapter =
             IMidnightAdapter(otherFactory.createMidnightAdapter(address(realVault), allDurations, true, bytes32(0)));
         setUpMaxTtm(type(uint32).max);
@@ -4878,8 +4885,9 @@ contract MidnightAdapterTest is Test {
     {
         setUpRealVault();
         gate = new EnterSubGateMock();
-        factory = new MidnightAdapterFactory(address(midnight));
-        gateFactory = VaultV2CompatibleEnterGateFactory(factory.enterGateFactory());
+        address enterGateFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        factory = new MidnightAdapterFactory(address(midnight), enterGateFactory);
+        gateFactory = new VaultV2CompatibleEnterGateFactory(address(factory));
         adapter = IMidnightAdapter(
             factory.createMidnightAdapter(address(realVault), allDurations, useGateFactory, bytes32(0))
         );
@@ -4901,9 +4909,12 @@ contract MidnightAdapterTest is Test {
         internal
         returns (address)
     {
-        address wrapper =
-            gateFactory.createVaultV2CompatibleEnterGate(address(gate), makeBuyOffer(7 days, 1e18, MAX_TICK).market);
-        VaultV2CompatibleEnterGate(wrapper).setCanAdmit(address(factory));
+        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(
+            address(gate),
+            makeBuyOffer(7 days, 1e18, MAX_TICK).market,
+            bytes32(uint256(vm.getNonce(address(gateFactory))))
+        );
+        VaultV2CompatibleEnterGate(wrapper).addAdmitterFactory(address(factory));
         bytes32 marketId = VaultV2CompatibleEnterGate(wrapper).marketId();
         gate.setCanIncreaseCredit(marketId, address(adapter), true);
         gate.setCanIncreaseDebt(marketId, taker, true);

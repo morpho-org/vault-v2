@@ -15,35 +15,41 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     address internal midnight = makeAddr("midnight");
     Market internal market;
     address internal gate = makeAddr("gate");
+    address internal adapterFactory = makeAddr("adapterFactory");
 
     function setUp() public {
-        factory = new VaultV2CompatibleEnterGateFactory();
+        factory = new VaultV2CompatibleEnterGateFactory(adapterFactory);
         market.midnight = midnight;
     }
 
     function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate) public {
         vm.recordLogs();
         vm.prank(caller);
-        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, market);
+        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, market, bytes32(0));
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        assertEq(logs.length, 1);
-        assertEq(logs[0].emitter, address(factory));
-        assertEq(logs[0].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address,bytes32)"));
-        assertEq(logs[0].topics[1], bytes32(uint256(uint160(created))));
-        assertEq(logs[0].topics[2], bytes32(uint256(uint160(forwardedGate))));
+        assertEq(logs.length, 2);
+        assertEq(logs[0].emitter, created);
+        assertEq(logs[0].topics[0], keccak256("AddAdmitterFactory(address)"));
+        assertEq(logs[0].topics[1], bytes32(uint256(uint160(adapterFactory))));
+        assertEq(logs[1].emitter, address(factory));
+        assertEq(logs[1].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address,bytes32)"));
+        assertEq(logs[1].topics[1], bytes32(uint256(uint160(created))));
+        assertEq(logs[1].topics[2], bytes32(uint256(uint160(forwardedGate))));
         Market memory expectedMarket = market;
         expectedMarket.enterGate = created;
-        assertEq(logs[0].data, abi.encode(IdLib.toId(expectedMarket)));
+        assertEq(logs[1].data, abi.encode(IdLib.toId(expectedMarket)));
         assertTrue(IEnterGateFactory(address(factory)).isGate(created, IdLib.toId(expectedMarket)));
         assertEq(VaultV2CompatibleEnterGate(created).midnight(), midnight);
         assertEq(VaultV2CompatibleEnterGate(created).marketId(), IdLib.toId(expectedMarket));
         assertEq(VaultV2CompatibleEnterGate(created).subGate(), forwardedGate);
+        assertEq(factory.initialAdapterFactory(), adapterFactory);
+        assertTrue(VaultV2CompatibleEnterGate(created).canAdmit(adapterFactory));
     }
 
-    function testCreateMultipleIdenticalGates() public {
-        address first = factory.createVaultV2CompatibleEnterGate(gate, market);
-        address second = factory.createVaultV2CompatibleEnterGate(gate, market);
+    function testCreateMultipleGatesWithDifferentSalts() public {
+        address first = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
+        address second = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(uint256(1)));
 
         assertNotEq(first, second);
         assertFalse(factory.isGate(first, VaultV2CompatibleEnterGate(second).marketId()));
@@ -53,9 +59,9 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     }
 
     function testIsGateRejectsUnregisteredGates() public {
-        address direct = address(new VaultV2CompatibleEnterGate(gate, market));
-        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
-        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, market);
+        address direct = address(new VaultV2CompatibleEnterGate(gate, market, adapterFactory));
+        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory(adapterFactory);
+        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
 
         assertFalse(factory.isGate(address(0), IdLib.toId(market)));
         assertFalse(factory.isGate(gate, IdLib.toId(market)));
@@ -65,9 +71,9 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     }
 
     function testMultipleMarkets() public {
-        address first = factory.createVaultV2CompatibleEnterGate(gate, market);
+        address first = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
         market.maturity++;
-        address second = factory.createVaultV2CompatibleEnterGate(gate, market);
+        address second = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
 
         assertTrue(factory.isGate(first, VaultV2CompatibleEnterGate(first).marketId()));
         assertTrue(factory.isGate(second, VaultV2CompatibleEnterGate(second).marketId()));
@@ -76,7 +82,7 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
 
     function testCreateReplacesEnterGate(address otherGate) public {
         market.enterGate = otherGate;
-        address created = factory.createVaultV2CompatibleEnterGate(gate, market);
+        address created = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
         Market memory expectedMarket = market;
         expectedMarket.enterGate = created;
         assertEq(VaultV2CompatibleEnterGate(created).marketId(), IdLib.toId(expectedMarket));

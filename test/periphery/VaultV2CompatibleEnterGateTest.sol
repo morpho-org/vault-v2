@@ -40,9 +40,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         market.midnight = midnight;
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsMidnightAdapter(adapter, true);
-        wrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
-        vm.prank(creditRoleSetter);
-        wrapper.setCanAdmit(address(adapterFactory));
+        wrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(adapterFactory));
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.liquidationLocked, (wrapper.marketId(), adapter)), abi.encode(false)
         );
@@ -55,22 +53,23 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertEq(wrapper.marketId(), IdLib.toId(expectedMarket));
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
+        assertTrue(wrapper.canAdmit(address(adapterFactory)));
     }
 
-    function testSetCanAdmit(address factory) public {
+    function testAddAdmitterFactory(address factory) public {
         vm.expectEmit();
-        emit VaultV2CompatibleEnterGate.SetCanAdmit(factory);
+        emit VaultV2CompatibleEnterGate.AddAdmitterFactory(factory);
         vm.prank(creditRoleSetter);
-        wrapper.setCanAdmit(factory);
+        wrapper.addAdmitterFactory(factory);
         assertTrue(wrapper.canAdmit(factory));
         assertTrue(wrapper.canAdmit(address(adapterFactory)));
     }
 
-    function testSetCanAdmitRequiresCreditRoleSetter(address caller) public {
+    function testAddAdmitterFactoryRequiresCreditRoleSetter(address caller) public {
         vm.assume(caller != creditRoleSetter);
         vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
-        wrapper.setCanAdmit(makeAddr("otherFactory"));
+        wrapper.addAdmitterFactory(makeAddr("otherFactory"));
     }
 
     function testAdmit() public {
@@ -219,7 +218,8 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsWhitelistsSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
+        VaultV2CompatibleEnterGate otherWrapper =
+            new VaultV2CompatibleEnterGate(address(subGate), market, address(adapterFactory));
         assertNotEq(wrapper.marketId(), otherWrapper.marketId());
         subGate.setIsWhitelisted(wrapper.marketId(), true, depositor, true);
         subGate.setIsWhitelisted(otherWrapper.marketId(), false, depositor, true);
@@ -230,7 +230,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsAdmissionsAndFactoriesSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(0));
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.liquidationLocked, (otherWrapper.marketId(), adapter)), abi.encode(false)
         );
@@ -245,7 +245,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertFalse(otherWrapper.canIncreaseCredit(depositor));
 
         vm.prank(creditRoleSetter);
-        otherWrapper.setCanAdmit(address(adapterFactory));
+        otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(adapter);
         otherWrapper.admit(recipient, address(adapterFactory));
         assertTrue(wrapper.canIncreaseCredit(depositor));
@@ -259,7 +259,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateRoleSetterChangesForBothWrappers() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(0));
         address newRoleSetter = makeAddr("newRoleSetter");
         vm.prank(creditRoleSetter);
         subGate.setRoleSetter(true, newRoleSetter);
@@ -268,9 +268,9 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
         vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(creditRoleSetter);
-        otherWrapper.setCanAdmit(address(adapterFactory));
+        otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(newRoleSetter);
-        otherWrapper.setCanAdmit(address(adapterFactory));
+        otherWrapper.addAdmitterFactory(address(adapterFactory));
         assertTrue(wrapper.canAdmit(address(adapterFactory)), "existing registration remains");
         assertTrue(otherWrapper.canAdmit(address(adapterFactory)));
     }
@@ -280,8 +280,8 @@ contract VaultV2CompatibleEnterGateTest is Test {
             "WhitelistEnterSubGate.sol:WhitelistEnterSubGate",
             abi.encode(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen)
         );
-        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, market);
-        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate, market);
+        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, market, address(adapterFactory));
+        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate, market, address(adapterFactory));
         assertEq(first.canIncreaseCredit(depositor), creditOpen);
         assertEq(second.canIncreaseCredit(depositor), creditOpen);
         assertEq(first.canIncreaseDebt(depositor), debtOpen);
