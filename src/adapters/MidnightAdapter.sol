@@ -35,6 +35,10 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
+/// REENTRANCY
+/// @dev take, withdrawToVault, forceDeallocate, onBuy and onSell lock the adapter while they run. While it is locked, they and isRatified revert, except the callback of the market of the ongoing take.
+/// @dev When a sell offer of the adapter is taken, the adapter is only locked from onSell, so the buyer's callback can still enter it on other markets.
+///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetRate, noSalesBelowFaceValue and noSalesWithShortfall help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
@@ -75,6 +79,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
+    bool transient locked;
+    /// @dev Market of the ongoing take, whose callback can enter the adapter while it is locked.
+    bytes32 transient takeMarketId;
     bytes32 transient overriddenMarketId;
     uint256 transient overriddenMarketNetCredit;
 
@@ -261,7 +268,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        bytes32 marketId = IdLib.toId(offer.market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        require(!locked, Locked());
+        (locked, takeMarketId) = (true, marketId);
+        // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is locked before Midnight invokes callbacks.
         IMidnight(midnight)
             .take(
                 offer,
@@ -272,6 +283,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this),
                 takerCallbackData
             );
+        (locked, takeMarketId) = (false, 0);
     }
 
     /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
@@ -296,25 +308,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* OPERATIONS */
 
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
-        bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
-        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-
-        uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                withdrawnAssets
-            );
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
+        require(!locked, Locked());
+        locked = true;
+        withdrawToVaultInternal(market, withdrawnAssets);
+        locked = false;
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -350,10 +348,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
+            require(!locked, Locked());
+            locked = true;
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            // forge-lint: disable-next-item(reentrancy-no-eth) the force-deallocate path is locked before accruing.
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
@@ -367,6 +368,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
+            locked = false;
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
@@ -379,6 +381,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the result of the sub-ratifier selected in data.
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
+        require(!locked, Locked());
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.midnight == midnight, NotMidnight());
@@ -405,6 +408,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
+        bool wasLocked = locked;
+        require(!wasLocked || marketId == takeMarketId, Locked());
+        (locked, takeMarketId) = (true, 0);
         require(buyer == address(this), NotSelf());
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
@@ -440,7 +446,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
-            withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
+            withdrawToVaultInternal(abi.decode(fundingData, (Market)), paidAssets);
         } else if (fundingAdapter != address(0)) {
             // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
             IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
@@ -473,6 +479,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
+        locked = wasLocked;
         return CALLBACK_SUCCESS;
     }
 
@@ -487,6 +494,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
+        bool wasLocked = locked;
+        require(!wasLocked || marketId == takeMarketId, Locked());
+        (locked, takeMarketId) = (true, 0);
         require(seller == address(this), NotSelf());
         require(callbackData.length == 0, NonEmptyCallbackData());
 
@@ -510,7 +520,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) vault deallocation is permitted while locked; both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
@@ -519,10 +529,32 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
 
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
+        locked = wasLocked;
         return CALLBACK_SUCCESS;
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function withdrawToVaultInternal(Market memory market, uint256 withdrawnAssets) internal {
+        bytes32 marketId = IdLib.toId(market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
+
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
+        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
+        IVaultV2(parentVault)
+            .deallocate(
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                withdrawnAssets
+            );
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+    }
 
     /// @dev Ends the external call, returning data without ABI encoding.
     function returnExactBytes(bytes memory data) internal pure {

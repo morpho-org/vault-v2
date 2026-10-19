@@ -146,6 +146,23 @@ contract ForceDeallocateBuyer {
         // Nested takes with this contract as maker must not re-run the actions.
         if (called) return CALLBACK_SUCCESS;
         called = true;
+        _runActions();
+        return CALLBACK_SUCCESS;
+    }
+
+    function onSell(bytes32, Market memory, uint256, uint256, uint256, address seller, address, bytes memory)
+        external
+        returns (bytes32)
+    {
+        require(msg.sender == midnight, "not midnight");
+        require(seller == address(this), "not seller");
+        if (called) return CALLBACK_SUCCESS;
+        called = true;
+        _runActions();
+        return CALLBACK_SUCCESS;
+    }
+
+    function _runActions() internal {
         for (uint256 i; i < actions.length; i++) {
             Action storage action = actions[i];
             (bool success, bytes memory result) = action.target.call(action.data);
@@ -160,7 +177,6 @@ contract ForceDeallocateBuyer {
                 require(result.length >= 4 && bytes4(result) == action.expectedRevert, "wrong callback revert");
             }
         }
-        return CALLBACK_SUCCESS;
     }
 }
 
@@ -5437,7 +5453,6 @@ contract MidnightAdapterTest is Test {
         Offer memory inner = makeBuyOffer(5 days, fundingLocked ? 3e18 : 2e18, MAX_TICK);
         inner.callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
         midnight.supplyCollateral(inner.market, 0, inner.maxUnits, address(callback));
-        bool succeeds = !fundingLocked;
         callback.push(
             address(midnight),
             abi.encodeCall(
@@ -5452,7 +5467,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            succeeds ? bytes4(0) : IMidnightAdapterBase.SellInProgress.selector
+            fundingLocked ? IMidnightAdapterBase.SellInProgress.selector : bytes4(0)
         );
         if (accrued) {
             this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
@@ -5461,8 +5476,8 @@ contract MidnightAdapterTest is Test {
         }
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 4e18);
-        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, succeeds ? inner.maxUnits : 0);
-        assertEq(midnight.withdrawable(_marketId(fundingMarket)), succeeds ? 0 : 3e18);
+        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, fundingLocked ? 0 : inner.maxUnits);
+        assertEq(midnight.withdrawable(_marketId(fundingMarket)), fundingLocked ? 3e18 : 0);
         assertEq(realVault.allocation(adapter.adapterId()), fundingLocked ? 4e18 : 6e18);
         assertEq(realVault._totalAssets(), 10e18);
         assertEq(backing(), 10e18);
@@ -5527,7 +5542,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Valuation is a no-op (the adapter accrued the vault before the take), the adapter cannot be valued on its own, deposits and withdrawals go through at the snapshot price, same-market mutations are blocked.
+    /// @dev Valuation is a no-op (the adapter accrued the vault before the take), the adapter cannot be valued on its own, deposits and withdrawals go through at the snapshot price, and adapter reentry is blocked.
     function testCbVaultAndAdapterReentry() public {
         Offer memory initial = freshPosition(MAX_TICK);
         Market memory market = initial.market;
@@ -5547,12 +5562,12 @@ contract MidnightAdapterTest is Test {
             abi.encodeCall(
                 IVaultV2.forceDeallocate, (address(adapter), abi.encode(nested, nestedData), 1e18, address(buyer))
             ),
-            IMidnightAdapterBase.SellInProgress.selector
+            IMidnightAdapterBase.Locked.selector
         );
         buyer.push(
             address(adapter),
             abi.encodeCall(IMidnightAdapterBase.withdrawToVault, (market, 0)),
-            IMidnightAdapterBase.SellInProgress.selector
+            IMidnightAdapterBase.Locked.selector
         );
         Offer memory adapterBuy = makeBuyOffer(7 days, 1e18, MAX_TICK);
         adapterBuy.market = market;
@@ -5571,7 +5586,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            IMidnightAdapterBase.SellInProgress.selector
+            IMidnightAdapterBase.Locked.selector
         );
         callbackForceDeallocate(market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
@@ -5590,8 +5605,141 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A nested forceDeallocate on another market completes inside the callback; both sales are accounted.
-    function testCbNestedForceDeallocateOtherMarket() public {
+    function testTakeLockedBuyCallbackCannotWithdrawOtherMarket() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Offer memory other = buyOnRealVault(6 days, 1e18);
+        ForceDeallocateBuyer buyer = newBuyer();
+        buyer.push(address(adapter), abi.encodeCall(IMidnightAdapterBase.withdrawToVault, (other.market, 0)), bytes4(0));
+        Offer memory offer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+        offer.maker = address(buyer);
+        offer.callback = address(buyer);
+        buyer.exec(address(midnight), abi.encodeCall(IMidnight.setIsAuthorized, (address(this), true, address(buyer))));
+
+        vm.expectRevert(IMidnightAdapterBase.Locked.selector);
+        vm.prank(signerAllocator);
+        adapter.take(offer, "", offer.maxUnits, "");
+
+        assertFalse(buyer.called(), "callback state rolled back");
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 8e18, "initial market unchanged");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "other market unchanged");
+    }
+
+    /// forge-config: default.isolate = true
+    function testTakeLockedBuyCallbackCannotTakeAdapterOfferOtherMarket() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Offer memory other = buyOnRealVault(6 days, 1e18);
+        ForceDeallocateBuyer buyer = newBuyer();
+        Offer memory nested = makeBuyOffer(6 days, 1e18, MAX_TICK);
+        deal(storedCollaterals[0].token, address(buyer), 1e18);
+        deal(storedCollaterals[1].token, address(buyer), 1e18);
+        buyer.exec(storedCollaterals[0].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
+        buyer.exec(storedCollaterals[1].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
+        buyer.exec(
+            address(midnight), abi.encodeCall(IMidnight.supplyCollateral, (nested.market, 0, 1e18, address(buyer)))
+        );
+        buyer.exec(
+            address(midnight), abi.encodeCall(IMidnight.supplyCollateral, (nested.market, 1, 1e18, address(buyer)))
+        );
+        buyer.push(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    nested,
+                    ratify([nested], signerAllocator),
+                    nested.maxUnits,
+                    address(buyer),
+                    address(buyer),
+                    address(0),
+                    ""
+                )
+            ),
+            bytes4(0)
+        );
+        Offer memory offer = makeExternalOffer(initial.market, true, 1e18, MAX_TICK);
+        offer.maker = address(buyer);
+        offer.callback = address(buyer);
+        buyer.exec(address(midnight), abi.encodeCall(IMidnight.setIsAuthorized, (address(this), true, address(buyer))));
+
+        vm.expectRevert(IMidnightAdapterBase.Locked.selector);
+        vm.prank(signerAllocator);
+        adapter.take(offer, "", offer.maxUnits, "");
+
+        assertFalse(buyer.called(), "callback state rolled back");
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 8e18, "initial market unchanged");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "other market unchanged");
+    }
+
+    /// forge-config: default.isolate = true
+    function testTakeLockedSellCallbackCannotWithdrawOtherMarket() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Offer memory other = buyOnRealVault(6 days, 1e18);
+        ForceDeallocateBuyer seller = newBuyer();
+        Offer memory offer = makeExternalOffer(initial.market, false, 1e18, MAX_TICK);
+        offer.maker = address(seller);
+        offer.callback = address(seller);
+        offer.receiverIfMakerIsSeller = address(seller);
+        seller.exec(
+            address(midnight), abi.encodeCall(IMidnight.setIsAuthorized, (address(this), true, address(seller)))
+        );
+        for (uint256 i; i < storedCollaterals.length; i++) {
+            uint256 collateral = offer.maxUnits / storedCollaterals.length;
+            deal(storedCollaterals[i].token, address(seller), collateral);
+            seller.exec(
+                storedCollaterals[i].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max))
+            );
+            seller.exec(
+                address(midnight),
+                abi.encodeCall(IMidnight.supplyCollateral, (initial.market, uint256(i), collateral, address(seller)))
+            );
+        }
+        seller.push(
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.withdrawToVault, (other.market, 0)), bytes4(0)
+        );
+
+        vm.expectRevert(IMidnightAdapterBase.Locked.selector);
+        vm.prank(signerAllocator);
+        adapter.take(offer, "", offer.maxUnits, abi.encode(address(0), bytes("")));
+
+        assertFalse(seller.called(), "callback state rolled back");
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 8e18, "initial market unchanged");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "other market unchanged");
+    }
+
+    /// forge-config: default.isolate = true
+    function testAdapterSellBuyerCallbackCanWithdrawOtherMarket() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Offer memory other = buyOnRealVault(6 days, 1e18);
+        ForceDeallocateBuyer buyer = newBuyer();
+        deal(storedCollaterals[0].token, address(buyer), 1e18);
+        deal(storedCollaterals[1].token, address(buyer), 1e18);
+        buyer.exec(storedCollaterals[0].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
+        buyer.exec(storedCollaterals[1].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
+        buyer.exec(
+            address(midnight), abi.encodeCall(IMidnight.supplyCollateral, (initial.market, 0, 1e18, address(buyer)))
+        );
+        buyer.exec(
+            address(midnight), abi.encodeCall(IMidnight.supplyCollateral, (initial.market, 1, 1e18, address(buyer)))
+        );
+        buyer.push(address(adapter), abi.encodeCall(IMidnightAdapterBase.withdrawToVault, (other.market, 0)), bytes4(0));
+        Offer memory offer = makeSellOffer(initial.market, 1e18, MAX_TICK);
+        bytes memory offerRatifierData = ratify([offer], signerAllocator);
+        buyer.exec(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (offer, offerRatifierData, offer.maxUnits, address(buyer), address(0), address(buyer), "")
+            )
+        );
+
+        assertTrue(buyer.called(), "buyer callback ran");
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 7e18, "initial market sold");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "other market unchanged");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev A nested forceDeallocate on another market is blocked inside the callback.
+    function testCbNestedForceDeallocateOtherMarketLocked() public {
         Offer memory initial = freshPosition(MAX_TICK);
         Offer memory other = buyOnRealVault(6 days, 1e18);
         skip(1 days);
@@ -5604,31 +5752,29 @@ contract MidnightAdapterTest is Test {
             abi.encodeCall(
                 IVaultV2.forceDeallocate, (address(adapter), abi.encode(nested, nestedData), 1e18, address(buyer))
             ),
-            bytes4(0)
+            IMidnightAdapterBase.Locked.selector
         );
 
         callbackForceDeallocate(initial.market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 4e18, "netCredit initial");
-        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 0, "netCredit other");
-        assertEq(adapter.marketIdsLength(), 1, "markets");
-        assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "netCredit other");
+        assertEq(adapter.marketIdsLength(), 2, "markets");
+        assertEq(realVault.allocation(adapter.adapterId()), 5e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
-        assertEq(loanToken.balanceOf(address(realVault)), 1e18 + 1e18 + 1e18 + 4e18, "idle");
+        assertEq(loanToken.balanceOf(address(realVault)), 1e18 + 1e18 + 4e18, "idle");
         assertEq(backing(), 11e18, "backing");
-        assertEq(realVault.totalAssets(), 11e18 - 0.02e18 - 0.08e18, "totalAssets net of penalties");
+        assertEq(realVault.totalAssets(), 11e18 - 0.08e18, "totalAssets net of penalties");
         adapter.withdrawToVault(initial.market, 0);
     }
 
     /// forge-config: default.isolate = true
-    /// @dev The adapter can buy on another market inside the callback (the vault is already accrued).
-    function testCbNestedAdapterBuyOtherMarket(bool longBuy) public {
+    /// @dev An adapter buy on another market is blocked inside the callback.
+    function testCbNestedAdapterBuyOtherMarketLocked() public {
         Offer memory initial = freshPosition(MAX_TICK);
-        decreaseDurationCap(1, 0.8e18);
         ForceDeallocateBuyer buyer = newBuyer();
-        buyer.push(address(this), abi.encodeCall(this.assertDurationAllocation, (1, 8e18)), bytes4(0));
-        Offer memory adapterBuy = makeBuyOffer(longBuy ? 8 days : 6 days, 1e18, MAX_TICK);
+        Offer memory adapterBuy = makeBuyOffer(6 days, 1e18, MAX_TICK);
         deal(storedCollaterals[0].token, address(buyer), 10e18);
         buyer.exec(storedCollaterals[0].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
         buyer.exec(
@@ -5648,17 +5794,17 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            longBuy ? IMidnightAdapterBase.DurationRelativeCapExceeded.selector : bytes4(0)
+            IMidnightAdapterBase.Locked.selector
         );
 
         callbackForceDeallocate(initial.market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 4e18, "netCredit initial");
-        assertEq(adapter.marketData(_marketId(adapterBuy.market)).netCredit, longBuy ? 0 : 1e18, "netCredit bought");
-        assertEq(realVault.allocation(adapter.adapterId()), longBuy ? 4e18 : 5e18, "adapter id");
+        assertEq(adapter.marketData(_marketId(adapterBuy.market)).netCredit, 0, "netCredit bought");
+        assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
-        assertEq(loanToken.balanceOf(address(realVault)), longBuy ? 6e18 : 5e18, "idle");
+        assertEq(loanToken.balanceOf(address(realVault)), 6e18, "idle");
         assertEq(storedDurationAllocations(adapter)[1], 4e18, "completed sale releases capacity");
         assertEq(backing(), 10e18, "backing");
     }
@@ -5720,8 +5866,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Full sales on both markets, the nested one first: both markets leave the adapter's list.
-    function testCbFullSalesPopMarkets() public {
+    /// @dev A nested full sale is blocked, while the outer full sale removes its market.
+    function testCbFullSaleBlocksNestedSale() public {
         Offer memory initial = freshPosition(MAX_TICK);
         Offer memory other = buyOnRealVault(6 days, 1e18);
         ForceDeallocateBuyer buyer = newBuyer();
@@ -5734,20 +5880,20 @@ contract MidnightAdapterTest is Test {
             abi.encodeCall(
                 IVaultV2.forceDeallocate, (address(adapter), abi.encode(nested, nestedData), 1e18, address(buyer))
             ),
-            bytes4(0)
+            IMidnightAdapterBase.Locked.selector
         );
 
         callbackForceDeallocate(initial.market, 8e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
-        assertEq(adapter.marketIdsLength(), 0, "no markets left");
+        assertEq(adapter.marketIdsLength(), 1, "other market remains");
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0, "netCredit initial");
-        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 0, "netCredit other");
-        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
-        assertEq(adapter.realAssets(), 0, "realAssets");
+        assertEq(adapter.marketData(_marketId(other.market)).netCredit, 1e18, "netCredit other");
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "adapter id");
+        assertEq(adapter.realAssets(), 1e18, "realAssets");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
-        assertEq(loanToken.balanceOf(address(realVault)), 11e18, "everything is idle");
-        assertEq(realVault.totalAssets(), 11e18 - 0.02e18 - 0.16e18, "totalAssets net of penalties");
+        assertEq(loanToken.balanceOf(address(realVault)), 10e18, "idle");
+        assertEq(realVault.totalAssets(), 11e18 - 0.16e18, "totalAssets net of penalties");
     }
 
     /// forge-config: default.isolate = true
@@ -5776,7 +5922,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev The callback is the payer, and the adapter has a max approval to Midnight: it must refuse to be the callback of an offer it did not make.
+    /// @dev Force deallocation holds the adapter lock, so it cannot be used as the callback of the offer.
     function testCbAdapterAsCallbackReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
@@ -5788,7 +5934,7 @@ contract MidnightAdapterTest is Test {
         );
         ratifierData_ = abi.encode(root_, uint256(0), new bytes32[](0));
 
-        vm.expectRevert(IMidnightAdapterBase.NotSelf.selector);
+        vm.expectRevert(IMidnightAdapterBase.Locked.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData_), 1e18, address(this));
     }
 
