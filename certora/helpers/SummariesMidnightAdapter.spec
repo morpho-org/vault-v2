@@ -9,7 +9,7 @@ methods {
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
 
     // Summarized so that loops bounded by the number of markets or collateral params don't prune long lists or markets with many collaterals.
-    // Remaining loops are over durations and don't write the market list, so with optimistic_loop, paths with more durations than loop_iter have counterparts with fewer durations and the same market list.
+    // Remaining loops are over durations and over the ids in the vault's allocate and deallocate. They don't write the adapter's state, so with optimistic_loop, paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
