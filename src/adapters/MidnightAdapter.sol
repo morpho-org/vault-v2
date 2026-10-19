@@ -100,8 +100,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minNetSellPriceForceSellable for forceSellable markets.
     uint64 public maxNetSellRate;
     bool public noSalesWithShortfall;
-    /// @dev Minimum price of a maker or taker sale in a forceSellable market, per unit of sold net credit (WAD = face value).
-    mapping(bytes32 marketId => uint256) public minNetSellPriceForceSellable;
 
     /* CONSTRUCTOR */
 
@@ -260,7 +258,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinNetSellPriceForceSellable(bytes32 marketId, uint256 newMinNetSellPrice) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minNetSellPriceForceSellable[marketId] = newMinNetSellPrice;
+        marketData[marketId].minNetSellPriceForceSellable = newMinNetSellPrice.toUint128();
         emit SetMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
     }
 
@@ -505,7 +503,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         if (_marketData.forceSellable) {
             require(
-                sellerAssets >= soldNetCredit.mulDivUp(minNetSellPriceForceSellable[marketId], WAD),
+                sellerAssets >= soldNetCredit.mulDivUp(_marketData.minNetSellPriceForceSellable, WAD),
                 NetSellPriceTooLow()
             );
         } else {
@@ -563,6 +561,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketIds.pop();
         delete marketData[marketId];
         marketData[marketId].forceSellable = _marketData.forceSellable;
+        marketData[marketId].minNetSellPriceForceSellable = _marketData.minNetSellPriceForceSellable;
     }
 
     /* VIEWS */

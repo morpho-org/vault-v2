@@ -675,10 +675,11 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.marketData(marketId).forceSellable);
     }
 
-    function testForceSellablePreservesMarketData(bool newForceSellable) public {
+    function testForceSellablePreservesMarketData(bool newForceSellable, uint128 newMinNetSellPrice) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
+        setMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
         MarketData memory before = adapter.marketData(marketId);
 
         setForceSellable(marketId);
@@ -693,6 +694,7 @@ contract MidnightAdapterTest is Test {
         sell(first.market, 1e18);
         assertEq(adapter.marketData(marketId).index, 0, "updated index");
         assertEq(adapter.marketData(marketId).forceSellable, newForceSellable, "setting unchanged");
+        assertEq(adapter.marketData(marketId).minNetSellPriceForceSellable, newMinNetSellPrice, "min price unchanged");
     }
 
     function testForceSellablePreventsBuys(bool takerBuy) public {
@@ -1406,16 +1408,27 @@ contract MidnightAdapterTest is Test {
         adapter.setMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
     }
 
-    function testSetMinNetSellPriceForceSellableAuthorized(bytes32 marketId, uint256 newMinNetSellPrice) public {
+    function testSetMinNetSellPriceForceSellableAuthorized(bytes32 marketId, uint128 newMinNetSellPrice) public {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
         vm.prank(curator);
         adapter.setMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
-        assertEq(adapter.minNetSellPriceForceSellable(marketId), newMinNetSellPrice, "minNetSellPriceForceSellable");
+        assertEq(
+            adapter.marketData(marketId).minNetSellPriceForceSellable,
+            newMinNetSellPrice,
+            "minNetSellPriceForceSellable"
+        );
+    }
+
+    function testSetMinNetSellPriceForceSellableOverflows(bytes32 marketId, uint256 newMinNetSellPrice) public {
+        newMinNetSellPrice = bound(newMinNetSellPrice, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vm.prank(curator);
+        adapter.setMinNetSellPriceForceSellable(marketId, newMinNetSellPrice);
     }
 
     function testMinNetSellPriceForceSellableDefault(bytes32 marketId) public view {
-        assertEq(adapter.minNetSellPriceForceSellable(marketId), 0, "no minimum price by default");
+        assertEq(adapter.marketData(marketId).minNetSellPriceForceSellable, 0, "no minimum price by default");
     }
 
     /// @dev The sale is priced exactly at minNetSellPriceForceSellable, so one wei higher reverts.
@@ -1435,6 +1448,7 @@ contract MidnightAdapterTest is Test {
         setMinNetSellPriceForceSellable(marketId, price);
         sellUnits(initial.market, 1e18, tick);
         assertEq(adapter.marketData(marketId).netCredit, 0, "net credit");
+        assertEq(adapter.marketData(marketId).minNetSellPriceForceSellable, price, "min price retained");
     }
 
     function testMinNetSellPriceForceSellableIgnoredInOtherMarkets() public {
@@ -1442,7 +1456,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(initial.market);
         deal(address(loanToken), taker, 1e18);
 
-        setMinNetSellPriceForceSellable(marketId, type(uint256).max);
+        setMinNetSellPriceForceSellable(marketId, type(uint128).max);
         sellUnits(initial.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(marketId).netCredit, 0, "net credit");
     }
@@ -1453,7 +1467,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 0.25e18);
 
         setForceSellable(marketId);
-        setMinNetSellPriceForceSellable(marketId, type(uint256).max);
+        setMinNetSellPriceForceSellable(marketId, type(uint128).max);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(marketId).netCredit, 0.75e18);
     }
@@ -2615,7 +2629,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
+        assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
         assertEq(parentVault.allocation(adapter.adapterId()), 2e18);
         assertMarkets([_marketId(first.market), _marketId(last.market)]);
     }
@@ -2648,7 +2662,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2991,7 +3005,9 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+        );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -4318,7 +4334,9 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+        );
     }
 
     function testShortfallUsesAmortizedValue() public {

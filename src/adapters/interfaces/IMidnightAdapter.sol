@@ -19,6 +19,8 @@ struct MarketData {
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
+    uint128 minNetSellPriceForceSellable;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -106,7 +108,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function minNetRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
     function maxNetSellRate() external view returns (uint64);
-    function minNetSellPriceForceSellable(bytes32 marketId) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -150,7 +151,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint64 netRate,
             uint48 maturity,
             uint8 index,
-            bool forceSellable
+            bool forceSellable,
+            uint128 minNetSellPriceForceSellable
         );
 }
 
