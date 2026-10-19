@@ -15,7 +15,6 @@ import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter, IMidnightAdapterBase, MarketData} from "../src/adapters/interfaces/IMidnightAdapter.sol";
-import {MidnightAdapterPriceRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterPriceRatifierV1.sol";
 import {
     IMidnightAdapterPriceRatifierV1
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
@@ -177,7 +176,7 @@ contract MidnightAdapterTest is Test {
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
     IMidnightAdapter internal adapter;
-    MidnightAdapterPriceRatifierV1 internal priceRatifier;
+    IMidnightAdapterPriceRatifierV1 internal priceRatifier;
     VaultV2Mock internal parentVault;
     IVaultV2 internal realVault;
     IERC20 internal loanToken;
@@ -229,7 +228,9 @@ contract MidnightAdapterTest is Test {
         // Sales below face value are blocked by default. Tests of the limit itself set it back.
         setMaxNetSellRate(type(uint64).max);
 
-        priceRatifier = new MidnightAdapterPriceRatifierV1();
+        priceRatifier = IMidnightAdapterPriceRatifierV1(
+            deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
+        );
         addSubRatifier(adapter, address(priceRatifier));
 
         address collToken0 = address(new ERC20Mock(18));
