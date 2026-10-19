@@ -24,6 +24,7 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
+import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -217,7 +218,11 @@ contract MidnightAdapterTest is Test {
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         factory = new MidnightAdapterFactory(address(midnight));
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32(0)));
+        adapter = IMidnightAdapter(
+            factory.createMidnightAdapter(
+                address(parentVault), allDurations, bytes32(0), type(MidnightAdapter).creationCode
+            )
+        );
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
 
@@ -1355,7 +1360,9 @@ contract MidnightAdapterTest is Test {
         vm.setSeed(seed);
         address otherAllocator = makeAddr("otherAllocator");
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        address otherAdapter = factory.createMidnightAdapter(address(otherVault), allDurations, bytes32(0));
+        address otherAdapter = factory.createMidnightAdapter(
+            address(otherVault), allDurations, bytes32(0), type(MidnightAdapter).creationCode
+        );
         Offer memory offer = _ratificationSetup();
         offer.maker = otherAdapter;
         bytes32 _root = root(offer);
@@ -1602,8 +1609,11 @@ contract MidnightAdapterTest is Test {
     function testSharedRatifierTwoAdapters() public {
         address otherAllocator = makeAddr("otherAllocator");
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        IMidnightAdapter otherAdapter =
-            IMidnightAdapter(factory.createMidnightAdapter(address(otherVault), allDurations, bytes32(0)));
+        IMidnightAdapter otherAdapter = IMidnightAdapter(
+            factory.createMidnightAdapter(
+                address(otherVault), allDurations, bytes32(0), type(MidnightAdapter).creationCode
+            )
+        );
         vm.prank(curator);
         otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (type(uint32).max)));
         otherAdapter.increaseMaxTtm(type(uint32).max);
@@ -1873,7 +1883,8 @@ contract MidnightAdapterTest is Test {
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), salt, initCodeHash)))));
         vm.expectEmit(address(factory));
         emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), allDurations, salt, expected);
-        address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, salt);
+        address newAdapter =
+            factory.createMidnightAdapter(address(newVault), allDurations, salt, type(MidnightAdapter).creationCode);
 
         assertEq(newAdapter, expected, "expected address");
         assertEq(
@@ -1890,9 +1901,11 @@ contract MidnightAdapterTest is Test {
 
         bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
         vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault), allDurations, salt);
+        factory.createMidnightAdapter(address(newVault), allDurations, salt, type(MidnightAdapter).creationCode);
 
-        address otherAdapter = factory.createMidnightAdapter(address(newVault), allDurations, differentSalt);
+        address otherAdapter = factory.createMidnightAdapter(
+            address(newVault), allDurations, differentSalt, type(MidnightAdapter).creationCode
+        );
         assertTrue(otherAdapter != newAdapter, "different salts create different adapters");
         assertEq(
             factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), salt),
@@ -1909,7 +1922,8 @@ contract MidnightAdapterTest is Test {
 
         uint256[] memory singleDuration = new uint256[](1);
         singleDuration[0] = allDurations[0];
-        address otherDurationsAdapter = factory.createMidnightAdapter(address(newVault), singleDuration, salt);
+        address otherDurationsAdapter =
+            factory.createMidnightAdapter(address(newVault), singleDuration, salt, type(MidnightAdapter).creationCode);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
         assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
         assertEq(
@@ -1929,6 +1943,27 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight));
         MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         assertEq(newFactory.midnight(), address(midnight), "midnight");
+        assertEq(
+            newFactory.midnightAdapterCreationCodeHash(),
+            keccak256(type(MidnightAdapter).creationCode),
+            "creation code hash"
+        );
+    }
+
+    function testFactoryCreateInvalidCreationCode(bytes memory creationCode) public {
+        vm.assume(keccak256(creationCode) != keccak256(type(MidnightAdapter).creationCode));
+
+        vm.expectRevert(IMidnightAdapterFactory.InvalidCreationCode.selector);
+        factory.createMidnightAdapter(address(parentVault), allDurations, bytes32(uint256(1)), creationCode);
+    }
+
+    function testFactoryCreateMidnightAdapterBubblesConstructorError() public {
+        uint256[] memory durations = new uint256[](1);
+
+        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
+        factory.createMidnightAdapter(
+            address(parentVault), durations, bytes32(uint256(1)), type(MidnightAdapter).creationCode
+        );
     }
 
     /* DURATIONS */
@@ -1953,8 +1988,9 @@ contract MidnightAdapterTest is Test {
 
     function testDurationCapsDefaultToZero() public {
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
-        IMidnightAdapter fresh =
-            IMidnightAdapter(factory.createMidnightAdapter(address(vault), allDurations, bytes32(0)));
+        IMidnightAdapter fresh = IMidnightAdapter(
+            factory.createMidnightAdapter(address(vault), allDurations, bytes32(0), type(MidnightAdapter).creationCode)
+        );
         for (uint256 i; i < allDurations.length; i++) {
             assertEq(vault.relativeCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
             assertEq(vault.absoluteCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
@@ -4550,7 +4586,11 @@ contract MidnightAdapterTest is Test {
         realVault = IVaultV2(deployCode("out/VaultV2.sol/VaultV2.json", abi.encode(owner, address(loanToken))));
         vm.prank(owner);
         realVault.setCurator(curator);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), allDurations, bytes32(0)));
+        adapter = IMidnightAdapter(
+            factory.createMidnightAdapter(
+                address(realVault), allDurations, bytes32(0), type(MidnightAdapter).creationCode
+            )
+        );
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
 
