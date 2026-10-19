@@ -73,11 +73,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
-    /* TRANSIENT STORAGE */
-
-    bytes32 transient overriddenMarketId;
-    uint256 transient overriddenMarketNetCredit;
-
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -420,12 +415,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
         uint128 newNetCredit = currentNetCredit(marketId);
-        (overriddenMarketId, overriddenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
+        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
-        (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
-        MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -433,9 +429,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -616,9 +610,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overriddenMarketId) {
-                netCredit = overriddenMarketNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
