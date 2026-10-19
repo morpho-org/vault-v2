@@ -53,6 +53,9 @@ import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFac
 /// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
+/// ENTER GATE
+/// @dev Deployers must ensure the adapter's factory always returns true to `isMidnightAdapter(adapter)` or it will not correctly work when `useGateFactory` is true.
+///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
