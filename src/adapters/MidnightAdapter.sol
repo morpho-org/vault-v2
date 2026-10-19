@@ -338,7 +338,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
-    function allocate(bytes memory data, uint256, bytes4, address caller)
+    function allocate(bytes calldata data, uint256, bytes4, address caller)
         external
         view
         returns (bytes32[] memory, int256)
@@ -351,7 +351,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
+    function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
@@ -553,9 +553,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* INTERNAL FUNCTIONS */
 
     /// @dev Ends the external call, returning data without ABI encoding.
-    function returnExactBytes(bytes memory data) internal pure {
+    function returnExactBytes(bytes calldata data) internal pure {
         assembly ("memory-safe") {
-            return(add(data, 32), mload(data))
+            let ptr := mload(0x40)
+            calldatacopy(ptr, data.offset, data.length)
+            return(ptr, data.length)
         }
     }
 
@@ -569,13 +571,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function removeMarket(bytes32 marketId) internal {
-        MarketData memory _marketData = marketData[marketId];
+        MarketData storage _marketData = marketData[marketId];
+        bool forceSellable = _marketData.forceSellable;
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
         delete marketData[marketId];
-        marketData[marketId].forceSellable = _marketData.forceSellable;
+        marketData[marketId].forceSellable = forceSellable;
     }
 
     /* VIEWS */
