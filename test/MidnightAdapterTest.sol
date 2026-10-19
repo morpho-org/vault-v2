@@ -1874,7 +1874,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
         assertFalse(adapter.noSalesWithShortfall(), "noSalesWithShortfall");
-        assertEq(adapter.maxNetSellRate(), 0, "maxNetSellRate");
+        assertEq(adapter.maxNetSellRate(), type(uint64).max, "maxNetSellRate");
         bytes32 expectedPackedDurations;
         for (uint256 i = 0; i < allDurations.length; i++) {
             expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
