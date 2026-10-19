@@ -34,10 +34,8 @@ hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation {
     }
 }
 
-definition allocationsSettled() returns bool = writtenIdsCount == returnedIdsLength;
-
 function checkSettledAllocations() {
-    if (!allocationsSettled()) {
+    if (writtenIdsCount != returnedIdsLength) {
         adapterCalledWithPendingWrites = true;
     }
 }
@@ -63,5 +61,5 @@ rule adaptersAreCalledWithSettledAllocations(method f, env e, calldataarg data) 
     require(returnedIdsLength == 0 && writtenIdsCount == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
     f(e, data);
     assert !adapterCalledWithPendingWrites;
-    assert allocationsSettled();
+    assert writtenIdsCount == returnedIdsLength;
 }
