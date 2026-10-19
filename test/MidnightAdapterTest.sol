@@ -4325,6 +4325,57 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketIdB).netRate, newRateB, "market B absorbs remaining shortfall");
     }
 
+    function testShortfallSpillsToNextMarketAfterLoss() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+
+        this.realizeDefault(offerB.market, ORACLE_PRICE_SCALE / 4);
+        assertGt(midnight.lossFactor(marketIdB), dataB.lossFactor, "market B loss factor changed");
+        assertEq(adapter.marketData(marketIdB).netCredit, dataB.netCredit, "adapter cache remains unchanged");
+
+        (uint128 creditB, uint128 pendingFeeB,) =
+            midnight.updatePositionView(offerB.market, marketIdB, address(adapter));
+        uint256 netCreditB = creditB - pendingFeeB;
+        assertLt(netCreditB, dataB.netCredit, "loss reduced market B net credit");
+
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmB = dataB.maturity - block.timestamp;
+        uint256 sold = uint256(dataA.netCredit) * 4 / 5;
+        uint256 remainingA = dataA.netCredit - sold;
+        uint256 tick = TickLib.priceToTick(0.2e18, DEFAULT_TICK_SPACING);
+        uint256 amortizedValue = sold.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
+        uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 loss = amortizedValue - proceeds;
+        uint256 remainingAmortizedValueA = remainingA.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
+        uint256 capacityA =
+            remainingA.mulDivDown(WAD, WAD + adapter.minNetRate() * ttmA).zeroFloorSub(remainingAmortizedValueA);
+        uint256 amortizedValueAAfterReduction = remainingAmortizedValueA + capacityA;
+        uint256 newRateA =
+            (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
+        uint256 remainingLoss = loss - capacityA;
+        uint256 amortizedValueB = netCreditB.mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 capacityB = netCreditB.mulDivDown(WAD, WAD + adapter.minNetRate() * ttmB).zeroFloorSub(amortizedValueB);
+        uint256 newRateB =
+            (netCreditB - (amortizedValueB + remainingLoss)).mulDivDown(WAD, (amortizedValueB + remainingLoss) * ttmB);
+        uint256 staleAmortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 staleRateB = (uint256(dataB.netCredit) - (staleAmortizedValueB + remainingLoss))
+        .mulDivDown(WAD, (staleAmortizedValueB + remainingLoss) * ttmB);
+        assertGt(loss, capacityA, "market A cannot absorb the full shortfall");
+        assertLt(remainingLoss, capacityB, "market B absorbs the rest");
+        assertNotEq(newRateB, staleRateB, "post-loss net credit changes the rate");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceRate(marketIdA, newRateA);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ReduceRate(marketIdB, newRateB);
+        sellUnits(offerA.market, sold, tick);
+
+        assertEq(adapter.marketData(marketIdB).netRate, newRateB, "market B rate uses post-loss net credit");
+    }
+
     function testReorderMarketsChangesWhichMarketAbsorbsShortfallFirst() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);
