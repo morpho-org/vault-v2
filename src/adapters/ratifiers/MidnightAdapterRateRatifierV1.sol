@@ -34,7 +34,6 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         return ratification[maker][root].rootNonce;
     }
 
-    /// @dev onBehalf must be an allocator, or a sentinel when unratifying. The caller must be onBehalf or be authorized by onBehalf on Midnight.
     function setIsRootRatified(address maker, bytes32 root, address onBehalf, bool newIsRootRatified)
         external
         returns (bytes32)
