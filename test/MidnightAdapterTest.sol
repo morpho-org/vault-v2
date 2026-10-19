@@ -13,6 +13,7 @@ import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
+import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter, IMidnightAdapterBase, MarketData} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {MidnightAdapterPriceRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterPriceRatifierV1.sol";
@@ -1963,6 +1964,19 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(
             address(parentVault), durations, bytes32(uint256(1)), type(MidnightAdapter).creationCode
+        );
+    }
+
+    function testFactoryCreateMidnightAdapterBubblesLongConstructorError() public {
+        bytes memory revertData = abi.encodeWithSignature(
+            "Error(string)", "This constructor failure message deliberately exceeds sixty-four bytes."
+        );
+
+        vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(IERC4626.asset.selector), revertData);
+
+        vm.expectRevert(revertData);
+        factory.createMidnightAdapter(
+            address(parentVault), allDurations, bytes32(uint256(2)), type(MidnightAdapter).creationCode
         );
     }
 

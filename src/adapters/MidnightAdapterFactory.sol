@@ -42,8 +42,9 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         assembly ("memory-safe") {
             _midnightAdapter := create2(0, add(initCode, 0x20), mload(initCode), salt)
             if iszero(_midnightAdapter) {
-                returndatacopy(0, 0, returndatasize())
-                revert(0, returndatasize())
+                let ptr := mload(0x40)
+                returndatacopy(ptr, 0, returndatasize())
+                revert(ptr, returndatasize())
             }
         }
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
