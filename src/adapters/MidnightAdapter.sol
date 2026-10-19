@@ -14,7 +14,7 @@ import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
-import {VaultV2CompatibleEnterGate} from "../periphery/gates/VaultV2CompatibleEnterGate.sol";
+import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
@@ -375,12 +375,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
                 && IMidnight(midnight).credit(marketId, address(this)) > 0
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (admitted) VaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (admitted) VaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
+            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -431,7 +431,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (market.enterGate != address(0) && enterGateFactory != address(0)) {
             // Adapters must not buy through another adapter's transient admission.
             require(
-                IEnterSubGate(VaultV2CompatibleEnterGate(market.enterGate).subGate())
+                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
                     .canIncreaseCredit(marketId, address(this)),
                 IncorrectEnterGate()
             );
@@ -463,7 +463,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
                     IEnterGateFactory(enterGateFactory).isGate(market.enterGate, marketId)
-                        && VaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
+                        && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );
             }

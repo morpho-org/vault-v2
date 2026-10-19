@@ -360,8 +360,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             )
         );
         deployCode(
-            "out/VaultV2CompatibleEnterGateFactory.sol/VaultV2CompatibleEnterGateFactory.json",
-            abi.encode(address(factory))
+            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(factory))
         );
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;

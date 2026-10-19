@@ -8,8 +8,7 @@ import {IMidnight, Market} from "../../../lib/midnight/src/interfaces/IMidnight.
 import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 
-/// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit.
-/// @dev Lets vault users receive credit through forceDeallocate.
+/// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
 /// @dev Markets other than marketId should not use this gate as their enterGate.
 /// @dev roleSetter must register only factories whose adapters follow the admission rules, including after upgrades.
 /// @dev Registered factories must not revoke adapter membership.
@@ -60,7 +59,7 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
         admitter = msg.sender;
     }
 
-    /// @dev Clear the admission, should be called ater taking the buyer's offer.
+    /// @dev Clear the admission, should be called after taking the buyer's offer.
     function unadmit() external {
         admitted = address(0);
         admitter = address(0);
