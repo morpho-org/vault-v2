@@ -362,8 +362,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            IVaultV2(parentVault).accrueInterest();
-
             bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
                 && IMidnight(midnight).credit(marketId, address(this)) > 0
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
