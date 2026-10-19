@@ -36,6 +36,7 @@ methods {
 
     // The vault's calls back into its adapters: the adapter's own allocate and deallocate, and views.
     // Other adapters are assumed to not reenter this adapter, so dispatching to this adapter is the only case that can change its state.
+    // Statically, the dispatched deallocate can recurse into take and onSell, but the vault passes its own deallocate selector, so the dispatched deallocate returns before take: optimistic_summary_recursion prunes only these infeasible paths.
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.realAssets() external => NONDET;
