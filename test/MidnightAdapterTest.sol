@@ -587,6 +587,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.submit(data);
         assertEq(adapter.executableAt(data), block.timestamp + duration, "execution delay");
+        assertEq(adapter.pendingForceSellable(marketId), 1, "pending count");
         assertFalse(adapter.marketData(marketId).forceSellable, "unchanged before execution");
 
         skip(duration - 1);
@@ -601,9 +602,38 @@ contract MidnightAdapterTest is Test {
         adapter.setForceSellable(marketId);
         assertTrue(adapter.marketData(marketId).forceSellable, "setting updated");
         assertEq(adapter.executableAt(data), 0, "pending call consumed");
+        assertEq(adapter.pendingForceSellable(marketId), 0, "execution decrements pending count");
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.setForceSellable(marketId);
+    }
+
+    function testPendingForceSellableCounter(bytes32 marketId, uint256 duration) public {
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setForceSellable.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+        assertEq(adapter.pendingForceSellable(marketId), 1, "submit increments pending count");
+
+        vm.prank(curator);
+        adapter.revoke(data);
+        assertEq(adapter.pendingForceSellable(marketId), 0, "revoke decrements pending count");
+
+        vm.prank(curator);
+        adapter.submit(data);
+        assertEq(adapter.pendingForceSellable(marketId), 1, "resubmission increments pending count");
+        skip(duration);
+        adapter.setForceSellable(marketId);
+        assertEq(adapter.pendingForceSellable(marketId), 0, "execution decrements pending count");
+    }
+
+    function testSubmitSetForceSellableWithShortDataReverts() public {
+        bytes memory data = abi.encodePacked(IMidnightAdapterBase.setForceSellable.selector, bytes31(0));
+        vm.expectRevert();
+        vm.prank(curator);
+        adapter.submit(data);
     }
 
     function testUnsetForceSellable(address caller, bytes32 marketId, bool sentinel) public {
@@ -728,6 +758,59 @@ contract MidnightAdapterTest is Test {
             this.takeWithAccrual(offer, data, taker, address(0));
         }
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
+    }
+
+    function testPendingForceSellablePreventsBuys() public {
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId)));
+        assertEq(adapter.pendingForceSellable(marketId), 1, "submission is pending");
+
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        this.takeWithAccrual(offer, "", taker, address(0));
+    }
+
+    function testPendingForceSellableDuplicateSubmissionsBlockBuys() public {
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        bytes memory setForceSellableData = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        bytes memory dataWithTrailingByte = bytes.concat(setForceSellableData, hex"00");
+        vm.prank(curator);
+        adapter.submit(setForceSellableData);
+        vm.prank(curator);
+        adapter.submit(dataWithTrailingByte);
+        assertEq(adapter.pendingForceSellable(marketId), 2, "both submissions are pending");
+
+        vm.prank(curator);
+        adapter.revoke(setForceSellableData);
+        assertEq(adapter.pendingForceSellable(marketId), 1, "one submission remains pending");
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        this.takeWithAccrual(offer, "", taker, address(0));
+
+        vm.prank(curator);
+        adapter.revoke(dataWithTrailingByte);
+        assertEq(adapter.pendingForceSellable(marketId), 0, "all submissions revoked");
+        this.takeWithAccrual(offer, "", taker, address(0));
+    }
+
+    function testUnsetForceSellableAllowsBuysAfterExecution() public {
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        setForceSellable(marketId);
+        assertEq(adapter.pendingForceSellable(marketId), 0, "execution clears pending count");
+        unsetForceSellable(marketId);
+
+        this.takeWithAccrual(offer, "", taker, address(0));
     }
 
     function testForceSellableOverridesMinNetRate(bool takerSale) public {

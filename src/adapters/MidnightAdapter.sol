@@ -92,6 +92,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
+    mapping(bytes32 marketId => uint256) public pendingForceSellable;
 
     uint32 public maxTtm;
     /// @dev Minimum net rate of a market after a maker or taker buy, or after a loss sale.
@@ -136,6 +137,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        if (selector == IMidnightAdapterBase.setForceSellable.selector) pendingForceSellable[bytes32(data[4:36])]++;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
@@ -163,6 +165,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         executableAt[data] = 0;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        if (selector == IMidnightAdapterBase.setForceSellable.selector) pendingForceSellable[bytes32(data[4:36])]--;
         emit Revoke(msg.sender, selector, data);
     }
 
@@ -214,9 +217,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    /// @dev Buys in the market are blocked as soon as setForceSellable is submitted, until all pending submissions are revoked or executed.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
+        pendingForceSellable[marketId]--;
         marketData[marketId].forceSellable = true;
         emit SetForceSellable(marketId);
     }
@@ -416,7 +420,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
         MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.forceSellable, UnauthorizedBuy());
+        require(!_marketData.forceSellable && pendingForceSellable[marketId] == 0, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
