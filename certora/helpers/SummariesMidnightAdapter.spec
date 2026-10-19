@@ -16,7 +16,6 @@ methods {
     // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
     function _.lossFactor(bytes32) external => NONDET;
     function _.liquidationLocked(bytes32, address) external => NONDET;
-    function _.balanceOf(address) external => NONDET;
     function _.firstTotalAssets() external => NONDET;
     function _.absoluteCap(bytes32) external => NONDET;
     function _.relativeCap(bytes32) external => NONDET;
@@ -42,6 +41,7 @@ methods {
     function _.deallocate(address, bytes, uint256) external => NONDET;
 
     // The asset is assumed to be a standard ERC20 token.
+    function _.balanceOf(address) external => NONDET;
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
