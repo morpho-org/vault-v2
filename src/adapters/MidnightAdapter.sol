@@ -99,6 +99,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
+    /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
 
     /* CONSTRUCTOR */
