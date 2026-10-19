@@ -5050,7 +5050,7 @@ contract MidnightAdapterTest is Test {
             take(offer);
         } else {
             vm.prank(signerAllocator);
-            adapter.take(offer, "", offer.maxUnits, hex"");
+            adapter.take(offer, "", offer.maxUnits, abi.encode(address(0), hex""));
         }
     }
 
