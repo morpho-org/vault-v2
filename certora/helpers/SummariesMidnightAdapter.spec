@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// Model of the adapter's environment: Midnight, the parent vault and the asset are not in the scene.
+// Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
 // Assumes that external calls do not reenter the adapter.
 
 methods {
@@ -16,9 +16,6 @@ methods {
     // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
     function _.lossFactor(bytes32) external => NONDET;
     function _.liquidationLocked(bytes32, address) external => NONDET;
-    function _.firstTotalAssets() external => NONDET;
-    function _.absoluteCap(bytes32) external => NONDET;
-    function _.relativeCap(bytes32) external => NONDET;
 
     // Arbitrary results, as the market list doesn't depend on rates and caps, to keep the solver away from nonlinear arithmetic.
     function MathLib.mulDivDown(uint256, uint256, uint256) internal returns (uint256) => NONDET;
@@ -36,9 +33,18 @@ methods {
     // Calls that don't change the adapter's Midnight net credits, resolved so that they don't havoc the adapter's state.
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
     function _.setIsAuthorized(address, bool, address) external => NONDET;
-    function _.accrueInterest() external => NONDET;
-    function _.allocate(address, bytes, uint256) external => NONDET;
-    function _.deallocate(address, bytes, uint256) external => NONDET;
+
+    // The vault's calls back into its adapters: the adapter's own allocate and deallocate, and views.
+    // Other adapters are assumed to not reenter this adapter, so dispatching to this adapter is the only case that can change its state.
+    function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
+    function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
+    function _.realAssets() external => NONDET;
+
+    // The vault's gates are views.
+    function _.canReceiveShares(address) external => NONDET;
+    function _.canSendShares(address) external => NONDET;
+    function _.canReceiveAssets(address) external => NONDET;
+    function _.canSendAssets(address) external => NONDET;
 
     // The asset is assumed to be a standard ERC20 token.
     function _.balanceOf(address) external => NONDET;
