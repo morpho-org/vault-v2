@@ -49,6 +49,9 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
     bytes32[] ids;
     int256 change;
 
+    require ids.length == 6, "simplified market with one collateral, for which the adapter returns 4 + 2 * 1 ids";
+    require forall uint256 i. forall uint256 j. i < ids.length && j < ids.length && i != j => ids[i] != ids[j], "ids must be unique";
+
     require forall uint256 i. i < ids.length => VaultV2.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256 in Invariants.spec";
     require forall uint256 i. i < ids.length => VaultV2.caps[ids[i]].allocation > 0, "assumption on the allocations of the market's ids, else deallocate reverts (see deallocateInputValidation in AllocateDeallocateInputValidation.spec)";
     require forall uint256 i. i < ids.length => VaultV2.caps[ids[i]].allocation + change >= 0, "assumption that the allocation of each id is at least the stored net credit of the market";
@@ -63,7 +66,7 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
 //   2. The adapter is registered in the vault and has the allocator or sentinel role in it.
 //   3. A market with a non-zero stored net credit is in the market list at its stored index.
 //   4. Midnight's zero withdraw, and reading the adapter's position and the market's loss factor, do not revert.
-//   5. Assumptions on the ids and change returned to the vault as specified in summaryDeallocate.
+//   5. A market with one collateral, whose 6 unique ids and change satisfy summaryDeallocate.
 //   6. The asset does not revert on zero-amount transfers.
 rule canWithdrawToVaultZero(env e, MidnightAdapter.Market market) {
     require e.msg.value == 0, "withdrawToVault is non-payable";
