@@ -14,7 +14,7 @@ methods {
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
-    // Midnight's loss factor can be any value; the last value returned for each market is recorded.
+    // Midnight's loss factor can be any value; the values returned for each market are recorded.
     function _.lossFactor(bytes32 marketId) external => lossFactorSummary(marketId) expect(uint128);
     function _.liquidationLocked(bytes32, address) external => NONDET;
 
@@ -92,6 +92,7 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
     return allocations;
 }
 
+<<<<<<< HEAD
 // Midnight credits the bought units to the adapter before calling onBuy.
 function increaseMidnightNetCredit(bytes32 marketId) {
     uint128 newNetCredit;
@@ -99,9 +100,15 @@ function increaseMidnightNetCredit(bytes32 marketId) {
 }
 
 ghost mapping(bytes32 => uint128) ghostLastMidnightLossFactor;
+||||||| 2a3d8e4b
+ghost mapping(bytes32 => uint128) ghostLastMidnightLossFactor;
+=======
+// Whether Midnight returned a given loss factor for a market.
+ghost mapping(bytes32 => mapping(uint128 => bool)) ghostMidnightLossFactorReturned;
+>>>>>>> devin/1792053098-certora-midnight-adapter-market-ids
 
 function lossFactorSummary(bytes32 marketId) returns uint128 {
     uint128 lossFactor;
-    ghostLastMidnightLossFactor[marketId] = lossFactor;
+    ghostMidnightLossFactorReturned[marketId][lossFactor] = true;
     return lossFactor;
 }
