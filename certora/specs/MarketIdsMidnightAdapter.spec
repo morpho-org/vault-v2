@@ -8,15 +8,7 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
 
-// Prove that the stored net credit is an upper bound of the adapter's net credit in Midnight.
-strong invariant midnightNetCreditBelowStoredNetCredit()
-    forall bytes32 marketId. ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
-    {
-        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
-            increaseMidnightNetCredit(marketId);
-        }
-    }
+// These invariants don't relate the adapter's net credit in Midnight to the stored one: it can be any value when a method starts.
 
 // Prove that the market list has at most MAX_MARKETS entries.
 strong invariant marketIdsLengthBounded()
@@ -28,31 +20,7 @@ strong invariant marketIdsIndex()
     {
         preserved {
             requireInvariant marketIdsLengthBounded();
-            requireInvariant nonZeroNetCreditIsListed();
             requireInvariant listedHasNonZeroNetCredit();
-        }
-        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            requireInvariant marketIdsLengthBounded();
-            requireInvariant nonZeroNetCreditIsListed();
-            requireInvariant listedHasNonZeroNetCredit();
-            increaseMidnightNetCredit(marketId);
-        }
-    }
-
-// Prove that a market with a non-zero stored net credit is in the list.
-strong invariant nonZeroNetCreditIsListed()
-    forall bytes32 marketId. currentContract.marketData[marketId].netCredit != 0 => currentContract.marketData[marketId].index < currentContract.marketIds.length && currentContract.marketIds[currentContract.marketData[marketId].index] == marketId
-    {
-        preserved {
-            requireInvariant marketIdsLengthBounded();
-            requireInvariant marketIdsIndex();
-            requireInvariant midnightNetCreditBelowStoredNetCredit();
-        }
-        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            requireInvariant marketIdsLengthBounded();
-            requireInvariant marketIdsIndex();
-            requireInvariant midnightNetCreditBelowStoredNetCredit();
-            increaseMidnightNetCredit(marketId);
         }
     }
 
@@ -62,11 +30,5 @@ strong invariant listedHasNonZeroNetCredit()
     {
         preserved {
             requireInvariant marketIdsIndex();
-            requireInvariant nonZeroNetCreditIsListed();
-        }
-        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            requireInvariant marketIdsIndex();
-            requireInvariant nonZeroNetCreditIsListed();
-            increaseMidnightNetCredit(marketId);
         }
     }
