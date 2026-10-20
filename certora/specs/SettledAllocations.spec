@@ -31,9 +31,14 @@ persistent ghost uint256 writtenIdsCount;
 
 persistent ghost bool adapterCalledWithPendingWrites;
 
+// Whether the vault wrote an allocation other than the next returned id updated by the returned change.
+persistent ghost bool unexpectedAllocationWrite;
+
 hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAllocation) {
     if (writtenIdsCount < returnedIdsLength && id == returnedIds[writtenIdsCount] && newAllocation == oldAllocation + returnedChange) {
         writtenIdsCount = assert_uint256(writtenIdsCount + 1);
+    } else {
+        unexpectedAllocationWrite = true;
     }
 }
 
@@ -60,10 +65,11 @@ function adapterRealAssetsSummary() returns uint256 {
     return value;
 }
 
-// Check that the vault updates the allocation of every id returned by an adapter by the returned change, in order, before calling an adapter again, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
+// Check that the vault updates the allocation of every id returned by an adapter by the returned change, in order, with no other allocation write, before calling an adapter again, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
 rule adaptersAreCalledWithSettledAllocations(method f, env e, calldataarg data) {
-    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
+    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !adapterCalledWithPendingWrites && !unexpectedAllocationWrite, "set up the initial ghost state");
     f(e, data);
     assert !adapterCalledWithPendingWrites;
+    assert !unexpectedAllocationWrite;
     assert writtenIdsCount == returnedIdsLength;
 }
