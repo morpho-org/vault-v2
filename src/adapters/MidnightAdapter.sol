@@ -372,15 +372,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
+            bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
                 && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate, marketId)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
