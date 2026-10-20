@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+// Only used to name the selectors of the adapters' allocate and deallocate. Its code does not run: the vault's calls to adapters are summarized.
+using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function _.allocate(bytes, uint256, bytes4, address) external => adapterUpdateSummary() expect(bytes32[], int256);
     function _.deallocate(bytes, uint256, bytes4, address) external => adapterUpdateSummary() expect(bytes32[], int256);
-    function _.realAssets() external => adapterRealAssetsSummary() expect(uint256);
+    function _.realAssets() external => NONDET;
 
     function _.balanceOf(address) external => NONDET;
     function _.transfer(address, uint256) external => NONDET;
@@ -26,7 +29,7 @@ persistent ghost uint256 returnedIdsLength;
 // Number of returned ids whose allocation the vault wrote, in order.
 persistent ghost uint256 writtenIdsCount;
 
-persistent ghost bool adapterCalledWithPendingWrites;
+persistent ghost bool callWithPendingWrites;
 
 hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation {
     if (writtenIdsCount < returnedIdsLength && id == returnedIds[writtenIdsCount]) {
@@ -36,10 +39,11 @@ hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation {
 
 function checkSettledAllocations() {
     if (writtenIdsCount != returnedIdsLength) {
-        adapterCalledWithPendingWrites = true;
+        callWithPendingWrites = true;
     }
 }
 
+// The call to the adapter is checked here, before the returned ids are recorded.
 function adapterUpdateSummary() returns (bytes32[], int256) {
     checkSettledAllocations();
     bytes32[] ids;
@@ -50,16 +54,21 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
     return (ids, change);
 }
 
-function adapterRealAssetsSummary() returns uint256 {
-    checkSettledAllocations();
-    uint256 value;
-    return value;
+// Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage. The calls to the adapters' allocate and deallocate are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
+hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
+    if (selector != sig:MorphoVaultV1Adapter.allocate(bytes, uint256, bytes4, address).selector && selector != sig:MorphoVaultV1Adapter.deallocate(bytes, uint256, bytes4, address).selector) {
+        checkSettledAllocations();
+    }
 }
 
-// Check that the vault writes the allocation of every id returned by an adapter, in order, before calling an adapter again, so that adapters can read allocations during allocate, deallocate and realAssets. Also check that allocations are settled at the end, which justifies deleting multicall.
-rule adaptersAreCalledWithSettledAllocations(method f, env e, calldataarg data) {
-    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !adapterCalledWithPendingWrites, "set up the initial ghost state");
+hook STATICCALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
+    checkSettledAllocations();
+}
+
+// Check that the vault writes the allocation of every id returned by an adapter, in order, before making any external call, so that allocations are up to date whenever another contract runs. Also check that allocations are settled at the end, which justifies deleting multicall.
+rule callsAreMadeWithSettledAllocations(method f, env e, calldataarg data) {
+    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !callWithPendingWrites, "set up the initial ghost state");
     f(e, data);
-    assert !adapterCalledWithPendingWrites;
+    assert !callWithPendingWrites;
     assert writtenIdsCount == returnedIdsLength;
 }
