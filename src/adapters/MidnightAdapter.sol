@@ -421,6 +421,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         uint128 currentLossFactor = IMidnight(midnight).lossFactor(marketId);
         if (oldNetCredit > 0 && _marketData.lossFactor != currentLossFactor) {
+            // Store net credit as it was before the buy so that the accrual in allocate is correct.
             _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
             _marketData.lossFactor = currentLossFactor;
         }
