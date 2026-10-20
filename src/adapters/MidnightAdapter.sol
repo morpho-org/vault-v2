@@ -212,8 +212,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
-        maxTtm = uint32(newMaxTtm);
+        maxTtm = newMaxTtm.toUint32();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
