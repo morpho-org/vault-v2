@@ -34,7 +34,7 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         return ratification[maker][root].rootNonce;
     }
 
-    function setIsRootRatified(address maker, bytes32 root, address onBehalf, bool newIsRootRatified)
+    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified, address onBehalf)
         external
         returns (bytes32)
     {

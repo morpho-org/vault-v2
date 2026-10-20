@@ -39,7 +39,7 @@ interface IMidnightAdapterPriceRatifierV1 is IRatifier {
         uint128 previousNonce
     );
 
-    function setIsRootRatified(address maker, bytes32 root, address onBehalf, bool newIsRootRatified)
+    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified, address onBehalf)
         external
         returns (bytes32);
 

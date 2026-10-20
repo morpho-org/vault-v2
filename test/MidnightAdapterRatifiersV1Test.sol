@@ -78,7 +78,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
 
     function setRoot(bytes32 root, bool status) internal {
         vm.prank(allocator);
-        ratifier.setIsRootRatified(maker, root, allocator, status);
+        ratifier.setIsRootRatified(maker, root, status, allocator);
     }
 
     function signature(bytes32 root, bool status, uint128 nonce, uint256 deadline, uint256 key)
@@ -111,7 +111,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.expectEmit(address(ratifier));
         emit IMidnightAdapterPriceRatifierV1.SetIsRootRatified(allocator, allocator, maker, root, status);
         vm.prank(allocator);
-        assertEq(ratifier.setIsRootRatified(maker, root, allocator, status), SET_IS_ROOT_RATIFIED_SUCCESS);
+        assertEq(ratifier.setIsRootRatified(maker, root, status, allocator), SET_IS_ROOT_RATIFIED_SUCCESS);
         assertEq(ratifier.isRootRatified(maker, root), status);
         assertEq(ratifier.rootNonce(maker, root), 0);
     }
@@ -120,18 +120,18 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.assume(caller != allocator && caller != sentinel);
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, bytes32(0), caller, status);
+        ratifier.setIsRootRatified(maker, bytes32(0), status, caller);
     }
 
     function testSentinelCanOnlyUnratify() public {
         bytes32 root = this.leaf(offer, 0, address(0));
         setRoot(root, true);
         vm.prank(sentinel);
-        ratifier.setIsRootRatified(maker, root, sentinel, false);
+        ratifier.setIsRootRatified(maker, root, false, sentinel);
         assertFalse(ratifier.isRootRatified(maker, root));
         vm.prank(sentinel);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, root, sentinel, true);
+        ratifier.setIsRootRatified(maker, root, true, sentinel);
     }
 
     function testAuthorizedDelegateSetRoot(bytes32 root, bool status) public {
@@ -153,7 +153,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.expectEmit(address(ratifier));
         emit IMidnightAdapterPriceRatifierV1.SetIsRootRatified(taker, allocator, maker, root, status);
         vm.prank(taker);
-        assertEq(ratifier.setIsRootRatified(maker, root, allocator, status), SET_IS_ROOT_RATIFIED_SUCCESS);
+        assertEq(ratifier.setIsRootRatified(maker, root, status, allocator), SET_IS_ROOT_RATIFIED_SUCCESS);
         assertEq(ratifier.isRootRatified(maker, root), status);
         assertEq(ratifier.rootNonce(maker, root), 0);
     }
@@ -162,14 +162,14 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.assume(caller != allocator);
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, bytes32(0), allocator, status);
+        ratifier.setIsRootRatified(maker, bytes32(0), status, allocator);
     }
 
     function testNonRoleOnBehalfCannotSetRoot(address onBehalf, bool status) public {
         vm.assume(onBehalf != allocator && onBehalf != sentinel);
         vm.prank(onBehalf);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, bytes32(0), onBehalf, status);
+        ratifier.setIsRootRatified(maker, bytes32(0), status, onBehalf);
     }
 
     function testCallerAuthorizedByAllocatorCannotChooseAnotherOnBehalf(bool status) public {
@@ -179,7 +179,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         midnight.setIsAuthorized(taker, true, allocator);
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, bytes32(0), anotherAllocator, status);
+        ratifier.setIsRootRatified(maker, bytes32(0), status, anotherAllocator);
     }
 
     function testUnauthorizedDelegate(bool status) public {
@@ -196,11 +196,11 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.expectEmit(address(ratifier));
         emit IMidnightAdapterPriceRatifierV1.SetIsRootRatified(taker, sentinel, maker, bytes32(0), false);
         vm.prank(taker);
-        ratifier.setIsRootRatified(maker, bytes32(0), sentinel, false);
+        ratifier.setIsRootRatified(maker, bytes32(0), false, sentinel);
         assertFalse(ratifier.isRootRatified(maker, bytes32(0)));
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(maker, bytes32(0), sentinel, true);
+        ratifier.setIsRootRatified(maker, bytes32(0), true, sentinel);
         Signature memory sig = signature(bytes32(0), false, 0, block.timestamp, sentinelKey);
         vm.prank(taker);
         submitSignature(bytes32(0), false, 0, block.timestamp, sig);
@@ -331,9 +331,9 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         setRoot(root, true);
         vm.prank(allocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        ratifier.setIsRootRatified(otherMaker, root, allocator, false);
+        ratifier.setIsRootRatified(otherMaker, root, false, allocator);
         vm.prank(taker);
-        ratifier.setIsRootRatified(otherMaker, root, taker, false);
+        ratifier.setIsRootRatified(otherMaker, root, false, taker);
         assertTrue(ratifier.isRootRatified(maker, root));
         assertFalse(ratifier.isRootRatified(otherMaker, root));
     }
@@ -622,7 +622,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         offer.callbackData = offer.buy ? abi.encode(address(0), bytes("")) : bytes("");
         uint256 rate = 1e9;
         bytes32 root = HashLib.hashRateRatifierV1Offer(offer, rate, address(this));
-        ratifier.setIsRootRatified(offer.maker, root, address(this), true);
+        ratifier.setIsRootRatified(offer.maker, root, true, address(this));
         bytes memory data = abi.encode(address(ratifier), abi.encode(root, 0, new bytes32[](0), rate, address(this)));
         midnight.take(
             offer, data, offer.maxUnits, address(this), offer.buy ? address(this) : address(0), address(0), ""
