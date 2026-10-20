@@ -8,8 +8,8 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
-override function midnightNetCredit(bytes32 marketId) returns uint128 {
-    return ghostMidnightNetCredit[marketId];
+methods {
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
 }
 
 // Sales and withdrawals can only decrease the adapter's Midnight net credits. Buys are accounted for in the callback (onBuy), checked as an entry point.
