@@ -24,7 +24,7 @@ methods {
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take doesn't call back the adapter.
+    // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
