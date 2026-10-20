@@ -26,8 +26,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from a Midnight market on the adapter.
-/// @dev For self-funding, data is abi.encode(fundingMarket).
+/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market, true)) to withdraw from a Midnight market on the adapter.
+/// @dev For self-funding, data is abi.encode(fundingMarket, true).
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
@@ -77,7 +77,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     bytes32 transient overriddenMarketId;
     uint256 transient overriddenMarketNetCredit;
-    bool transient inOnSell;
 
     /* TIMELOCKS STORAGE */
 
@@ -298,7 +297,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* OPERATIONS */
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(market), withdrawnAssets);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(market, true), withdrawnAssets);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -324,8 +323,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev From a withdraw (including buy funding), withdraws `assets` from the market in `data`.
-    /// @dev From a sell callback, `assets` are already held.
+    /// @dev Otherwise, data is abi.encode(market, withdraw). If withdraw, withdraws `assets` from market first; otherwise (sell callback) `assets` are already held.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
@@ -356,9 +354,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            Market memory market = abi.decode(data, (Market));
+            (Market memory market, bool withdraw) = abi.decode(data, (Market, bool));
             bytes32 marketId = IdLib.toId(market);
-            if (!inOnSell) {
+            if (withdraw) {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
                 // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
                 IMidnight(midnight).withdraw(market, assets, address(this), address(this));
@@ -369,7 +367,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketData[marketId].netCredit = newNetCredit;
             marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            if (!inOnSell) emit WithdrawToVault(marketId, assets, newNetCredit);
+            if (withdraw) emit WithdrawToVault(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         }
@@ -504,9 +502,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        inOnSell = true;
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(market), sellerAssets);
-        inOnSell = false;
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(market, false), sellerAssets);
 
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
