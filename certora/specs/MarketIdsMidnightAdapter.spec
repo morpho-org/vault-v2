@@ -1,11 +1,76 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-import "../helpers/SummariesMidnightAdapter.spec";
-
+// Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
+// Assumes that external calls do not reenter the adapter: properties are checked on the body of each function, and Midnight's callbacks (onBuy, onSell) and the vault's calls into the adapter are checked as entry points of their own.
 methods {
     function MAX_MARKETS() external returns (uint256) envfree;
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
+    // The adapter's net credit in Midnight, and how take and withdraw change it, are modeled by CVL functions, so that specs importing this one can override them.
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => midnightNetCredit(marketId);
+
+    // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
+    // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
+    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
+    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
+
+    // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
+    function _.lossFactor(bytes32) external => NONDET;
+    function _.liquidationLocked(bytes32, address) external => NONDET;
+
+    // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
+    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
+
+    // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take doesn't call back the adapter.
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address, address, address, bytes) external => takeSummary(offer) expect(uint256, uint256);
+    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => withdrawSummary() expect void;
+    function _.setConsumed(bytes32, uint128, address) external => NONDET;
+
+    // The vault's calls into its adapters, which don't reenter this adapter.
+    function _.allocate(bytes, uint256, bytes4, address) external => arbitraryAdapterResult() expect(bytes32[], int256);
+    function _.deallocate(bytes, uint256, bytes4, address) external => arbitraryAdapterResult() expect(bytes32[], int256);
+
+    // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
+    function _.realAssets() external => NONDET;
+    function _.canReceiveShares(address) external => NONDET;
+    function _.balanceOf(address) external => NONDET;
+
+    // The asset is assumed to be a standard ERC20 token.
+    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
+}
+
+// The adapter's net credit in Midnight can be any value.
+function midnightNetCredit(bytes32 marketId) returns uint128 {
+    uint128 netCredit;
+    return netCredit;
+}
+
+function takeSummary(MidnightAdapter.Offer offer) returns (uint256, uint256) {
+    uint256 buyerAssets;
+    uint256 sellerAssets;
+    return (buyerAssets, sellerAssets);
+}
+
+function withdrawSummary() { }
+
+function arbitraryAdapterResult() returns (bytes32[], int256) {
+    bytes32[] idsArray;
+    int256 change;
+    return (idsArray, change);
+}
+
+function arbitraryIds() returns bytes32[] {
+    bytes32[] idsArray;
+    return idsArray;
+}
+
+function arbitraryAllocations(uint256 length) returns uint256[] {
+    uint256[] allocations;
+    require allocations.length == length, "durationAllocations returns length allocations";
+    return allocations;
 }
 
 // Prove that the market list has at most MAX_MARKETS entries.
