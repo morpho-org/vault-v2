@@ -26,7 +26,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from a Midnight market on the adapter.
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
