@@ -323,7 +323,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Otherwise, data is abi.encode(market, withdraw). If withdraw, withdraws `assets` from market first; otherwise (sell callback) `assets` are already held.
+    /// @dev From the adapter itself, data is abi.encode(market, withdraw): if withdraw, withdraws `assets` from market; otherwise (sell callback), `assets` are already held.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
