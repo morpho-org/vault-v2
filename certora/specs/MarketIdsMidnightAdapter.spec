@@ -7,6 +7,11 @@ methods {
     function MAX_MARKETS() external returns (uint256) envfree;
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
+    // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
+    // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
+    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
+    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
+
     // Resolved so that strong invariants are not checked at this call, which is in the middle of market list updates.
     function _.lossFactor(bytes32) external => NONDET;
 
@@ -31,6 +36,17 @@ methods {
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
+}
+
+function arbitraryIds() returns bytes32[] {
+    bytes32[] idsArray;
+    return idsArray;
+}
+
+function arbitraryAllocations(uint256 length) returns uint256[] {
+    uint256[] allocations;
+    require allocations.length == length, "durationAllocations returns length allocations";
+    return allocations;
 }
 
 // Prove that the market list has at most MAX_MARKETS entries.
