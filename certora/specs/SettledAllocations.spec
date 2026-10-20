@@ -64,7 +64,8 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
     return (ids, change);
 }
 
-// Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage. The calls to the adapters' allocate and deallocate are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
+// Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage.
+// The calls to the adapters' allocate and deallocate are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (selector != sig:MorphoVaultV1Adapter.allocate(bytes, uint256, bytes4, address).selector && selector != sig:MorphoVaultV1Adapter.deallocate(bytes, uint256, bytes4, address).selector) {
         checkSettledAllocations();
