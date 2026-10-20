@@ -59,6 +59,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   These hold whatever the adapter's net credit in Midnight is.
 - [`NetCreditMidnightAdapter.spec`](specs/NetCreditMidnightAdapter.spec) checks that the adapter's net credit in Midnight never exceeds its stored net credit.
   It follows that a market with a non-zero stored net credit is listed.
+- [`MaturityMidnightAdapter.spec`](specs/MaturityMidnightAdapter.spec) checks that the stored maturity of a market doesn't change while the Midnight adapter holds net credit in it.
 
 ## Caps and configuration delays
 
