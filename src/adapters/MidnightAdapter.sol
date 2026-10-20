@@ -197,7 +197,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Abdicate(selector);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED CURATOR SETTINGS */
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
@@ -238,6 +238,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    /* NON-TIMELOCKED CURATOR SETTINGS */
+
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minNetBuyRate = newMinNetBuyRate.toUint64();
@@ -264,24 +266,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
-        external
-    {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        IMidnight(midnight)
-            .take(
-                offer,
-                ratifierData,
-                units,
-                address(this),
-                offer.buy ? address(this) : address(0),
-                address(this),
-                takerCallbackData
-            );
-    }
-
     /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
@@ -303,6 +287,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* OPERATIONS */
+
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
+        external
+    {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        IMidnight(midnight)
+            .take(
+                offer,
+                ratifierData,
+                units,
+                address(this),
+                offer.buy ? address(this) : address(0),
+                address(this),
+                takerCallbackData
+            );
+    }
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
