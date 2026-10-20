@@ -92,20 +92,14 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
     return allocations;
 }
 
-<<<<<<< HEAD
 // Midnight credits the bought units to the adapter before calling onBuy.
 function increaseMidnightNetCredit(bytes32 marketId) {
     uint128 newNetCredit;
     ghostMidnightNetCredit[marketId] = newNetCredit;
 }
 
-ghost mapping(bytes32 => uint128) ghostLastMidnightLossFactor;
-||||||| 2a3d8e4b
-ghost mapping(bytes32 => uint128) ghostLastMidnightLossFactor;
-=======
 // Whether Midnight returned a given loss factor for a market.
 ghost mapping(bytes32 => mapping(uint128 => bool)) ghostMidnightLossFactorReturned;
->>>>>>> devin/1792053098-certora-midnight-adapter-market-ids
 
 function lossFactorSummary(bytes32 marketId) returns uint128 {
     uint128 lossFactor;
