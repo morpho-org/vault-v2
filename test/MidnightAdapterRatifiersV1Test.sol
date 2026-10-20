@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -28,6 +28,7 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 
 abstract contract MidnightAdapterRatifiersV1Test is Test {
     IRatifiersV1Common internal ratifier;
+    IMidnight internal midnight;
     VaultV2Mock internal vault;
     address internal maker;
     address internal allocator;
@@ -40,12 +41,15 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
     function isRate() internal pure virtual returns (bool);
 
     function setUp() public {
+        vm.setEvmVersion("osaka");
+        midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         (allocator, allocatorKey) = makeAddrAndKey("allocator");
         (sentinel, sentinelKey) = makeAddrAndKey("sentinel");
         maker = makeAddr("adapter");
         taker = makeAddr("taker");
         vault = new VaultV2Mock(address(0), address(this), address(this), allocator, sentinel);
         vm.mockCall(maker, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(maker, abi.encodeCall(IMidnightAdapterBase.midnight, ()), abi.encode(address(midnight)));
         ratifier = isRate()
             ? IRatifiersV1Common(address(new MidnightAdapterRateRatifierV1()))
             : IRatifiersV1Common(address(new MidnightAdapterPriceRatifierV1()));
@@ -133,6 +137,115 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         ratifier.setIsRootRatified(maker, root, true);
     }
 
+    function testAuthorizedDelegateSetRoot(bytes32 root, bool status) public {
+        vm.prank(allocator);
+        midnight.setIsAuthorized(taker, true, allocator);
+        setRoot(root, !status);
+        Signature memory sig = signature(root, status, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        bytes32 result = submitSignature(root, status, 0, block.timestamp, sig);
+        assertEq(result, SET_IS_ROOT_RATIFIED_SUCCESS);
+        assertEq(ratifier.isRootRatified(maker, root), status);
+        assertEq(ratifier.rootNonce(maker, root), 1);
+    }
+
+    function testAuthorizedDelegateCannotSetRootWithoutSig(bool status, bool useSentinel) public {
+        address onBehalf = useSentinel ? sentinel : allocator;
+        vm.prank(onBehalf);
+        midnight.setIsAuthorized(taker, true, onBehalf);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        ratifier.setIsRootRatified(maker, bytes32(0), status);
+    }
+
+    function testUnauthorizedDelegate(bool status) public {
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+    }
+
+    function testSentinelDelegateCanOnlyUnratify() public {
+        vm.prank(sentinel);
+        midnight.setIsAuthorized(taker, true, sentinel);
+        setRoot(bytes32(0), true);
+        Signature memory sig = signature(bytes32(0), false, 0, block.timestamp, sentinelKey);
+        vm.prank(taker);
+        submitSignature(bytes32(0), false, 0, block.timestamp, sig);
+        assertFalse(ratifier.isRootRatified(maker, bytes32(0)));
+
+        sig = signature(bytes32(0), true, 1, block.timestamp, sentinelKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), true, 1, block.timestamp, sig);
+    }
+
+    function testRevokedDelegateRejected(bool status) public {
+        vm.startPrank(allocator);
+        midnight.setIsAuthorized(taker, true, allocator);
+        midnight.setIsAuthorized(taker, false, allocator);
+        vm.stopPrank();
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+    }
+
+    function testRemovedRoleDelegateRejected(bool useSentinel) public {
+        address onBehalf = useSentinel ? sentinel : allocator;
+        vm.prank(onBehalf);
+        midnight.setIsAuthorized(taker, true, onBehalf);
+        vm.mockCall(
+            address(vault),
+            abi.encodeWithSignature(useSentinel ? "isSentinel(address)" : "isAllocator(address)", onBehalf),
+            abi.encode(false)
+        );
+        Signature memory sig =
+            signature(bytes32(0), false, 0, block.timestamp, useSentinel ? sentinelKey : allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), false, 0, block.timestamp, sig);
+    }
+
+    function testDelegationFromNonRoleRejected(bool status) public {
+        (address onBehalf, uint256 key) = makeAddrAndKey("unauthorizedAuthorizer");
+        vm.prank(onBehalf);
+        midnight.setIsAuthorized(taker, true, onBehalf);
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, key);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+    }
+
+    function testAuthorizationIsScopedToAuthorizer() public {
+        vm.prank(sentinel);
+        midnight.setIsAuthorized(taker, true, sentinel);
+        Signature memory sig = signature(bytes32(0), true, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), true, 0, block.timestamp, sig);
+    }
+
+    function testAuthorizationIsScopedToMidnight(bool status) public {
+        IMidnight otherMidnight = IMidnight(deployCode("Midnight.sol:Midnight"));
+        vm.prank(allocator);
+        otherMidnight.setIsAuthorized(taker, true, allocator);
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+    }
+
+    function testAuthorizedDelegateCannotSign(bool status) public {
+        (address delegate, uint256 key) = makeAddrAndKey("delegate");
+        vm.prank(allocator);
+        midnight.setIsAuthorized(delegate, true, allocator);
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, key);
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+    }
+
     function testUnratifiedRoot() public {
         bytes memory ratifierData = data(this.leaf(offer, 0, address(0)), 0, new bytes32[](0), 0, address(0));
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
@@ -215,6 +328,23 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         submitSignature(bytes32(0), true, 0, block.timestamp, sig);
     }
 
+    function testSignedRatificationCallerRoleDoesNotAuthorize(bool status, bool callerIsSentinel) public {
+        vm.mockCall(
+            address(vault), abi.encodeWithSignature("isAllocator(address)", taker), abi.encode(!callerIsSentinel)
+        );
+        vm.mockCall(address(vault), abi.encodeWithSignature("isSentinel(address)", taker), abi.encode(callerIsSentinel));
+        Signature memory sig = signature(bytes32(0), status, 0, block.timestamp, allocatorKey);
+        vm.prank(taker);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        submitSignature(bytes32(0), status, 0, block.timestamp, sig);
+
+        vm.prank(allocator);
+        midnight.setIsAuthorized(taker, true, allocator);
+        vm.prank(taker);
+        assertEq(submitSignature(bytes32(0), status, 0, block.timestamp, sig), SET_IS_ROOT_RATIFIED_SUCCESS);
+        assertEq(ratifier.isRootRatified(maker, bytes32(0)), status);
+    }
+
     function testSignedOfferTree() public {
         Offer memory sibling = offer;
         sibling.expiry += 1;
@@ -246,7 +376,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         submitSignature(bytes32(0), false, 0, block.timestamp, sig);
         assertFalse(ratifier.isRootRatified(maker, bytes32(0)));
         sig = signature(bytes32(0), true, 1, block.timestamp, sentinelKey);
-        vm.prank(allocator);
+        vm.prank(sentinel);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         submitSignature(bytes32(0), true, 1, block.timestamp, sig);
     }
@@ -256,7 +386,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         setRoot(root, true);
         Signature memory sig = signature(root, false, 0, block.timestamp, allocatorKey);
         vm.mockCall(address(vault), abi.encodeWithSignature("isAllocator(address)", allocator), abi.encode(false));
-        vm.prank(sentinel);
+        vm.prank(allocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         submitSignature(root, false, 0, block.timestamp, sig);
         assertEq(ratifier.isRatified(offer, data(root, 0, new bytes32[](0), 0, address(0)), taker), CALLBACK_SUCCESS);
