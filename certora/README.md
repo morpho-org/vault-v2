@@ -81,6 +81,7 @@ Privileged actions enforce their roles, while authorized accounts retain the ope
 - [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
 - [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Blue position can be fully deallocated and removed.
   Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
+- [`WithdrawToVaultZeroMidnightAdapter.spec`](specs/WithdrawToVaultZeroMidnightAdapter.spec) checks that anyone can call the Midnight adapter's `withdrawToVault` with zero assets to sync the vault's allocations of a market with the adapter's net credit in Midnight, without selling, assuming the position is not liquidation-locked, the adapter is registered with the allocator or sentinel role, Midnight's zero withdraw succeeds, and the market's ids have positive allocations that the change keeps in range.
 
 ## Gates and token transfers
 
@@ -124,7 +125,7 @@ Verification is performed according to the following modeling conventions:
 Install the `certora-cli` package with `pip install certora-cli`.
 To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`.
 This requires a valid Certora key in the `CERTORAKEY` environment variable.
-The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, and `solc-0.8.28`; the compiler versions required by a particular job are listed in its configuration.
+The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, `solc-0.8.28`, and `solc-0.8.37`; the compiler versions required by a particular job are listed in its configuration.
 
 Additional arguments can select a specific rule. For example, from the repository root:
 
