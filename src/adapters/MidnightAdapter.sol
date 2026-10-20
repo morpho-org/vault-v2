@@ -496,8 +496,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData storage _marketData = marketData[marketId];
+        // loss checks skipped in the force deallocate case.
         if (receiver == address(this)) {
-            // loss checks skipped in the force deallocate case.
             if (_marketData.forceSellable) {
                 require(
                     sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow()
@@ -521,9 +521,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        // allocation reporting skipped in the force deallocate case.
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         if (receiver == address(this)) {
-            // allocation reporting skipped in the force deallocate case.
             IVaultV2(parentVault)
                 .deallocate(
                     address(this),
