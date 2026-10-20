@@ -18,7 +18,7 @@ methods {
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET ALL;
 
     // Reading the adapter's position and the market's loss factor in Midnight is assumed to not revert, and can return any value.
-    function currentNetCredit(bytes32) internal returns (uint128) => NONDET;
+    function MidnightAdapter.currentNetCredit(bytes32) internal returns (uint128) => NONDET;
     function _.lossFactor(bytes32 marketId) external => ghostLossFactor[marketId] expect(uint128) ALL;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
@@ -63,17 +63,16 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
     return (ids, change);
 }
 
-// withdrawToVault with withdrawnAssets=0 makes the adapter sync the vault's allocations of a market with its live net credit in Midnight, without selling.
+// The harness builds a one-collateral market in memory and calls withdrawToVault with withdrawnAssets=0 to sync the vault's allocations with the adapter's live net credit in Midnight, without selling.
 // This rule verifies the liveness property that withdrawToVault can be called by anyone with withdrawnAssets=0 with the following pre-conditions:
 //   1. The adapter's position in the market is not liquidation-locked in Midnight.
 //   2. The adapter is registered in the vault and has the allocator or sentinel role in it.
 //   3. A market with a non-zero stored net credit is in the market list at its stored index.
 //   4. Midnight's zero withdraw, and reading the adapter's position and the market's loss factor, do not revert.
-//   5. A market with one collateral, whose 6 unique ids and change satisfy summaryDeallocate.
+//   5. The harness builds a one-collateral market whose 6 unique ids and change satisfy summaryDeallocate.
 //   6. The asset does not revert on zero-amount transfers, nor on the adapter's max approval of the vault.
-rule canWithdrawToVaultZero(env e, MidnightAdapter.Market market) {
+rule canWithdrawToVaultZero(env e, uint256 chainId, address marketMidnight, address loanToken, address collateralToken, uint256 lltv, uint256 liquidationCursor, address oracle, uint256 maturity, uint256 rcfThreshold, address enterGate, address liquidatorGate) {
     require e.msg.value == 0, "withdrawToVault is non-payable";
-    require market.collateralParams.length == 1, "simplified market with one collateral, matching the 6 ids of summaryDeallocate";
 
     // Midnight's lock is checked on any market id, since ids are not computed.
     require forall bytes32 marketId. !ghostLiquidationLocked[marketId][currentContract], "the adapter's position is not liquidation-locked";
@@ -83,7 +82,7 @@ rule canWithdrawToVaultZero(env e, MidnightAdapter.Market market) {
 
     require forall bytes32 marketId. currentContract.marketData[marketId].netCredit != 0 => currentContract.marketData[marketId].index < currentContract.marketIds.length, "see nonZeroNetCreditIsListed in NetCreditMidnightAdapter.spec";
 
-    withdrawToVault@withrevert(e, market, 0);
+    withdrawToVaultOneCollateral@withrevert(e, chainId, marketMidnight, loanToken, collateralToken, lltv, liquidationCursor, oracle, maturity, rcfThreshold, enterGate, liquidatorGate, 0);
 
     assert !lastReverted;
 }
