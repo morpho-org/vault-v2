@@ -197,7 +197,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Abdicate(selector);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED CURATOR SETTINGS */
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
@@ -212,12 +212,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
-        maxTtm = uint32(newMaxTtm);
+        maxTtm = newMaxTtm.toUint32();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
@@ -238,6 +237,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
+
+    /* NON-TIMELOCKED CURATOR SETTINGS */
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -265,24 +266,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
-        external
-    {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        IMidnight(midnight)
-            .take(
-                offer,
-                ratifierData,
-                units,
-                address(this),
-                offer.buy ? address(this) : address(0),
-                address(this),
-                takerCallbackData
-            );
-    }
-
     /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
@@ -304,6 +287,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* OPERATIONS */
+
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
+        external
+    {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        IMidnight(midnight)
+            .take(
+                offer,
+                ratifierData,
+                units,
+                address(this),
+                offer.buy ? address(this) : address(0),
+                address(this),
+                takerCallbackData
+            );
+    }
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(market, true), withdrawnAssets);
@@ -530,14 +531,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function removeMarket(bytes32 marketId) internal {
-        MarketData memory _marketData = marketData[marketId];
+        MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        delete marketData[marketId];
-        marketData[marketId].forceSellable = _marketData.forceSellable;
-        marketData[marketId].minForceSellPrice = _marketData.minForceSellPrice;
+        _marketData.lossFactor = 0;
+        _marketData.netRate = 0;
+        _marketData.maturity = 0;
+        _marketData.index = 0;
     }
 
     /* VIEWS */
