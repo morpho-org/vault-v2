@@ -28,8 +28,8 @@ methods {
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
 
     // The vault's calls into its adapters, which don't reenter this adapter.
-    function _.allocate(bytes, uint256, bytes4, address) external => arbitraryAdapterResult() expect(bytes32[], int256);
-    function _.deallocate(bytes, uint256, bytes4, address) external => arbitraryAdapterResult() expect(bytes32[], int256);
+    function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
+    function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
 
     // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
     function _.realAssets() external => NONDET;
@@ -40,12 +40,6 @@ methods {
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
-}
-
-function arbitraryAdapterResult() returns (bytes32[], int256) {
-    bytes32[] idsArray;
-    int256 change;
-    return (idsArray, change);
 }
 
 function arbitraryIds() returns bytes32[] {
