@@ -423,8 +423,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (oldNetCredit > 0 && _marketData.lossFactor != currentLossFactor) {
             // Store net credit as it was before the buy so that the accrual in allocate is correct.
             _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
-            _marketData.lossFactor = currentLossFactor;
         }
+        _marketData.lossFactor = currentLossFactor;
 
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
@@ -449,7 +449,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = currentLossFactor;
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
