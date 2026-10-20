@@ -26,14 +26,23 @@ persistent ghost mapping(uint256 => bytes32) returnedIds;
 
 persistent ghost uint256 returnedIdsLength;
 
-// Number of returned ids whose allocation the vault wrote, in order.
+// Allocation change returned by the last adapter allocate or deallocate.
+persistent ghost int256 returnedChange;
+
+// Number of returned ids whose allocation the vault updated by the returned change, in order.
 persistent ghost uint256 writtenIdsCount;
 
 persistent ghost bool callWithPendingWrites;
 
-hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation {
-    if (writtenIdsCount < returnedIdsLength && id == returnedIds[writtenIdsCount]) {
+// Whether the vault wrote an allocation other than the next returned id updated by the returned change.
+persistent ghost bool unexpectedAllocationWrite;
+
+hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAllocation) {
+    require(oldAllocation <= 2 ^ 255 - 1, "see allocationIsInt256");
+    if (writtenIdsCount < returnedIdsLength && id == returnedIds[writtenIdsCount] && newAllocation == oldAllocation + returnedChange) {
         writtenIdsCount = assert_uint256(writtenIdsCount + 1);
+    } else {
+        unexpectedAllocationWrite = true;
     }
 }
 
@@ -50,6 +59,7 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
     int256 change;
     havoc returnedIds assuming forall uint256 i. i < ids.length => returnedIds@new[i] == ids[i];
     returnedIdsLength = ids.length;
+    returnedChange = change;
     writtenIdsCount = 0;
     return (ids, change);
 }
@@ -65,10 +75,11 @@ hook STATICCALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _
     checkSettledAllocations();
 }
 
-// Check that the vault writes the allocation of every id returned by an adapter, in order, before making any external call, so that allocations are up to date whenever another contract runs. Also check that allocations are settled at the end, which justifies deleting multicall.
+// Check that the vault updates the allocation of every id returned by an adapter by the returned change, in order, with no other allocation write, before making any external call, so that allocations are up to date whenever another contract runs. Also check that allocations are settled at the end, which justifies deleting multicall.
 rule callsAreMadeWithSettledAllocations(method f, env e, calldataarg data) {
-    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !callWithPendingWrites, "set up the initial ghost state");
+    require(returnedIdsLength == 0 && writtenIdsCount == 0 && !callWithPendingWrites && !unexpectedAllocationWrite, "set up the initial ghost state");
     f(e, data);
     assert !callWithPendingWrites;
+    assert !unexpectedAllocationWrite;
     assert writtenIdsCount == returnedIdsLength;
 }
