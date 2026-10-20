@@ -14,7 +14,8 @@ methods {
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
-    function _.lossFactor(bytes32) external => NONDET;
+    // Midnight's loss factor can be any value; the last value returned for each market is recorded.
+    function _.lossFactor(bytes32 marketId) external => lossFactorSummary(marketId) expect(uint128);
     function _.liquidationLocked(bytes32, address) external => NONDET;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
@@ -76,4 +77,12 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
     uint256[] allocations;
     require allocations.length == length, "durationAllocations returns length allocations";
     return allocations;
+}
+
+ghost mapping(bytes32 => uint128) ghostLastMidnightLossFactor;
+
+function lossFactorSummary(bytes32 marketId) returns uint128 {
+    uint128 lossFactor;
+    ghostLastMidnightLossFactor[marketId] = lossFactor;
+    return lossFactor;
 }
