@@ -497,6 +497,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData storage _marketData = marketData[marketId];
         if (receiver == address(this)) {
+            // loss checks skipped in the force deallocate case.
             if (_marketData.forceSellable) {
                 require(
                     sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow()
