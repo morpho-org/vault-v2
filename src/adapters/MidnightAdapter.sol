@@ -373,7 +373,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IMidnight(midnight).credit(marketId, address(this)) > 0
+                && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate, marketId)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
             if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 

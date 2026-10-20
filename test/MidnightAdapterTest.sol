@@ -3756,7 +3756,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateSameVaultOtherAdapterCannotAdmitWithoutCredit(bool adapterIsMaker) public {
+    function testEnterGateSameVaultOtherAdapterCannotExitWithoutCredit(bool adapterIsMaker) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address otherAdapter =
             factory.createMidnightAdapter(address(realVault), allDurations, true, bytes32(uint256(1)));
@@ -3769,7 +3769,7 @@ contract MidnightAdapterTest is Test {
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (otherAdapter)));
         (Offer memory exitOffer, bytes32 root_) = makeForceDeallocateOffer(offer.market, 0.5e18);
         realVault.transfer(exitOffer.maker, 1);
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        vm.expectRevert(IMidnight.SellerGatedFromIncreasingDebt.selector);
         realVault.forceDeallocate(
             otherAdapter, abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
         );
@@ -3777,7 +3777,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(offer.market), otherAdapter), 0);
     }
 
-    function testEnterGateCreditInOtherMarketDoesNotAdmit() public {
+    function testEnterGateCreditInOtherMarketCannotExit() public {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address firstWrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(firstWrapper, true);
@@ -3790,7 +3790,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 1e18);
         assertEq(midnight.credit(_marketId(exitOffer.market), address(adapter)), 0);
 
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        vm.expectRevert(IMidnight.SellerGatedFromIncreasingDebt.selector);
         realVault.forceDeallocate(
             address(adapter), abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
         );
