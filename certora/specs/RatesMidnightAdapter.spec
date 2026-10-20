@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
-// Assumes that external calls do not reenter the adapter: properties are checked on the body of each function, and Midnight's callbacks (onBuy, onSell) and the vault's calls into the adapter are checked as entry points of their own.
+// The parent vault is linked. Midnight, the asset and the vault's other adapters and gates are not in the scene.
+// External calls are summarized so that they do not reenter the adapter.
 methods {
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
+    function noSalesWithShortfall() external returns (bool) envfree;
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     // The adapter's net credit in Midnight can be any value.
@@ -17,14 +18,14 @@ methods {
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
-    // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
+    // Midnight's views can return any value.
     function _.lossFactor(bytes32) external => NONDET;
     function _.liquidationLocked(bytes32, address) external => NONDET;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
+    // Calls into Midnight, which is not in the scene, resolved so that they don't havoc the vault's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
@@ -33,7 +34,7 @@ methods {
     function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
     function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
 
-    // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
+    // Views called by the vault's accrueInterest on contracts that are not in the scene.
     function _.realAssets() external => NONDET;
     function _.canReceiveShares(address) external => NONDET;
     function _.balanceOf(address) external => NONDET;
@@ -57,25 +58,34 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
 
 definition WAD() returns mathint = 10 ^ 18;
 
-// Prove that a buy succeeds only if the market's time to maturity is at most maxTtm, and the net rate of the buy is at least minNetBuyRate.
+// Check that a buy succeeds only if the market is not forceSellable, its time to maturity is at most maxTtm, and the net rate of the buy is at least minNetBuyRate.
 rule buyRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
+    mathint maxTtmBefore = maxTtm();
+    mathint minNetBuyRateBefore = minNetBuyRate();
+    bool forceSellableBefore = currentContract.marketData[marketId].forceSellable;
+
     onBuy(e, marketId, market, paidAssets, boughtCredit, buyPendingFeeIncrease, buyer, callbackData);
 
     mathint ttm = market.maturity - e.block.timestamp;
     mathint boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
-    assert ttm > 0 && ttm <= maxTtm();
-    assert (boughtNetCredit - paidAssets) * WAD() >= minNetBuyRate() * ttm * paidAssets;
+    assert !forceSellableBefore;
+    assert ttm > 0 && ttm <= maxTtmBefore;
+    assert (boughtNetCredit - paidAssets) * WAD() >= minNetBuyRateBefore * ttm * paidAssets;
 }
 
-// Prove that a sale succeeds only if its price is at least minForceSellPrice in forceSellable markets, and its net rate is at most maxNetSellRate in other markets.
+// Check that a sale succeeds only if its price is at least minForceSellPrice in forceSellable markets, and, in other markets, its net rate is at most maxNetSellRate and it has no shortfall when noSalesWithShortfall is set.
 rule sellRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
-    onSell(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
+    bool forceSellableBefore = currentContract.marketData[marketId].forceSellable;
+    mathint minForceSellPriceBefore = currentContract.marketData[marketId].minForceSellPrice;
+    mathint netRateBefore = currentContract.marketData[marketId].netRate;
+    mathint maxNetSellRateBefore = maxNetSellRate();
+    bool noSalesWithShortfallBefore = noSalesWithShortfall();
 
-    bool forceSellable = currentContract.marketData[marketId].forceSellable;
-    mathint minForceSellPrice = currentContract.marketData[marketId].minForceSellPrice;
+    onSell(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
-    assert forceSellable => sellerAssets * WAD() >= soldNetCredit * minForceSellPrice;
-    assert !forceSellable => sellerAssets * (WAD() + maxNetSellRate() * ttm) >= soldNetCredit * WAD();
+    assert forceSellableBefore => sellerAssets * WAD() >= soldNetCredit * minForceSellPriceBefore;
+    assert !forceSellableBefore => sellerAssets * (WAD() + maxNetSellRateBefore * ttm) >= soldNetCredit * WAD();
+    assert !forceSellableBefore && noSalesWithShortfallBefore => sellerAssets * (WAD() + netRateBefore * ttm) >= soldNetCredit * WAD();
 }

@@ -54,7 +54,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
-- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate`, and sales respect `maxNetSellRate`, or `minForceSellPrice` in forceSellable markets.
+- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
 
