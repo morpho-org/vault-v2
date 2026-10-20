@@ -69,10 +69,10 @@ rule buyRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market marke
 
 // Prove that a sale succeeds only if its price is at least minForceSellPrice in forceSellable markets, and its net rate is at most maxNetSellRate in other markets.
 rule sellRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
+    onSell(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
+
     bool forceSellable = currentContract.marketData[marketId].forceSellable;
     mathint minForceSellPrice = currentContract.marketData[marketId].minForceSellPrice;
-
-    onSell(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
