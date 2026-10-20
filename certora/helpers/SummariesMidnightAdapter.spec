@@ -14,7 +14,7 @@ methods {
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
-    function _.lossFactor(bytes32) external => NONDET;
+    function _.lossFactor(bytes32 marketId) external => ghostMidnightLossFactor[marketId] expect(uint128);
     function _.liquidationLocked(bytes32, address) external => NONDET;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
@@ -24,7 +24,7 @@ methods {
     function _.take(MidnightAdapter.Offer offer, bytes ratifierData, uint256 units, address taker, address receiverIfTakerIsSeller, address takerCallback, bytes takerCallbackData) external => takeSummary(calledContract, offer, takerCallback, takerCallbackData) expect(uint256, uint256);
 
     // Withdrawals can only decrease the adapter's Midnight net credits.
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => decreaseMidnightNetCredits() expect void;
+    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => withdrawSummary() expect void;
 
     // Calls that don't change the adapter's Midnight net credits, resolved so that they don't havoc the adapter's state.
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
@@ -51,6 +51,20 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
+// Midnight's loss factor of each market, which only increases.
+persistent ghost mapping(bytes32 => uint128) ghostMidnightLossFactor {
+    init_state axiom forall bytes32 marketId. ghostMidnightLossFactor[marketId] == 0;
+}
+
+function increaseMidnightLossFactors() {
+    havoc ghostMidnightLossFactor assuming forall bytes32 marketId. ghostMidnightLossFactor@new[marketId] >= ghostMidnightLossFactor@old[marketId];
+}
+
+function withdrawSummary() {
+    decreaseMidnightNetCredits();
+    increaseMidnightLossFactors();
+}
+
 function decreaseMidnightNetCredits() {
     havoc ghostMidnightNetCredit assuming forall bytes32 marketId. ghostMidnightNetCredit@new[marketId] <= ghostMidnightNetCredit@old[marketId];
 }
@@ -59,6 +73,7 @@ function takeSummary(address midnight, MidnightAdapter.Offer offer, address take
     bytes32 marketId;
     env e;
     require e.msg.sender == midnight, "Midnight calls back the taker";
+    increaseMidnightLossFactors();
     if (offer.buy) {
         // The adapter sells: its net credit in the market decreases, then Midnight calls onSell if the adapter is the taker callback (deallocate passes no callback).
         uint256 sellerAssets;

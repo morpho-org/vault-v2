@@ -61,6 +61,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   It follows that a market with a non-zero stored net credit is listed.
 - [`MaturityMidnightAdapter.spec`](specs/MaturityMidnightAdapter.spec) checks that the stored maturity of a market doesn't change while the Midnight adapter holds net credit in it.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's curator guardrails: a stored net rate is only changed to at least `minNetRate`, and the adapter only buys markets whose time to maturity is at most `maxTtm`.
+- [`LossFactorMidnightAdapter.spec`](specs/LossFactorMidnightAdapter.spec) checks that the Midnight adapter's stored loss factor of each market is at most Midnight's, which only increases.
 
 ## Caps and configuration delays
 
