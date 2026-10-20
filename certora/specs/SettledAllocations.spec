@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// Only used to name the selectors of the adapters' allocate and deallocate. Its code does not run: the vault's calls to adapters are summarized.
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
-
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
@@ -65,9 +62,9 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
 }
 
 // Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage.
-// The calls to the adapters' allocate and deallocate are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
+// The calls to the adapters' allocate (0x1eadd778) and deallocate (0x4e45f1ff) are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
-    if (selector != sig:MorphoVaultV1Adapter.allocate(bytes, uint256, bytes4, address).selector && selector != sig:MorphoVaultV1Adapter.deallocate(bytes, uint256, bytes4, address).selector) {
+    if (selector != 0x1eadd778 && selector != 0x4e45f1ff) {
         checkSettledAllocations();
     }
 }
