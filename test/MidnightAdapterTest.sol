@@ -1291,6 +1291,37 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
     }
 
+    function testForceDeallocateSkipsNetSellRateGuardrail() public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 soldNetCredit = 0.25e18;
+        uint256 tick = TickLib.priceToTick(0.5e18, DEFAULT_TICK_SPACING);
+
+        setMaxNetSellRate(0);
+        assertFalse(adapter.marketData(marketId).forceSellable);
+
+        Offer memory regularSell = makeSellOffer(initial.market, soldNetCredit, tick);
+        deal(address(loanToken), taker, soldNetCredit);
+        deal(address(loanToken), address(this), soldNetCredit);
+        vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
+        take(regularSell);
+
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(initial.market, soldNetCredit, tick);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), soldNetCredit);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Sell(
+            marketId, soldNetCredit.mulDivDown(TickLib.tickToPrice(tick), 1e18), soldNetCredit, 0.75e18, 0
+        );
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ForceDeallocate(marketId, soldNetCredit, 0.75e18);
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), soldNetCredit, address(this)
+        );
+
+        assertEq(adapter.marketData(marketId).netCredit, 0.75e18, "net credit");
+        assertEq(parentVault.allocation(adapter.adapterId()), 0.75e18, "vault allocation");
+    }
+
     /// @dev The sale is priced exactly at maxNetSellRate, so one tick lower reverts.
     function testMaxNetSellRateBoundary() public {
         uint256 price = TickLib.tickToPrice(MAX_TICK - 4);
@@ -3693,6 +3724,8 @@ contract MidnightAdapterTest is Test {
 
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
+        vm.expectEmit(false, false, false, false, address(adapter));
+        emit IMidnightAdapterBase.Sell(bytes32(0), 0, 0, 0, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, 0.5e18, 0.5e18);
         parentVault.forceDeallocate(
@@ -4204,6 +4237,8 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, assets);
 
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets);
+        vm.expectEmit(false, false, false, false, address(adapter));
+        emit IMidnightAdapterBase.Sell(bytes32(0), 0, 0, 0, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
         (, int256 change) = parentVault.forceDeallocate(

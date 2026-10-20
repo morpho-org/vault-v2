@@ -363,19 +363,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
-            IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
-
-            uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(this), hex"");
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
+            uint256 newNetCredit = marketData[marketId].netCredit;
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+            return (ids(offer.market), int256(newNetCredit) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -483,6 +478,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return CALLBACK_SUCCESS;
     }
 
+    /// @dev Force deallocation (receiver != address(this)) skips sale guardrails and vault deallocate: the caller pays the sold units, and deallocate returns the change.
     function onSell(
         bytes32 marketId,
         Market memory market,
@@ -490,7 +486,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldCredit,
         uint256 sellPendingFeeDecrease,
         address seller,
-        address,
+        address receiver,
         bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
@@ -500,17 +496,23 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData storage _marketData = marketData[marketId];
-        if (_marketData.forceSellable) {
-            require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
-        } else {
-            uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-            if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+        if (receiver == address(this)) {
+            if (_marketData.forceSellable) {
+                require(
+                    sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow()
+                );
+            } else {
+                uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+                require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
+                uint256 shortfall =
+                    soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+                if (shortfall > 0) {
+                    require(!noSalesWithShortfall, SalesWithShortfallDisabled());
+                    uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
+                    require(amortizedValue <= newNetCredit, ShortfallTooHigh());
+                    _marketData.netRate =
+                        (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                }
             }
         }
 
@@ -519,12 +521,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                sellerAssets
-            );
+        if (receiver == address(this)) {
+            IVaultV2(parentVault)
+                .deallocate(
+                    address(this),
+                    abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                    sellerAssets
+                );
+        }
 
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
