@@ -417,6 +417,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         MarketData storage _marketData = marketData[marketId];
         uint256 oldNetCredit = _marketData.netCredit;
+        // Temporarily store net credit as it was before the buy so accrual is correct.
         _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
