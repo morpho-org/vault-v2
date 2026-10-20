@@ -5,8 +5,8 @@
 // Assumes that external calls do not reenter the adapter.
 
 methods {
-    // The adapter's net credit in each market is tracked by ghostMidnightNetCredit.
-    function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
+    // The adapter's net credit in Midnight can be any value.
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
 
     // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids that the vault's allocate and deallocate loop over, so every path calling the vault would be pruned.
     // Remaining loops are over durations and over the summarized ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
@@ -20,13 +20,11 @@ methods {
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Midnight's take, called as taker by the adapter, either buys or sells the adapter's credit and calls back onBuy or onSell if the adapter is the taker callback.
+    // Midnight's take, called as taker by the adapter, calls back onBuy or onSell if the adapter is the taker callback.
     function _.take(MidnightAdapter.Offer offer, bytes ratifierData, uint256 units, address taker, address receiverIfTakerIsSeller, address takerCallback, bytes takerCallbackData) external => takeSummary(calledContract, offer, takerCallback, takerCallbackData) expect(uint256, uint256);
 
-    // Withdrawals can only decrease the adapter's Midnight net credits.
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => decreaseMidnightNetCredits() expect void;
-
-    // Calls that don't change the adapter's Midnight net credits, resolved so that they don't havoc the adapter's state.
+    // Calls into Midnight that don't call back the adapter, resolved so that they don't havoc the adapter's state.
+    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
 
     // The vault's calls back into its adapters: the adapter's own allocate and deallocate, and views.
@@ -46,33 +44,22 @@ methods {
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
 }
 
-// The adapter's net credit (credit minus pending fee) in each Midnight market.
-persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
-    init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
-}
-
-function decreaseMidnightNetCredits() {
-    havoc ghostMidnightNetCredit assuming forall bytes32 marketId. ghostMidnightNetCredit@new[marketId] <= ghostMidnightNetCredit@old[marketId];
-}
-
 function takeSummary(address midnight, MidnightAdapter.Offer offer, address takerCallback, bytes takerCallbackData) returns (uint256, uint256) {
     bytes32 marketId;
     env e;
     require e.msg.sender == midnight, "Midnight calls back the taker";
     if (offer.buy) {
-        // The adapter sells: its net credit in the market decreases, then Midnight calls onSell if the adapter is the taker callback (deallocate passes no callback).
+        // The adapter sells, then Midnight calls onSell if the adapter is the taker callback (deallocate passes no callback).
         uint256 sellerAssets;
         uint256 soldCredit;
         uint256 sellPendingFeeDecrease;
         address receiver;
-        decreaseMidnightNetCredits();
         if (takerCallback == currentContract) onSell(e, marketId, offer.market, sellerAssets, soldCredit, sellPendingFeeDecrease, currentContract, receiver, takerCallbackData);
     } else {
-        // The adapter buys: its net credit in the market increases, then Midnight calls onBuy if the adapter is the taker callback.
+        // The adapter buys, then Midnight calls onBuy if the adapter is the taker callback.
         uint256 paidAssets;
         uint256 boughtCredit;
         uint256 buyPendingFeeIncrease;
-        increaseMidnightNetCredit(marketId);
         if (takerCallback == currentContract) onBuy(e, marketId, offer.market, paidAssets, boughtCredit, buyPendingFeeIncrease, currentContract, takerCallbackData);
     }
     uint256 buyerAssets;
@@ -89,10 +76,4 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
     uint256[] allocations;
     require allocations.length == length, "durationAllocations returns length allocations";
     return allocations;
-}
-
-// Midnight credits the bought units to the adapter before calling onBuy.
-function increaseMidnightNetCredit(bytes32 marketId) {
-    uint128 newNetCredit;
-    ghostMidnightNetCredit[marketId] = newNetCredit;
 }

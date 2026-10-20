@@ -8,8 +8,6 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
 
-// These invariants don't relate the adapter's net credit in Midnight to the stored one: it can be any value when a method starts.
-
 // Prove that the market list has at most MAX_MARKETS entries.
 strong invariant marketIdsLengthBounded()
     currentContract.marketIds.length <= MAX_MARKETS();
