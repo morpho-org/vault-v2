@@ -27,7 +27,7 @@ methods {
     // The ids are constrained by summaryDeallocate instead, through the values the vault reads back from the adapter.
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
-    // The vault's call back into the adapter, which returns the ids and the change encoded by withdrawToVault.
+    // The vault's call back into the adapter, which returns the ids and the change encoded by withdrawToVault. Its checks hold on this path (the vault is the parent vault and the caller is the adapter itself), and its max approval of the vault is assumed to not revert.
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address caller) external => summaryDeallocate(data, assets, selector, caller) expect(bytes32[], int256) ALL;
 
     // The asset is assumed to not revert on zero-amount transfers.
@@ -67,7 +67,7 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
 //   3. A market with a non-zero stored net credit is in the market list at its stored index.
 //   4. Midnight's zero withdraw, and reading the adapter's position and the market's loss factor, do not revert.
 //   5. A market with one collateral, whose 6 unique ids and change satisfy summaryDeallocate.
-//   6. The asset does not revert on zero-amount transfers.
+//   6. The asset does not revert on zero-amount transfers, nor on the adapter's max approval of the vault.
 rule canWithdrawToVaultZero(env e, MidnightAdapter.Market market) {
     require e.msg.value == 0, "withdrawToVault is non-payable";
 
