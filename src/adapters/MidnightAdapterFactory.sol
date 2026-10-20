@@ -9,41 +9,41 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
     address public immutable midnight;
-    address public immutable enterGateFactory;
 
     /* STORAGE */
 
     /// @dev durationsHash is keccak256(abi.encode(durations)).
     mapping(
         address parentVault
-            => mapping(bytes32 durationsHash => mapping(bool useGateFactory => mapping(bytes32 salt => address)))
+            => mapping(bytes32 durationsHash => mapping(address enterGateFactory => mapping(bytes32 salt => address)))
     ) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
 
     /* CONSTRUCTOR */
 
-    constructor(address _midnight, address _enterGateFactory) {
+    constructor(address _midnight) {
         midnight = _midnight;
-        enterGateFactory = _enterGateFactory;
-        emit CreateMidnightAdapterFactory(_midnight, enterGateFactory);
+        emit CreateMidnightAdapterFactory(_midnight);
     }
 
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    function createMidnightAdapter(address parentVault, uint256[] memory durations, bool useGateFactory, bytes32 salt)
-        external
-        returns (address)
-    {
-        address _enterGateFactory = useGateFactory ? enterGateFactory : address(0);
+    /// @dev The adapter can be force deallocated in gated markets only if enterGateFactory only creates VaultV2CompatibleEnterGates. Registries and curators must check the adapter's enterGateFactory.
+    function createMidnightAdapter(
+        address parentVault,
+        uint256[] memory durations,
+        address enterGateFactory,
+        bytes32 salt
+    ) external returns (address) {
         address _midnightAdapter = address(
-            new MidnightAdapter{salt: keccak256(abi.encode(useGateFactory, salt))}(
-                parentVault, midnight, durations, _enterGateFactory
+            new MidnightAdapter{salt: keccak256(abi.encode(enterGateFactory, salt))}(
+                parentVault, midnight, durations, enterGateFactory
             )
         );
-        midnightAdapter[parentVault][keccak256(abi.encode(durations))][useGateFactory][salt] = _midnightAdapter;
+        midnightAdapter[parentVault][keccak256(abi.encode(durations))][enterGateFactory][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, useGateFactory);
+        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, enterGateFactory);
         return _midnightAdapter;
     }
 }

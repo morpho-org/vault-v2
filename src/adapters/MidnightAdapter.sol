@@ -53,7 +53,9 @@ import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFac
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev Deployers must ensure the adapter's factory always returns true to `isMidnightAdapter(adapter)` or it will not correctly work when `useGateFactory` is true.
+/// @dev Deployers must ensure the adapter's factory always returns true to `isMidnightAdapter(adapter)` or it will not correctly work when `enterGateFactory` is not zero.
+/// @dev Gated markets can be entered only if their gate was created by enterGateFactory, and can always be force deallocated only if enterGateFactory only creates VaultV2CompatibleEnterGates.
+/// @dev If enterGateFactory is zero, gated markets can be entered without checks, and their gate can block force deallocations.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
