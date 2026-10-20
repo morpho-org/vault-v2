@@ -332,10 +332,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
-        if (messageSig == IVaultV2.forceDeallocate.selector) {
+        bool isForce = messageSig == IVaultV2.forceDeallocate.selector;
+        Market memory market;
+        bytes32 marketId;
+        bool withdraw;
+        if (isForce) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
-            bytes32 marketId = IdLib.toId(offer.market);
+            market = offer.market;
+            marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
@@ -343,34 +348,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
-
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            emit ForceDeallocate(marketId, assets, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            (Market memory market, bool withdraw) = abi.decode(data, (Market, bool));
-            bytes32 marketId = IdLib.toId(market);
+            (market, withdraw) = abi.decode(data, (Market, bool));
+            marketId = IdLib.toId(market);
             if (withdraw) {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
                 // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
                 IMidnight(midnight).withdraw(market, assets, address(this), address(this));
             }
-
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            if (withdraw) emit WithdrawToVault(marketId, assets, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         }
+
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
+        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        if (isForce) emit ForceDeallocate(marketId, assets, newNetCredit);
+        else if (withdraw) emit WithdrawToVault(marketId, assets, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
     }
 
     /* MIDNIGHT CALLBACKS */
