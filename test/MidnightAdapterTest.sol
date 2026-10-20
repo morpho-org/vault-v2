@@ -3888,7 +3888,6 @@ contract MidnightAdapterTest is Test {
         exitOffer.callback = address(0);
         vm.startPrank(taker);
         midnight.setIsAuthorized(address(this), true, taker);
-        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         vm.stopPrank();
         vm.mockCallRevert(
             address(gate),
@@ -5292,6 +5291,7 @@ contract MidnightAdapterTest is Test {
 
         deal(address(loanToken), buyer, offer.maxUnits);
         vm.startPrank(buyer);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.setIsAuthorized(address(approvalRatifier), true, buyer);
         approvalRatifier.setIsRootRatified(buyer, root_, true);
