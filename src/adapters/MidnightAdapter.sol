@@ -206,21 +206,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit IncreaseMaxTtm(newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
-    function setForceSellable(bytes32 marketId) external {
-        timelocked();
-        marketData[marketId].forceSellable = true;
-        emit SetForceSellable(marketId);
-    }
-
-    function setSkimRecipient(address newSkimRecipient) external {
-        timelocked();
-        skimRecipient = newSkimRecipient;
-        emit SetSkimRecipient(newSkimRecipient);
-    }
-
-    /* NON-TIMELOCKED CURATOR FUNCTIONS */
-
     function decreaseMaxTtm(uint256 newMaxTtm) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
@@ -232,6 +217,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
+    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    function setForceSellable(bytes32 marketId) external {
+        timelocked();
+        marketData[marketId].forceSellable = true;
+        emit SetForceSellable(marketId);
+    }
+
     function unsetForceSellable(bytes32 marketId) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
@@ -240,6 +232,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[marketId].forceSellable = false;
         emit UnsetForceSellable(marketId);
     }
+
+    function setSkimRecipient(address newSkimRecipient) external {
+        timelocked();
+        skimRecipient = newSkimRecipient;
+        emit SetSkimRecipient(newSkimRecipient);
+    }
+
+    /* NON-TIMELOCKED CURATOR FUNCTIONS */
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
