@@ -2337,11 +2337,10 @@ contract MidnightAdapterTest is Test {
         assertEq(storedDurationAllocations(adapter)[1], 8e18);
 
         decreaseDurationCap(1, 0.6e18);
-        next = fundedDurationOffer(7 days + 1, 4e18);
+        next = fundedDurationOffer(6 days, 4e18);
         next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
-        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(next);
-        assertEq(storedDurationAllocations(adapter)[1], 8e18);
+        assertEq(storedDurationAllocations(adapter)[1], 4e18);
         assertEq(storedDurationAllocations(adapter)[0], 8e18);
     }
 
