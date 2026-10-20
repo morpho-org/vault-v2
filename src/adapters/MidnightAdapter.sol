@@ -523,6 +523,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         if (receiver == address(this)) {
+            // allocation reporting skipped in the force deallocate case.
             IVaultV2(parentVault)
                 .deallocate(
                     address(this),
