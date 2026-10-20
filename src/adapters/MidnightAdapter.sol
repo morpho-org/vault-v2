@@ -549,14 +549,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function removeMarket(bytes32 marketId) internal {
-        MarketData memory _marketData = marketData[marketId];
+        MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        delete marketData[marketId];
-        marketData[marketId].forceSellable = _marketData.forceSellable;
-        marketData[marketId].minForceSellPrice = _marketData.minForceSellPrice;
+        _marketData.lossFactor = 0;
+        _marketData.netRate = 0;
+        _marketData.maturity = 0;
+        _marketData.index = 0;
     }
 
     /* VIEWS */
