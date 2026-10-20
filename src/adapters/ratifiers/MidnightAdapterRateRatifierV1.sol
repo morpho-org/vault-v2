@@ -19,7 +19,7 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
 /// @dev See comments in lib/midnight/src/ratifiers/RateRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
-/// @dev Allocators and sentinels can authorize submitters through the adapter's Midnight instance for both ratification functions.
+/// @dev Allocators and sentinels can authorize other addresses through the adapter's Midnight instance to act on their behalf.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
     using UtilsLib for uint256;
