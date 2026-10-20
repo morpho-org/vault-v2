@@ -73,11 +73,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
-    /* TRANSIENT STORAGE */
-
-    bytes32 transient overriddenMarketId;
-    uint256 transient overriddenMarketNetCredit;
-
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -401,7 +396,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
     }
 
-    /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     /// @dev Can revert on extremely high rates.
     function onBuy(
         bytes32 marketId,
@@ -420,23 +414,41 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
-        uint128 newNetCredit = currentNetCredit(marketId);
-        (overriddenMarketId, overriddenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
-        // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
-        IVaultV2(parentVault).accrueInterest();
-        (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
-
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
+
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = _marketData.netCredit;
+        uint128 currentLossFactor = IMidnight(midnight).lossFactor(marketId);
+        if (oldNetCredit > 0 && _marketData.lossFactor != currentLossFactor) {
+            _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
+            _marketData.lossFactor = currentLossFactor;
+        }
+
+        (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+        if (fundingAdapter == address(this)) {
+            Market memory fundingMarket = abi.decode(fundingData, (Market));
+            require(IdLib.toId(fundingMarket) != marketId, SameMarketFunding());
+            withdrawToVault(fundingMarket, paidAssets);
+        } else if (fundingAdapter != address(0)) {
+            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
+        }
+
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) reentry is expected; both net credit values fit in uint128.
+        IVaultV2(parentVault)
+            .allocate(
+                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
+            );
+
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        _marketData.lossFactor = currentLossFactor;
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -445,13 +457,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketIds.push(marketId);
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
-        }
-        (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-        if (fundingAdapter == address(this)) {
-            withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
-        } else if (fundingAdapter != address(0)) {
-            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
@@ -472,12 +477,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 DurationRelativeCapExceeded()
             );
         }
-
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) reentry is expected; both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .allocate(
-                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
-            );
 
         SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
@@ -618,9 +617,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overriddenMarketId) {
-                netCredit = overriddenMarketNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());

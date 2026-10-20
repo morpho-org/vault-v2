@@ -2329,7 +2329,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.repay(initial.market, 8e18, taker, address(0), "");
         decreaseDurationCap(1, 0.9e18);
-        Offer memory next = fundedDurationOffer(7 days, 4e18);
+        Offer memory next = fundedDurationOffer(7 days + 1, 4e18);
         next.group = bytes32("funded duration buy");
         next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         // The seven-day exposure falls from 12 to 8 during funding: below 90%.
@@ -2337,10 +2337,11 @@ contract MidnightAdapterTest is Test {
         assertEq(storedDurationAllocations(adapter)[1], 8e18);
 
         decreaseDurationCap(1, 0.6e18);
-        next = fundedDurationOffer(6 days, 4e18);
+        next = fundedDurationOffer(7 days + 1, 4e18);
         next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(next);
-        assertEq(storedDurationAllocations(adapter)[1], 4e18);
+        assertEq(storedDurationAllocations(adapter)[1], 8e18);
         assertEq(storedDurationAllocations(adapter)[0], 8e18);
     }
 
@@ -4361,7 +4362,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 0.02e18, MAX_TICK);
     }
 
-    function testBuySelfFundedSameMarketEmitsFinalNetCredit() public {
+    function testBuySelfFundedDifferentMarketEmitsFinalNetCredit() public {
         Offer memory initial = buy(30 days, 100e18);
         bytes32 marketId = _marketId(initial.market);
         skip(1 days);
@@ -4370,19 +4371,19 @@ contract MidnightAdapterTest is Test {
         midnight.repay(initial.market, 50e18, taker, address(0), "");
         deal(address(loanToken), address(parentVault), 0);
 
-        Offer memory roll = makeBuyOffer(initial.market.maturity - block.timestamp, 50e18, MAX_TICK);
-        roll.market = initial.market;
+        Offer memory roll = makeBuyOffer(initial.market.maturity - block.timestamp - 1 days, 50e18, MAX_TICK);
         roll.group = bytes32(vm.randomUint());
         roll.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
         midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 50e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0);
+        emit IMidnightAdapterBase.Buy(_marketId(roll.market), 50e18, 50e18, 50e18, 0);
         take(roll);
 
-        assertEq(adapter.marketData(marketId).netCredit, 100e18);
+        assertEq(adapter.marketData(marketId).netCredit, 50e18);
+        assertEq(adapter.marketData(_marketId(roll.market)).netCredit, 50e18);
     }
 
     /* HELPERS */
@@ -5416,30 +5417,83 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(initial.market, 0, offer.maxUnits * 2 + 1e18, taker);
         directTake(offer);
         assertEq(realVault._totalAssets(), expected, "newly bought credit excluded");
+        assertApproxEqAbs(realVault.totalAssets(), expected, 2, "held-market buy does not inflate totalAssets");
         assertGe(backing() + 1, expected, "rounding only");
     }
 
     /// forge-config: default.isolate = true
-    function testEagerLossSelfFunding(bool sameMarket, bool fullWithdrawal) public {
+    function testOnBuySameMarketFundingReverts() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offer.group = bytes32("same-market funding");
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
+        assertEq(_marketId(offer.market), _marketId(initial.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+
+        vm.expectRevert(IMidnightAdapterBase.SameMarketFunding.selector);
+        directTake(offer);
+    }
+
+    /// forge-config: default.isolate = true
+    function testOnBuyOnHeldMarketAfterLossDoesNotInflateTotalAssets() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
+        bytes32 marketId = _marketId(initial.market);
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        uint256 expected = realVault.totalAssets();
+
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offer.group = bytes32("buy after loss");
+        assertEq(_marketId(offer.market), marketId);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+
+        assertGt(midnight.lossFactor(marketId), adapter.marketData(marketId).lossFactor);
+        directTake(offer);
+
+        assertEq(realVault._totalAssets(), expected, "vault accrues the pre-buy value");
+        assertApproxEqAbs(realVault.totalAssets(), expected, 2, "held-market buy does not inflate totalAssets");
+        assertEq(adapter.marketData(marketId).lossFactor, midnight.lossFactor(marketId));
+    }
+
+    /// forge-config: default.isolate = true
+    function testOnBuyNewMarketDoesNotInflateTotalAssets() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        uint256 expected = realVault.totalAssets();
+
+        Offer memory offer = makeBuyOffer(6 days, 1e18, MAX_TICK);
+        offer.group = bytes32("new-market buy");
+        bytes32 marketId = _marketId(offer.market);
+        assertEq(adapter.marketData(marketId).netCredit, 0);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        directTake(offer);
+
+        assertEq(realVault._totalAssets(), expected, "vault accrues before the new market is recorded");
+        assertApproxEqAbs(realVault.totalAssets(), expected, 2, "new-market buy does not inflate totalAssets");
+    }
+
+    /// forge-config: default.isolate = true
+    function testEagerLossSelfFunding(bool fullWithdrawal) public {
         Offer memory initial = freshPosition(MAX_TICK);
         vm.prank(taker);
         midnight.repay(initial.market, 8e18, taker, address(0), "");
 
         uint256 withdrawnAssets = fullWithdrawal ? 8e18 : 3e18;
-        Offer memory offer = makeBuyOffer(sameMarket ? 7 days : 6 days, withdrawnAssets, MAX_TICK);
+        Offer memory offer = makeBuyOffer(6 days, withdrawnAssets, MAX_TICK);
         offer.group = bytes32("self-funded purchase");
         offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(
-            _marketId(initial.market), withdrawnAssets, sameMarket ? 8e18 : 8e18 - withdrawnAssets
-        );
+        emit IMidnightAdapterBase.WithdrawToVault(_marketId(initial.market), withdrawnAssets, 8e18 - withdrawnAssets);
         directTake(offer);
 
-        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, sameMarket ? 8e18 : 8e18 - withdrawnAssets);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, sameMarket ? 8e18 : offer.maxUnits);
-        assertEq(adapter.marketIdsLength(), sameMarket || fullWithdrawal ? 1 : 2);
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 8e18 - withdrawnAssets);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits);
+        assertEq(adapter.marketIdsLength(), fullWithdrawal ? 1 : 2);
         assertEq(midnight.withdrawable(_marketId(initial.market)), 8e18 - withdrawnAssets);
         assertEq(realVault.allocation(adapter.adapterId()), 8e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
@@ -5449,25 +5503,23 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testEagerLossSelfFundingTake(bool sameMarket, bool fullWithdrawal) public {
+    function testEagerLossSelfFundingTake(bool fullWithdrawal) public {
         Offer memory initial = freshPosition(MAX_TICK);
         vm.prank(taker);
         midnight.repay(initial.market, 8e18, taker, address(0), "");
 
         uint256 withdrawnAssets = fullWithdrawal ? 8e18 : 3e18;
-        Market memory market = makeBuyOffer(sameMarket ? 7 days : 6 days, 0, MAX_TICK).market;
+        Market memory market = makeBuyOffer(6 days, 0, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, withdrawnAssets, MAX_TICK);
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(
-            _marketId(initial.market), withdrawnAssets, sameMarket ? 8e18 : 8e18 - withdrawnAssets
-        );
+        emit IMidnightAdapterBase.WithdrawToVault(_marketId(initial.market), withdrawnAssets, 8e18 - withdrawnAssets);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits, abi.encode(address(adapter), abi.encode(initial.market)));
 
-        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, sameMarket ? 8e18 : 8e18 - withdrawnAssets);
-        assertEq(adapter.marketData(_marketId(market)).netCredit, sameMarket ? 8e18 : offer.maxUnits);
-        assertEq(adapter.marketIdsLength(), sameMarket || fullWithdrawal ? 1 : 2);
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 8e18 - withdrawnAssets);
+        assertEq(adapter.marketData(_marketId(market)).netCredit, offer.maxUnits);
+        assertEq(adapter.marketIdsLength(), fullWithdrawal ? 1 : 2);
         assertEq(midnight.withdrawable(_marketId(initial.market)), 8e18 - withdrawnAssets);
         assertEq(realVault.allocation(adapter.adapterId()), 8e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
@@ -5477,7 +5529,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testEagerLossSelfFundingAfterLoss(bool sameMarket) public {
+    function testEagerLossSelfFundingAfterLoss() public {
         Offer memory initial = freshPosition(MAX_TICK);
         vm.prank(taker);
         midnight.repay(initial.market, 4e18, taker, address(0), "");
@@ -5487,16 +5539,14 @@ contract MidnightAdapterTest is Test {
         uint256 expected = realVault.totalAssets();
         assertApproxEqAbs(expected, 6e18, 1);
 
-        Offer memory offer = makeBuyOffer(sameMarket ? 7 days : 6 days, 3e18, MAX_TICK);
+        Offer memory offer = makeBuyOffer(6 days, 3e18, MAX_TICK);
         offer.group = bytes32("self-funded purchase");
         offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         directTake(offer);
 
-        assertEq(
-            adapter.marketData(_marketId(initial.market)).netCredit, sameMarket ? expected - 2e18 : expected - 5e18
-        );
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, sameMarket ? expected - 2e18 : 3e18);
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, expected - 5e18);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 3e18);
         assertEq(midnight.withdrawable(_marketId(initial.market)), 1e18);
         assertEq(realVault.allocation(adapter.adapterId()), expected - 2e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
