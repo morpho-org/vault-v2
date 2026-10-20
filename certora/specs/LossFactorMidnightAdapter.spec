@@ -60,7 +60,7 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
 }
 
 // Whether Midnight returned a given loss factor for a market.
-ghost mapping(bytes32 => mapping(uint128 => bool)) ghostMidnightLossFactorReturned;
+persistent ghost mapping(bytes32 => mapping(uint128 => bool)) ghostMidnightLossFactorReturned;
 
 function lossFactorSummary(bytes32 marketId) returns uint128 {
     uint128 lossFactor;
