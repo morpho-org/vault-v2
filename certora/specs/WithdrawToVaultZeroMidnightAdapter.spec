@@ -70,6 +70,7 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
 //   6. The asset does not revert on zero-amount transfers, nor on the adapter's max approval of the vault.
 rule canWithdrawToVaultZero(env e, MidnightAdapter.Market market) {
     require e.msg.value == 0, "withdrawToVault is non-payable";
+    require market.collateralParams.length == 1, "simplified market with one collateral, matching the 6 ids of summaryDeallocate";
 
     // Midnight's lock is checked on any market id, since ids are not computed.
     require forall bytes32 marketId. !ghostLiquidationLocked[marketId][currentContract], "the adapter's position is not liquidation-locked";
