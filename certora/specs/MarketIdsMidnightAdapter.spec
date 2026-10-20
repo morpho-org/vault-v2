@@ -7,8 +7,8 @@ methods {
     function MAX_MARKETS() external returns (uint256) envfree;
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    // The adapter's net credit in Midnight can be any value.
-    function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
+    // The adapter's net credit in Midnight, and how take and withdraw change it, are modeled by CVL functions, so that specs importing this one can override them.
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => midnightNetCredit(marketId);
 
     // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
     // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
@@ -23,8 +23,8 @@ methods {
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
     // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take doesn't call back the adapter.
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address, address, address, bytes) external => takeSummary(offer) expect(uint256, uint256);
+    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => withdrawSummary() expect void;
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
 
     // The vault's calls into its adapters, which don't reenter this adapter.
@@ -41,6 +41,20 @@ methods {
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
 }
+
+// The adapter's net credit in Midnight can be any value.
+function midnightNetCredit(bytes32 marketId) returns uint128 {
+    uint128 netCredit;
+    return netCredit;
+}
+
+function takeSummary(MidnightAdapter.Offer offer) returns (uint256, uint256) {
+    uint256 buyerAssets;
+    uint256 sellerAssets;
+    return (buyerAssets, sellerAssets);
+}
+
+function withdrawSummary() { }
 
 function arbitraryAdapterResult() returns (bytes32[], int256) {
     bytes32[] idsArray;
