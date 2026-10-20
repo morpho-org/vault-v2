@@ -12,6 +12,10 @@ interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 marketId
     );
 
+    /* ERRORS */
+
+    error NonZeroEnterGate();
+
     /* FUNCTIONS */
 
     function initialAdapterFactory() external view returns (address);
