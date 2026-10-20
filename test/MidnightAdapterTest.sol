@@ -1901,7 +1901,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         bytes32 _root = root([offer]);
         vm.prank(signerAllocator);
-        priceRatifier.setIsRootRatified(address(noDurations), _root, true);
+        priceRatifier.setIsRootRatified(address(noDurations), _root, true, signerAllocator);
         bytes memory data = abi.encode(address(priceRatifier), abi.encode(_root, 0, proof([offer]), address(0)));
         this.takeWithAccrual(offer, data, taker, address(0));
 
@@ -4534,7 +4534,7 @@ contract MidnightAdapterTest is Test {
         returns (bytes memory)
     {
         vm.prank(signer);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        priceRatifier.setIsRootRatified(address(adapter), _root, true, signer);
         return abi.encode(address(priceRatifier), abi.encode(_root, leafIndex, _proof, address(0)));
     }
 
