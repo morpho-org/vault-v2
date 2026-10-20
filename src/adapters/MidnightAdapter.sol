@@ -197,7 +197,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Abdicate(selector);
     }
 
-    /* TIMELOCKED CURATOR FUNCTIONS */
+    /* TIMELOCKED CURATOR SETTINGS */
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
@@ -239,7 +239,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /* NON-TIMELOCKED CURATOR FUNCTIONS */
+    /* NON-TIMELOCKED CURATOR SETTINGS */
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
