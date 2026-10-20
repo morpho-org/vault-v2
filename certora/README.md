@@ -54,7 +54,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
-- [`MaturityMidnightAdapter.spec`](specs/MaturityMidnightAdapter.spec) checks that a stored maturity of the Midnight adapter can only be reset to zero, when its market is removed, and that a market with a non-zero stored maturity has a non-zero stored net credit.
+- [`MaturityMidnightAdapter.spec`](specs/MaturityMidnightAdapter.spec) checks that a call changes a stored maturity of the Midnight adapter only by resetting it to zero together with the stored net credit, as when its market is removed, and that a market with a non-zero stored maturity has a non-zero stored net credit.
 
 ## Caps and configuration delays
 
