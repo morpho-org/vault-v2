@@ -9,30 +9,21 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 }
 
 methods {
-    function currentNetCredit(bytes32 marketId) internal returns (uint128) => ghostMidnightNetCredit[marketId];
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => readMidnightNetCredit(marketId);
 }
 
-// Sales and withdrawals can only decrease the adapter's Midnight net credits. Buys are accounted for in the callback (onBuy), checked as an entry point.
-override function withdrawSummary() {
-    decreaseMidnightNetCredits();
-}
-
-function decreaseMidnightNetCredits() {
-    havoc ghostMidnightNetCredit assuming forall bytes32 marketId. ghostMidnightNetCredit@new[marketId] <= ghostMidnightNetCredit@old[marketId];
+// The adapter's net credit in Midnight can decrease at any time (sales, withdrawals, losses), so each read can return a lower value. It increases only when the adapter buys, which Midnight does before calling onBuy, checked as an entry point.
+function readMidnightNetCredit(bytes32 marketId) returns uint128 {
+    uint128 netCredit;
+    require netCredit <= ghostMidnightNetCredit[marketId], "Midnight net credit only increases in buys";
+    ghostMidnightNetCredit[marketId] = netCredit;
+    return netCredit;
 }
 
 // Midnight credits the bought units to the adapter before calling onBuy.
 function increaseMidnightNetCredit(bytes32 marketId) {
     uint128 newNetCredit;
     ghostMidnightNetCredit[marketId] = newNetCredit;
-}
-
-override function takeSummary(MidnightAdapter.Offer offer) returns (uint256, uint256) {
-    // A buy offer is taken by the adapter as seller.
-    if (offer.buy) decreaseMidnightNetCredits();
-    uint256 buyerAssets;
-    uint256 sellerAssets;
-    return (buyerAssets, sellerAssets);
 }
 
 // Prove that the stored net credit is an upper bound of the adapter's net credit in Midnight.
