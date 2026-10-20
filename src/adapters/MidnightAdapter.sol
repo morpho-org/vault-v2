@@ -224,12 +224,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
-        maxTtm = uint32(newMaxTtm);
+        maxTtm = newMaxTtm.toUint32();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
@@ -375,15 +374,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IMidnight(midnight).credit(marketId, address(this)) > 0
+            bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
+                && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate, marketId)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -585,15 +584,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
-        bool forceSellable = _marketData.forceSellable;
-        uint128 minForceSellPrice = _marketData.minForceSellPrice;
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        delete marketData[marketId];
-        marketData[marketId].forceSellable = forceSellable;
-        marketData[marketId].minForceSellPrice = minForceSellPrice;
+        _marketData.lossFactor = 0;
+        _marketData.netRate = 0;
+        _marketData.maturity = 0;
+        _marketData.index = 0;
     }
 
     /* VIEWS */

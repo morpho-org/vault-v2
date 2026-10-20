@@ -3765,7 +3765,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateSameVaultOtherAdapterCannotAdmitWithoutCredit(bool adapterIsMaker) public {
+    function testEnterGateSameVaultOtherAdapterCannotExitWithoutCredit(bool adapterIsMaker) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address otherAdapter =
             factory.createMidnightAdapter(address(realVault), allDurations, address(gateFactory), bytes32(uint256(1)));
@@ -3778,7 +3778,7 @@ contract MidnightAdapterTest is Test {
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (otherAdapter)));
         (Offer memory exitOffer, bytes32 root_) = makeForceDeallocateOffer(offer.market, 0.5e18);
         realVault.transfer(exitOffer.maker, 1);
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        vm.expectRevert(IMidnight.SellerGatedFromIncreasingDebt.selector);
         realVault.forceDeallocate(
             otherAdapter, abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
         );
@@ -3786,7 +3786,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(offer.market), otherAdapter), 0);
     }
 
-    function testEnterGateCreditInOtherMarketDoesNotAdmit() public {
+    function testEnterGateCreditInOtherMarketCannotExit() public {
         (VaultV2CompatibleEnterGateFactory gateFactory, EnterSubGateMock gate) = setUpEnterGateRealVault(true);
         address firstWrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(firstWrapper, true);
@@ -3799,7 +3799,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(boughtOffer.market), address(adapter)), 1e18);
         assertEq(midnight.credit(_marketId(exitOffer.market), address(adapter)), 0);
 
-        vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        vm.expectRevert(IMidnight.SellerGatedFromIncreasingDebt.selector);
         realVault.forceDeallocate(
             address(adapter), abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer]))), 0.5e18, address(this)
         );
@@ -3849,7 +3849,7 @@ contract MidnightAdapterTest is Test {
         if (hasShares) realVault.transfer(offer.maker, 1);
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(offer.maker));
 
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         if (!hasShares) vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
         realVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
@@ -3874,7 +3874,7 @@ contract MidnightAdapterTest is Test {
             "subgate reverted"
         );
 
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         realVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
         );
@@ -3897,7 +3897,6 @@ contract MidnightAdapterTest is Test {
         exitOffer.callback = address(0);
         vm.startPrank(taker);
         midnight.setIsAuthorized(address(this), true, taker);
-        loanToken.approve(address(midnight), type(uint256).max);
         vm.stopPrank();
         vm.mockCallRevert(
             address(gate),
@@ -3905,7 +3904,7 @@ contract MidnightAdapterTest is Test {
             "subgate reverted"
         );
 
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         realVault.forceDeallocate(address(adapter), abi.encode(exitOffer, hex""), 0.5e18, address(this));
         assertEq(midnight.debt(_marketId(exitOffer.market), taker), 0.5e18);
         assertEq(midnight.credit(_marketId(exitOffer.market), taker), 0);
@@ -3947,7 +3946,7 @@ contract MidnightAdapterTest is Test {
         exitOffer.ratifier = address(this);
         exitOffer.callback = address(buyer);
         exitOffer.group = bytes32("shareholder exit");
-        loanToken.approve(address(adapter), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         realVault.forceDeallocate(address(adapter), abi.encode(exitOffer, hex""), 0.5e18, address(this));
 
         assertTrue(buyer.called());
@@ -3976,7 +3975,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
 
         gate.setCanIncreaseCredit(_marketId(offer.market), offer.maker, true);
-        loanToken.approve(address(adapter), 1e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 1e18);
         realVault.forceDeallocate(address(adapter), data, 1e18, address(this));
 
         assertEq(midnight.credit(_marketId(offer.market), offer.maker), 1e18);
@@ -4040,7 +4039,7 @@ contract MidnightAdapterTest is Test {
         bytes memory ratifierData,
         uint256 assets
     ) external {
-        loanToken.approve(address(targetAdapter), assets);
+        SafeERC20Lib.safeApprove(address(loanToken), address(targetAdapter), assets);
         vault.forceDeallocate(address(targetAdapter), abi.encode(offer, ratifierData), assets, address(this));
     }
 
@@ -4052,8 +4051,8 @@ contract MidnightAdapterTest is Test {
         assertEq(caller, address(this));
         assertEq(tokens[0], address(loanToken));
         Offer memory offer = abi.decode(data, (Offer));
-        loanToken.approve(address(midnight), type(uint256).max);
-        loanToken.approve(address(adapter), assets[0]);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), assets[0]);
         uint256 expectedPenaltyShares =
             realVault.previewWithdraw(assets[0].mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18));
         uint256 penaltyShares =
@@ -5302,6 +5301,7 @@ contract MidnightAdapterTest is Test {
 
         deal(address(loanToken), buyer, offer.maxUnits);
         vm.startPrank(buyer);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.setIsAuthorized(address(approvalRatifier), true, buyer);
         approvalRatifier.setIsRootRatified(buyer, root_, true);

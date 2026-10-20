@@ -83,7 +83,7 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     function testCreateRevertsWithEnterGate(address otherGate) public {
         vm.assume(otherGate != address(0));
         market.enterGate = otherGate;
-        vm.expectRevert();
+        vm.expectRevert(VaultV2CompatibleEnterGateFactory.NonZeroEnterGate.selector);
         factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
     }
 }

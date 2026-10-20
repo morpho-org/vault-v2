@@ -11,6 +11,8 @@ contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 marketId
     );
 
+    error NonZeroEnterGate();
+
     address public immutable initialAdapterFactory;
 
     mapping(address account => mapping(bytes32 marketId => bool)) public isGate;
@@ -23,7 +25,7 @@ contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         external
         returns (address)
     {
-        require(market.enterGate == address(0));
+        require(market.enterGate == address(0), NonZeroEnterGate());
         address vaultV2CompatibleEnterGate =
             address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market, initialAdapterFactory));
         bytes32 marketId = VaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate).marketId();
