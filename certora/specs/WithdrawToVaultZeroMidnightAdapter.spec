@@ -19,7 +19,7 @@ methods {
 
     // Reading the adapter's position and the market's loss factor in Midnight is assumed to not revert, and can return any value.
     function currentNetCredit(bytes32) internal returns (uint128) => NONDET;
-    function _.lossFactor(bytes32) external => NONDET ALL;
+    function _.lossFactor(bytes32 marketId) external => ghostLossFactor[marketId] expect(uint128) ALL;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
@@ -35,6 +35,9 @@ methods {
 }
 
 ghost mapping(bytes32 => mapping(address => bool)) ghostLiquidationLocked;
+
+// Midnight's loss factor of each market, typed uint128 like Midnight's lossFactor getter.
+ghost mapping(bytes32 => uint128) ghostLossFactor;
 
 // Maximum signed 256-bit integer, used to bound int256 values.
 definition max_int256() returns int256 = (2 ^ 255) - 1;
