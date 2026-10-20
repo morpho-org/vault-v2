@@ -5,7 +5,7 @@ pragma solidity 0.8.37;
 import {CollateralParams, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {MidnightAdapter} from "../../src/adapters/MidnightAdapter.sol";
 
-// This harness builds a one-collateral market in memory to avoid the prover's dirty bits in nested calldata.
+/// Helper building a market with one collateral in memory, to avoid the prover's dirty bits in nested calldata.
 contract MidnightAdapterHarness is MidnightAdapter {
     constructor(address _parentVault, address _midnight, uint256[] memory _durations)
         MidnightAdapter(_parentVault, _midnight, _durations)
