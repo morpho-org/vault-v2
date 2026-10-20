@@ -35,6 +35,7 @@ persistent ghost bool adapterCalledWithPendingWrites;
 persistent ghost bool unexpectedAllocationWrite;
 
 hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAllocation) {
+    require(oldAllocation <= 2 ^ 255 - 1, "see allocationIsInt256");
     if (writtenIdsCount < returnedIdsLength && id == returnedIds[writtenIdsCount] && newAllocation == oldAllocation + returnedChange) {
         writtenIdsCount = assert_uint256(writtenIdsCount + 1);
     } else {
