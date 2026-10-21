@@ -21,7 +21,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault through withdrawToVault and to sell (except through forceDeallocate).
+/// @dev The vault's allocators and sentinels can also withdraw to the vault directly through vault.deallocate with data abi.encode(market, true).
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
@@ -333,7 +334,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev From the adapter itself, data is abi.encode(market, withdraw): if withdraw, withdraws `assets` from market; otherwise (sell callback), `assets` are already held.
+    /// @dev Through deallocate, data is abi.encode(market, withdraw): if withdraw, withdraws `assets` from market; otherwise (sell callback), `assets` are already held.
+    /// @dev Withdrawals can be called by the vault's allocators and sentinels, which allows synchronizing a market even if the adapter has no role on the vault.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
@@ -355,7 +357,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
         } else {
-            require(caller == address(this), SelfAllocationOnly());
             bool withdraw;
             (market, withdraw) = abi.decode(data, (Market, bool));
             marketId = IdLib.toId(market);
@@ -363,6 +364,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
                 // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
                 IMidnight(midnight).withdraw(market, assets, address(this), address(this));
+            } else {
+                require(caller == address(this), SelfAllocationOnly());
             }
         }
 

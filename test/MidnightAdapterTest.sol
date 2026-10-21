@@ -3631,12 +3631,102 @@ contract MidnightAdapterTest is Test {
         adapter.allocate("", 0, bytes4(0), caller);
     }
 
-    /// @dev Only the adapter can allocate and deallocate through the vault, so it cannot be a liquidity adapter.
+    /// @dev Only the adapter can allocate and deallocate without withdrawing through the vault, so it cannot be a liquidity adapter.
     function testVaultAllocateAndDeallocateRevert() public {
+        Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
         parentVault.allocate(address(adapter), "", 0);
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
-        parentVault.deallocate(address(adapter), "", 0);
+        parentVault.deallocate(address(adapter), abi.encode(market, false), 0);
+    }
+
+    /// @dev Allocators can withdraw from a market through vault.deallocate without the adapter having any role on the vault.
+    /// @dev With assets = 0, this synchronizes a market with a maxed out loss factor, which neither withdrawToVault (no role) nor forceDeallocate (take reverts) can do.
+    function testVaultDeallocateWithdrawWithoutAdapterRole() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation before loss");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        assertEq(midnight.lossFactor(marketId), type(uint128).max, "total loss");
+        assertEq(adapter.marketIdsLength(), 1, "market still tracked");
+
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
+
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        adapter.withdrawToVault(offer.market, 0);
+
+        (Offer memory forceOffer, bytes32 root_) = makeForceDeallocateOffer(offer.market, 0);
+        bytes memory forceData = abi.encode(forceOffer, abi.encode(root_, 0, proof([forceOffer])));
+        vm.expectRevert(IMidnight.MarketLossFactorMaxedOut.selector);
+        realVault.forceDeallocate(address(adapter), forceData, 0, address(this));
+
+        vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
+        vm.prank(signerAllocator);
+        realVault.deallocate(address(adapter), abi.encode(offer.market, false), 0);
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Deallocate(marketId, 0, 0);
+        vm.prank(signerAllocator);
+        realVault.deallocate(address(adapter), abi.encode(offer.market, true), 0);
+
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "netCredit");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "allocation");
+        assertEq(adapter.realAssets(), 0, "realAssets");
+    }
+
+    /// @dev A buy can be funded by withdrawing from another Midnight adapter of the same vault.
+    function testBuyFundedFromOtherMidnightAdapter() public {
+        IMidnightAdapter otherAdapter =
+            IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32("other")));
+        vm.prank(curator);
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (type(uint32).max)));
+        otherAdapter.increaseMaxTtm(type(uint32).max);
+        addSubRatifier(otherAdapter, address(priceRatifier));
+        disableDurationCaps(otherAdapter);
+
+        // B opens a position.
+        Offer memory offerB = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        offerB.maker = address(otherAdapter);
+        offerB.callback = address(otherAdapter);
+        offerB.ratifier = address(otherAdapter);
+        bytes32 marketIdB = _marketId(offerB.market);
+        midnight.supplyCollateral(offerB.market, 0, offerB.maxUnits, taker);
+        midnight.supplyCollateral(offerB.market, 1, offerB.maxUnits, taker);
+        vm.prank(signerAllocator);
+        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), true, signerAllocator);
+        bytes memory dataB =
+            abi.encode(address(priceRatifier), abi.encode(root(offerB), 0, proof([offerB]), address(0)));
+        vm.prank(taker);
+        midnight.take(offerB, dataB, offerB.maxUnits, taker, taker, address(0), "");
+        assertEq(otherAdapter.marketData(marketIdB).netCredit, 1e18, "B position opened");
+
+        // B's borrower repays so B's position can be withdrawn, and the vault has no idle liquidity.
+        deal(address(loanToken), address(this), 1e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 1e18);
+        midnight.repay(offerB.market, 1e18, taker, address(0), "");
+        deal(address(loanToken), address(parentVault), 0);
+
+        // A buys, funded by withdrawing from B.
+        Offer memory offerA = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offerA.callbackData = abi.encode(address(otherAdapter), abi.encode(offerB.market, true));
+        bytes32 marketIdA = _marketId(offerA.market);
+        midnight.supplyCollateral(offerA.market, 0, offerA.maxUnits, taker);
+        midnight.supplyCollateral(offerA.market, 1, offerA.maxUnits, taker);
+        vm.expectEmit(address(otherAdapter));
+        emit IMidnightAdapterBase.Deallocate(marketIdB, 1e18, 0);
+        take(offerA);
+
+        assertEq(adapter.marketData(marketIdA).netCredit, 1e18, "A position opened");
+        assertEq(otherAdapter.marketData(marketIdB).netCredit, 0, "B position closed");
+        assertEq(otherAdapter.marketIdsLength(), 0, "B market removed");
+        assertEq(loanToken.balanceOf(address(parentVault)), 0, "vault idle liquidity untouched");
+        assertEq(parentVault.allocation(adapter.adapterId()), 1e18, "A allocation");
+        assertEq(parentVault.allocation(otherAdapter.adapterId()), 0, "B allocation");
     }
 
     /* SET CONSUMED */
