@@ -360,7 +360,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            // forge-lint: disable-next-item(reentrancy-no-eth) every value written below is read after the call.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
