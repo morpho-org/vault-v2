@@ -3,19 +3,16 @@
 pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
-import {Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
-/// @dev Markets other than marketId should not use this gate as their enterGate.
+/// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter must register only factories whose adapters follow the admission rules, including after upgrades.
 /// @dev Registered factories must not revoke adapter membership.
 /// @dev Registration is permanent. Revoking subgate approval does not revoke canAdmit.
 /// @dev No factory can admit until roleSetter calls addAdmitterFactory.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
-    bytes32 public immutable marketId;
     /// @dev The underlying subgate.
     address public immutable subGate;
 
@@ -23,10 +20,8 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
 
     address transient admitted;
 
-    constructor(address _subGate, Market memory _marketExceptGate) {
+    constructor(address _subGate) {
         subGate = _subGate;
-        _marketExceptGate.enterGate = address(this);
-        marketId = IdLib.toId(_marketExceptGate);
     }
 
     function roleSetter() public view returns (address) {
@@ -39,9 +34,9 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         emit AddAdmitterFactory(factory);
     }
 
-    /// @dev Transiently allow a vault shareholder to increase credit in the market.
+    /// @dev Transiently allow a vault shareholder to increase credit in any market of this gate.
     /// @dev The contract calling this function should not have debt.
-    /// @dev The caller must use admission only for its own sale in marketId.
+    /// @dev The caller must use admission only for its own sale.
     /// @dev The caller must take a buy offer without a callback.
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev The caller must check that the buyer holds shares in its parent vault.
@@ -56,11 +51,12 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         admitted = address(0);
     }
 
+    /// @dev admitted is address(0) when nobody is admitted, which must not admit address(0).
     function canIncreaseCredit(address account) external view returns (bool) {
-        return account == admitted || IEnterSubGate(subGate).canIncreaseCredit(marketId, account);
+        return (admitted != address(0) && account == admitted) || IEnterSubGate(subGate).canIncreaseCredit(account);
     }
 
     function canIncreaseDebt(address account) external view returns (bool) {
-        return IEnterSubGate(subGate).canIncreaseDebt(marketId, account);
+        return IEnterSubGate(subGate).canIncreaseDebt(account);
     }
 }

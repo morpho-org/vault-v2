@@ -370,7 +370,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate, marketId)
+                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
             if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
@@ -428,8 +428,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (market.enterGate != address(0) && enterGateFactory != address(0)) {
             // Adapters must not buy through another adapter's transient admission.
             require(
-                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
-                    .canIncreaseCredit(marketId, address(this)),
+                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate()).canIncreaseCredit(address(this)),
                 IncorrectEnterGate()
             );
         }
@@ -459,7 +458,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit > 0 && oldNetCredit == 0) {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
-                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate, marketId)
+                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );

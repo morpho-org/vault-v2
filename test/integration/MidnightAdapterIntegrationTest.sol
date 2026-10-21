@@ -364,7 +364,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
         market.enterGate = IVaultV2CompatibleEnterGateFactory(factory.enterGateFactory())
-            .createVaultV2CompatibleEnterGate(address(subGate), market, bytes32(0));
+            .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
@@ -372,10 +372,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         subGate.setIsWhitelister(true, owner, true);
         // Let the owner manage the debt whitelist.
         subGate.setIsWhitelister(false, owner, true);
-        // Let the adapter buy credit in this market.
-        subGate.setIsWhitelisted(marketId, true, address(gatedAdapter), true);
-        // Let the borrower take on debt in this market.
-        subGate.setIsWhitelisted(marketId, false, borrower, true);
+        // Let the adapter buy credit in the markets of this subgate.
+        subGate.setIsWhitelisted(true, address(gatedAdapter), true);
+        // Let the borrower take on debt in the markets of this subgate.
+        subGate.setIsWhitelisted(false, borrower, true);
         IVaultV2CompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
         vm.stopPrank();
 
@@ -424,7 +424,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         // Revoking the adapter must not block a shareholder's exit. The depositor is never whitelisted.
         vm.startPrank(owner);
-        subGate.setIsWhitelisted(marketId, true, address(gatedAdapter), false);
+        subGate.setIsWhitelisted(true, address(gatedAdapter), false);
         midnight.setFeeSetter(owner);
         // Set a 0.5 bp settlement fee at the 7-day breakpoint.
         midnight.setMarketSettlementFee(marketId, 2, 0.00005e18);
