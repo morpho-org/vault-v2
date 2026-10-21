@@ -2,44 +2,25 @@
 // Copyright (c) 2025 Morpho Association
 
 // The parent vault is linked. Midnight, the asset and the vault's other adapters and gates are not in the scene.
-// External calls are summarized so that they do not reenter the adapter.
+// The guardrails are checked before any call that can write the adapter's state, and the rules only use values read before the call, so most external calls are left unresolved.
 methods {
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
     function noSalesWithShortfall() external returns (bool) envfree;
-    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    // The adapter's net credit in Midnight can be any value.
+    // Over-approximation because we don't look at reverts in this file.
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
+    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
     // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
     // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
-    // Midnight's views can return any value.
-    function _.lossFactor(bytes32) external => NONDET;
-    function _.liquidationLocked(bytes32, address) external => NONDET;
-
-    // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
-    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
-
-    // Calls into Midnight, which is not in the scene, resolved so that they don't havoc the vault's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
-    function _.setConsumed(bytes32, uint128, address) external => NONDET;
-
-    // The vault's calls into its adapters, which don't reenter this adapter.
-    function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
-    function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
-
-    // Views called by the vault's accrueInterest on contracts that are not in the scene.
-    function _.realAssets() external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.balanceOf(address) external => NONDET;
-
-    // The asset is assumed to be a standard ERC20 token.
+    // The asset is assumed to be a standard ERC20 token, that does not reenter VaultV2 nor the Midnight adapter.
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
     function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
