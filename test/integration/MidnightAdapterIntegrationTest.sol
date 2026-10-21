@@ -23,12 +23,8 @@ import {IMorphoFlashLoanCallback} from "../../lib/morpho-blue/src/interfaces/IMo
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {
-    IWhitelistEnterSubGate
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGate.sol";
-import {
-    IWhitelistEnterSubGateFactory
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGateFactory.sol";
+import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";

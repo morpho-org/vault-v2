@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IEnterGateFactory} from "../../../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "./IEnterGateFactory.sol";
 import {Market} from "../../../../lib/midnight/src/interfaces/IMidnight.sol";
 
 interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {

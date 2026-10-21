@@ -3,12 +3,10 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {IEnterSubGate} from "../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IEnterSubGate} from "../../src/periphery/gates/interfaces/IEnterSubGate.sol";
 import {IMidnight, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
-import {
-    IWhitelistEnterSubGate
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGate.sol";
+import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
@@ -30,7 +28,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.setEvmVersion("osaka");
         subGate = IWhitelistEnterSubGate(
             deployCode(
-                "WhitelistEnterSubGate.sol:WhitelistEnterSubGate",
+                "WhitelistEnterSubGate.sol:WhitelistEnterSubGate:default",
                 abi.encode(creditRoleSetter, debtRoleSetter, false, false)
             )
         );
@@ -40,7 +38,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         subGate.setIsWhitelister(false, address(this), true);
         market.midnight = midnight;
         adapterFactory = new MidnightAdapterFactoryMock();
-        adapterFactory.setIsMidnightAdapter(adapter, true);
+        adapterFactory.setIsCreated(adapter, true);
         wrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(address(adapterFactory));
@@ -85,7 +83,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmitRequiresAllowedFactory() public {
         MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
-        otherFactory.setIsMidnightAdapter(adapter, true);
+        otherFactory.setIsCreated(adapter, true);
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         wrapper.admit(depositor, address(otherFactory));
@@ -279,7 +277,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testSharedSubGateOpenSides(bool creditOpen, bool debtOpen) public {
         address openSubGate = deployCode(
-            "WhitelistEnterSubGate.sol:WhitelistEnterSubGate",
+            "WhitelistEnterSubGate.sol:WhitelistEnterSubGate:default",
             abi.encode(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen)
         );
         VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, market);

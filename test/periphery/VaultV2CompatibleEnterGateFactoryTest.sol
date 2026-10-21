@@ -11,7 +11,7 @@ import {VaultV2CompatibleEnterGateFactory} from "../../src/periphery/gates/Vault
 import {
     IVaultV2CompatibleEnterGateFactory
 } from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
-import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "../../src/periphery/gates/interfaces/IEnterGateFactory.sol";
 
 contract VaultV2CompatibleEnterGateFactoryTest is Test {
     VaultV2CompatibleEnterGateFactory internal factory;
@@ -40,7 +40,7 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         Market memory expectedMarket = market;
         expectedMarket.enterGate = created;
         assertEq(logs[0].data, abi.encode(IdLib.toId(expectedMarket)));
-        assertTrue(IEnterGateFactory(address(factory)).isGate(created, IdLib.toId(expectedMarket)));
+        assertTrue(IEnterGateFactory(address(factory)).isCreated(created, IdLib.toId(expectedMarket)));
         assertEq(VaultV2CompatibleEnterGate(created).midnight(), midnight);
         assertEq(VaultV2CompatibleEnterGate(created).marketId(), IdLib.toId(expectedMarket));
         assertEq(VaultV2CompatibleEnterGate(created).subGate(), forwardedGate);
@@ -55,22 +55,22 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(0)), first);
         assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(uint256(1))), second);
         assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(uint256(2))), address(0));
-        assertFalse(factory.isGate(first, VaultV2CompatibleEnterGate(second).marketId()));
-        assertFalse(factory.isGate(second, VaultV2CompatibleEnterGate(first).marketId()));
-        assertTrue(factory.isGate(first, VaultV2CompatibleEnterGate(first).marketId()));
-        assertTrue(factory.isGate(second, VaultV2CompatibleEnterGate(second).marketId()));
+        assertFalse(factory.isCreated(first, VaultV2CompatibleEnterGate(second).marketId()));
+        assertFalse(factory.isCreated(second, VaultV2CompatibleEnterGate(first).marketId()));
+        assertTrue(factory.isCreated(first, VaultV2CompatibleEnterGate(first).marketId()));
+        assertTrue(factory.isCreated(second, VaultV2CompatibleEnterGate(second).marketId()));
     }
 
-    function testIsGateRejectsUnregisteredGates() public {
+    function testIsCreatedRejectsUnregisteredGates() public {
         address direct = address(new VaultV2CompatibleEnterGate(gate, market));
         VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
         address other = otherFactory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
 
-        assertFalse(factory.isGate(address(0), IdLib.toId(market)));
-        assertFalse(factory.isGate(gate, IdLib.toId(market)));
-        assertFalse(factory.isGate(direct, VaultV2CompatibleEnterGate(direct).marketId()));
-        assertFalse(factory.isGate(other, VaultV2CompatibleEnterGate(other).marketId()));
-        assertTrue(otherFactory.isGate(other, VaultV2CompatibleEnterGate(other).marketId()));
+        assertFalse(factory.isCreated(address(0), IdLib.toId(market)));
+        assertFalse(factory.isCreated(gate, IdLib.toId(market)));
+        assertFalse(factory.isCreated(direct, VaultV2CompatibleEnterGate(direct).marketId()));
+        assertFalse(factory.isCreated(other, VaultV2CompatibleEnterGate(other).marketId()));
+        assertTrue(otherFactory.isCreated(other, VaultV2CompatibleEnterGate(other).marketId()));
     }
 
     function testMultipleMarkets() public {
@@ -78,8 +78,8 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         market.maturity++;
         address second = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(0));
 
-        assertTrue(factory.isGate(first, VaultV2CompatibleEnterGate(first).marketId()));
-        assertTrue(factory.isGate(second, VaultV2CompatibleEnterGate(second).marketId()));
+        assertTrue(factory.isCreated(first, VaultV2CompatibleEnterGate(first).marketId()));
+        assertTrue(factory.isCreated(second, VaultV2CompatibleEnterGate(second).marketId()));
         assertNotEq(VaultV2CompatibleEnterGate(first).marketId(), VaultV2CompatibleEnterGate(second).marketId());
     }
 

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.37;
 
-import {IEnterSubGate} from "../../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
 import {IMidnight, Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
@@ -48,7 +48,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev The caller must check that the buyer holds shares in its parent vault.
     function admit(address user, address factory) external {
-        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isMidnightAdapter(msg.sender), Unauthorized());
+        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;
         admitter = msg.sender;

@@ -22,7 +22,7 @@ interface IMidnightAdapterFactory {
         external
         view
         returns (address);
-    function isMidnightAdapter(address account) external view returns (bool);
+    function isCreated(address account) external view returns (bool);
     function createMidnightAdapter(address parentVault, uint256[] memory durations, bool useGateFactory, bytes32 salt)
         external
         returns (address);

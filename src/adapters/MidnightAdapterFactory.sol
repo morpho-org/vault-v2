@@ -18,7 +18,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         address parentVault
             => mapping(bytes32 durationsHash => mapping(bool useGateFactory => mapping(bytes32 salt => address)))
     ) public midnightAdapter;
-    mapping(address account => bool) public isMidnightAdapter;
+    mapping(address account => bool) public isCreated;
 
     /* CONSTRUCTOR */
 
@@ -44,7 +44,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
             )
         );
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][useGateFactory][salt] = _midnightAdapter;
-        isMidnightAdapter[_midnightAdapter] = true;
+        isCreated[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, useGateFactory);
         return _midnightAdapter;
     }

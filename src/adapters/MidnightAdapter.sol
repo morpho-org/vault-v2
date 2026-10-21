@@ -3,7 +3,7 @@
 pragma solidity 0.8.37;
 
 import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IEnterSubGate} from "../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IEnterSubGate} from "../periphery/gates/interfaces/IEnterSubGate.sol";
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
@@ -15,7 +15,7 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
-import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -53,7 +53,7 @@ import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFac
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev Deployers must ensure the adapter's factory always returns true to `isMidnightAdapter(adapter)` or it will not correctly work when `useGateFactory` is true.
+/// @dev Deployers must ensure the adapter's factory always returns true to `isCreated(adapter)` or it will not correctly work when `useGateFactory` is true.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -370,7 +370,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IEnterGateFactory(enterGateFactory).isGate(offer.market.enterGate, marketId)
+                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate, marketId)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
             if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
@@ -459,7 +459,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit > 0 && oldNetCredit == 0) {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
-                    IEnterGateFactory(enterGateFactory).isGate(market.enterGate, marketId)
+                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate, marketId)
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );

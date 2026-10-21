@@ -8,7 +8,7 @@ import {VaultV2CompatibleEnterGate} from "./VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGateFactory} from "./interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 
 contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory {
-    mapping(address account => mapping(bytes32 marketId => bool)) public isGate;
+    mapping(address account => mapping(bytes32 marketId => bool)) public isCreated;
     /// @dev marketIdWithoutGate is the id of the market with enterGate set to zero.
     mapping(address subGate => mapping(bytes32 marketIdWithoutGate => mapping(bytes32 salt => address))) public
         vaultV2CompatibleEnterGate;
@@ -21,7 +21,7 @@ contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory
         address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market));
         vaultV2CompatibleEnterGate[subGate][IdLib.toId(market)][salt] = gate;
         bytes32 marketId = VaultV2CompatibleEnterGate(gate).marketId();
-        isGate[gate][marketId] = true;
+        isCreated[gate][marketId] = true;
         emit CreateVaultV2CompatibleEnterGate(gate, subGate, marketId);
         return gate;
     }
