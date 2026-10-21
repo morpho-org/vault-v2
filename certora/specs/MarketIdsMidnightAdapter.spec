@@ -4,8 +4,8 @@
 // Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
 // Assumes that external calls do not reenter the adapter: properties are checked on the body of each function, and Midnight's callbacks (onBuy, onSell) and the vault's calls into the adapter are checked as entry points of their own.
 methods {
-    function MAX_MARKETS() external returns (uint256) envfree;
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
+    function MAX_MARKETS() external returns (uint256) envfree;
 
     // durationAllocations loops over marketIds and, with optimistic_loop, paths with more than loop_iter iterations are pruned, so without this summary onBuy would only be checked on short market lists, while the invariants depend on the list's length.
     // Without the ids summary, the prover doesn't resolve Midnight's calls in the functions that call ids, so the summaries below don't apply to them.
