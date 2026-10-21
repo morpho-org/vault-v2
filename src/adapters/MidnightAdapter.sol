@@ -21,7 +21,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault through withdrawToVault and to sell (except through forceDeallocate).
+/// @dev The vault's allocators and sentinels can also withdraw to the vault directly through vault.deallocate with data abi.encode(market).
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
@@ -345,7 +346,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by this adapter from a sell callback or a withdraw.
+    /// @dev Called by this adapter from a sell callback or a withdraw, with data abi.encode(ids, change).
+    /// @dev Called by the vault's allocators and sentinels, or by another adapter funding a buy, with data abi.encode(market): withdraws `assets` from market, like withdrawToVault but without requiring a role on the adapter.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
@@ -372,8 +374,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+        } else if (caller != address(this)) {
+            Market memory market = abi.decode(data, (Market));
+            bytes32 marketId = IdLib.toId(market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+            IMidnight(midnight).withdraw(market, assets, address(this), address(this));
+
+            uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
+            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            emit WithdrawToVault(marketId, assets, newNetCredit);
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
-            require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
         }
     }
