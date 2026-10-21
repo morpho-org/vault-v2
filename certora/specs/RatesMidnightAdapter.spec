@@ -52,7 +52,7 @@ rule buyRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market marke
     assert !forceSellable;
     assert ttm > 0 && ttm <= maxTtmSeconds;
 
-    // In real numbers: (boughtNetCredit - paidAssets) / paidAssets >= minNetBuyRatePerSecond / WAD * ttm, written without division.
+    // In real numbers: (boughtNetCredit - paidAssets) / paidAssets >= minNetBuyRatePerSecond * ttm / WAD, written without division.
     assert (boughtNetCredit - paidAssets) * WAD() >= minNetBuyRatePerSecond * ttm * paidAssets;
 }
 
@@ -70,13 +70,7 @@ rule sellRespectsGuardrails(env e, bytes32 marketId, MidnightAdapter.Market mark
 
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
-
-    // In real numbers: sellerAssets / soldNetCredit >= minForceSellPrice / WAD.
     assert forceSellable => sellerAssets * WAD() >= soldNetCredit * minForceSellPrice;
-
-    // In real numbers: soldNetCredit / sellerAssets - 1 <= maxNetSellRatePerSecond / WAD * ttm, written without division.
     assert !forceSellable => sellerAssets * (WAD() + maxNetSellRatePerSecond * ttm) >= soldNetCredit * WAD();
-
-    // In real numbers: sellerAssets >= soldNetCredit / (1 + netRatePerSecondBefore / WAD * ttm), the value of the sold credit at the market's net rate.
     assert !forceSellable && salesWithShortfallDisabled => sellerAssets * (WAD() + netRatePerSecondBefore * ttm) >= soldNetCredit * WAD();
 }
