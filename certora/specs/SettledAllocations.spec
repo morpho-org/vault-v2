@@ -7,15 +7,6 @@ methods {
     function _.allocate(bytes, uint256, bytes4, address) external => adapterUpdateSummary() expect(bytes32[], int256);
     function _.deallocate(bytes, uint256, bytes4, address) external => adapterUpdateSummary() expect(bytes32[], int256);
     function _.realAssets() external => NONDET;
-
-    function _.balanceOf(address) external => NONDET;
-    function _.transfer(address, uint256) external => NONDET;
-    function _.transferFrom(address, address, uint256) external => NONDET;
-    function _.isInRegistry(address) external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.canSendShares(address) external => NONDET;
-    function _.canReceiveAssets(address) external => NONDET;
-    function _.canSendAssets(address) external => NONDET;
 }
 
 // Ids returned by the last adapter allocate or deallocate.
