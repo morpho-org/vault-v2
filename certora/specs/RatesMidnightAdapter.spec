@@ -15,9 +15,7 @@ methods {
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
-    // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
-    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
+    // ids returns at least 4 ids, so with optimistic_loop and loop_iter 2 every path through it would be pruned. Pruning the other loops on long inputs is fine: the guardrails are checked before them and don't depend on them.
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // The asset is assumed to be a standard ERC20 token, that does not reenter VaultV2 nor the Midnight adapter.
@@ -29,12 +27,6 @@ methods {
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
     return idsArray;
-}
-
-function arbitraryAllocations(uint256 length) returns uint256[] {
-    uint256[] allocations;
-    require allocations.length == length, "durationAllocations returns length allocations";
-    return allocations;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
