@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
-// Assumes that external calls do not reenter the adapter: properties are checked on the body of each function, and Midnight's callbacks (onBuy, onSell) and the vault's calls into the adapter are checked as entry points of their own.
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
     function MAX_MARKETS() external returns (uint256) envfree;
@@ -18,15 +16,6 @@ methods {
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
-
-    // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
-    function _.setConsumed(bytes32, uint128, address) external => NONDET;
-
-    // The vault's calls into its adapters. Its calls back into this adapter (e.g. allocate from onBuy) are dropped by this model: they are checked as entry points of their own.
-    function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
-    function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
 
     // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
     function _.realAssets() external => NONDET;
