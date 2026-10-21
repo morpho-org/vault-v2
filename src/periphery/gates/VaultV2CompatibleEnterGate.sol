@@ -2,22 +2,19 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.37;
 
-import {IEnterGate} from "../../../lib/midnight/src/interfaces/IGate.sol";
-import {IEnterSubGate} from "../../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
 import {Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
+import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
 /// @dev Markets other than marketId should not use this gate as their enterGate.
 /// @dev roleSetter must register only factories whose adapters follow the admission rules, including after upgrades.
 /// @dev Registered factories must not revoke adapter membership.
 /// @dev Registration is permanent. Revoking subgate approval does not revoke canAdmit.
-contract VaultV2CompatibleEnterGate is IEnterGate {
-    error Unauthorized();
-
-    event AddAdmitterFactory(address indexed factory);
-
+/// @dev No factory can admit until roleSetter calls addAdmitterFactory.
+contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     bytes32 public immutable marketId;
     /// @dev The underlying subgate.
     address public immutable subGate;
@@ -26,12 +23,10 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
 
     address transient admitted;
 
-    constructor(address _subGate, Market memory _marketExceptGate, address _adapterFactory) {
+    constructor(address _subGate, Market memory _marketExceptGate) {
         subGate = _subGate;
         _marketExceptGate.enterGate = address(this);
         marketId = IdLib.toId(_marketExceptGate);
-        canAdmit[_adapterFactory] = true;
-        emit AddAdmitterFactory(_adapterFactory);
     }
 
     function roleSetter() public view returns (address) {
@@ -51,7 +46,7 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev The caller must check that the buyer holds shares in its parent vault.
     function admit(address user, address factory) external {
-        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isMidnightAdapter(msg.sender), Unauthorized());
+        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;
     }

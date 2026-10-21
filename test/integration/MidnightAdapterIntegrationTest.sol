@@ -23,12 +23,8 @@ import {IMorphoFlashLoanCallback} from "../../lib/morpho-blue/src/interfaces/IMo
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {
-    IWhitelistEnterSubGate
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGate.sol";
-import {
-    IWhitelistEnterSubGateFactory
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGateFactory.sol";
+import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
@@ -131,7 +127,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true, allocator);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData =
             abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
@@ -261,7 +257,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true, allocator);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData =
             abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
@@ -352,15 +348,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        // Deploy the gate factory next; the adapter factory stores its predicted address.
-        address enterGateFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode(
                 "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
             )
-        );
-        deployCode(
-            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(factory))
         );
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;

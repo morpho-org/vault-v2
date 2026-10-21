@@ -3,7 +3,7 @@
 pragma solidity 0.8.37;
 
 import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IEnterSubGate} from "../../lib/midnight/src/interfaces/IEnterSubGate.sol";
+import {IEnterSubGate} from "../periphery/gates/interfaces/IEnterSubGate.sol";
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
@@ -15,7 +15,7 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
-import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -29,7 +29,7 @@ import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFac
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData (takes of sell offers must set takerCallbackData) to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), market) to withdraw from a Midnight market on the adapter.
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
@@ -53,7 +53,7 @@ import {IEnterGateFactory} from "../../lib/midnight/src/interfaces/IEnterGateFac
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev Deployers must ensure the adapter's factory always returns true to `isMidnightAdapter(adapter)` or it will not correctly work when `useGateFactory` is true.
+/// @dev Deployers must ensure the adapter's factory always returns true to `isCreated(adapter)` or it will not correctly work when `useGateFactory` is true.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -81,11 +81,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
-    /* TRANSIENT STORAGE */
-
-    bytes32 transient overriddenMarketId;
-    uint256 transient overriddenMarketNetCredit;
-
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -107,6 +102,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
+    /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
 
     /* CONSTRUCTOR */
@@ -206,7 +202,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit Abdicate(selector);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED CURATOR SETTINGS */
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
@@ -221,12 +217,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxTtm <= maxTtm < 2**32.
-        maxTtm = uint32(newMaxTtm);
+        maxTtm = newMaxTtm.toUint32();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the caps of the market to zero (e.g. the caps of the id of a broken collateral) to avoid allocators buying in the market just before it becomes force sellable.
+    /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
@@ -247,6 +242,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
+
+    /* NON-TIMELOCKED CURATOR SETTINGS */
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -274,24 +271,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
-        external
-    {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        IMidnight(midnight)
-            .take(
-                offer,
-                ratifierData,
-                units,
-                address(this),
-                offer.buy ? address(this) : address(0),
-                address(this),
-                takerCallbackData
-            );
-    }
-
     /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
@@ -313,6 +292,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* OPERATIONS */
+
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
+        external
+    {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        IMidnight(midnight)
+            .take(
+                offer,
+                ratifierData,
+                units,
+                address(this),
+                offer.buy ? address(this) : address(0),
+                address(this),
+                takerCallbackData
+            );
+    }
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
@@ -372,15 +369,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(offer.buy && offer.market.loanToken == asset && offer.callback == address(0), IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IMidnight(midnight).credit(marketId, address(this)) > 0
+            bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
+                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate, marketId)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) take does not call callbacks.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -443,12 +440,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
         uint128 newNetCredit = currentNetCredit(marketId);
-        (overriddenMarketId, overriddenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
+        // Temporarily store net credit as it was before the buy so accrual is correct.
+        _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
+        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
-        (overriddenMarketId, overriddenMarketNetCredit) = (0, 0);
 
-        MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -456,13 +455,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
-                    IEnterGateFactory(enterGateFactory).isGate(market.enterGate, marketId)
+                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate, marketId)
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );
@@ -582,15 +579,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
-        bool forceSellable = _marketData.forceSellable;
-        uint128 minForceSellPrice = _marketData.minForceSellPrice;
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         marketData[lastMarketId].index = _marketData.index;
         marketIds.pop();
-        delete marketData[marketId];
-        marketData[marketId].forceSellable = forceSellable;
-        marketData[marketId].minForceSellPrice = minForceSellPrice;
+        _marketData.lossFactor = 0;
+        _marketData.netRate = 0;
+        _marketData.maturity = 0;
+        _marketData.index = 0;
     }
 
     /* VIEWS */
@@ -650,9 +646,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overriddenMarketId) {
-                netCredit = overriddenMarketNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());

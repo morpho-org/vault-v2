@@ -3,32 +3,26 @@
 pragma solidity 0.8.37;
 
 import {Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {VaultV2CompatibleEnterGate} from "./VaultV2CompatibleEnterGate.sol";
-import {IEnterGateFactory} from "../../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IVaultV2CompatibleEnterGateFactory} from "./interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 
-contract VaultV2CompatibleEnterGateFactory is IEnterGateFactory {
-    event CreateVaultV2CompatibleEnterGate(
-        address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 marketId
-    );
-
-    address public immutable initialAdapterFactory;
-
-    mapping(address account => mapping(bytes32 marketId => bool)) public isGate;
-
-    constructor(address _initialAdapterFactory) {
-        initialAdapterFactory = _initialAdapterFactory;
-    }
+contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory {
+    mapping(address account => mapping(bytes32 marketId => bool)) public isCreated;
+    /// @dev marketIdWithoutGate is the id of the market with enterGate set to zero.
+    mapping(address subGate => mapping(bytes32 marketIdWithoutGate => mapping(bytes32 salt => address))) public
+        vaultV2CompatibleEnterGate;
 
     function createVaultV2CompatibleEnterGate(address subGate, Market memory market, bytes32 salt)
         external
         returns (address)
     {
-        require(market.enterGate == address(0));
-        address vaultV2CompatibleEnterGate =
-            address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market, initialAdapterFactory));
-        bytes32 marketId = VaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate).marketId();
-        isGate[vaultV2CompatibleEnterGate][marketId] = true;
-        emit CreateVaultV2CompatibleEnterGate(vaultV2CompatibleEnterGate, subGate, marketId);
-        return vaultV2CompatibleEnterGate;
+        require(market.enterGate == address(0), NonZeroEnterGate());
+        address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, market));
+        vaultV2CompatibleEnterGate[subGate][IdLib.toId(market)][salt] = gate;
+        bytes32 marketId = VaultV2CompatibleEnterGate(gate).marketId();
+        isCreated[gate][marketId] = true;
+        emit CreateVaultV2CompatibleEnterGate(gate, subGate, marketId);
+        return gate;
     }
 }

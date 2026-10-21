@@ -7,7 +7,3 @@ pragma solidity 0.8.34;
 import {Midnight} from "../../lib/midnight/src/Midnight.sol";
 // forge-lint: disable-next-item(unused-import)
 import {SetterRatifier} from "../../lib/midnight/src/ratifiers/SetterRatifier.sol";
-// forge-lint: disable-next-item(unused-import)
-import {
-    WhitelistEnterSubGateFactory
-} from "../../lib/midnight/src/periphery/whitelist-enter-subgate/WhitelistEnterSubGateFactory.sol";

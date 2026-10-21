@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IEnterGateFactory} from "../../../../lib/midnight/src/interfaces/IEnterGateFactory.sol";
+import {IEnterGateFactory} from "./IEnterGateFactory.sol";
 import {Market} from "../../../../lib/midnight/src/interfaces/IMidnight.sol";
 
 interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
@@ -12,9 +12,17 @@ interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
         address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 marketId
     );
 
+    /* ERRORS */
+
+    error NonZeroEnterGate();
+
     /* FUNCTIONS */
 
-    function initialAdapterFactory() external view returns (address);
+    function vaultV2CompatibleEnterGate(address subGate, bytes32 marketIdWithoutGate, bytes32 salt)
+        external
+        view
+        returns (address);
+
     function createVaultV2CompatibleEnterGate(address subGate, Market memory market, bytes32 salt)
         external
         returns (address);
