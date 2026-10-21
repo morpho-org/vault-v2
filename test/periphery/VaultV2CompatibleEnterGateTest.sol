@@ -47,7 +47,6 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testConstructor() public view {
-        assertEq(wrapper.midnight(), midnight);
         Market memory expectedMarket = market;
         expectedMarket.enterGate = address(wrapper);
         assertEq(wrapper.marketId(), IdLib.toId(expectedMarket));
@@ -106,16 +105,14 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertTrue(wrapper.canIncreaseCredit(recipient));
     }
 
-    function testAdmissionDisabledDuringAdmitterLiquidationLock() public {
+    function testAdmissionIgnoresAdmitterLiquidationLock() public {
         vm.prank(adapter);
         wrapper.admit(depositor, address(adapterFactory));
         assertTrue(wrapper.canIncreaseCredit(depositor));
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.liquidationLocked, (wrapper.marketId(), adapter)), abi.encode(true)
         );
-        assertFalse(wrapper.canIncreaseCredit(depositor));
-        subGate.setIsWhitelisted(wrapper.marketId(), true, depositor, true);
-        assertTrue(wrapper.canIncreaseCredit(depositor), "ordinary approval still applies");
+        assertTrue(wrapper.canIncreaseCredit(depositor));
     }
 
     function testAdmissionIgnoresOtherMarketLock(bytes32 otherMarketId) public {

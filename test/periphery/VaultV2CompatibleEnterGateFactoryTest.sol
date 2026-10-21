@@ -40,7 +40,6 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         expectedMarket.enterGate = created;
         assertEq(logs[1].data, abi.encode(IdLib.toId(expectedMarket)));
         assertTrue(IEnterGateFactory(address(factory)).isGate(created, IdLib.toId(expectedMarket)));
-        assertEq(VaultV2CompatibleEnterGate(created).midnight(), midnight);
         assertEq(VaultV2CompatibleEnterGate(created).marketId(), IdLib.toId(expectedMarket));
         assertEq(VaultV2CompatibleEnterGate(created).subGate(), forwardedGate);
         assertEq(factory.initialAdapterFactory(), adapterFactory);

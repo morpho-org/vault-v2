@@ -359,7 +359,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer without a callback, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -369,7 +369,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
+            require(offer.buy && offer.market.loanToken == asset && offer.callback == address(0), IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             bool admitted = enterGateFactory != address(0) && offer.market.enterGate != address(0)
@@ -378,7 +378,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            // forge-lint: disable-next-item(reentrancy-no-eth) take does not call callbacks.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             if (admitted) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);

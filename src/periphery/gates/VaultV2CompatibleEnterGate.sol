@@ -4,7 +4,7 @@ pragma solidity 0.8.37;
 
 import {IEnterGate} from "../../../lib/midnight/src/interfaces/IGate.sol";
 import {IEnterSubGate} from "../../../lib/midnight/src/interfaces/IEnterSubGate.sol";
-import {IMidnight, Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 
@@ -18,7 +18,6 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
 
     event AddAdmitterFactory(address indexed factory);
 
-    address public immutable midnight;
     bytes32 public immutable marketId;
     /// @dev The underlying subgate.
     address public immutable subGate;
@@ -26,10 +25,8 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
     mapping(address factory => bool) public canAdmit;
 
     address transient admitted;
-    address transient admitter;
 
     constructor(address _subGate, Market memory _marketExceptGate, address _adapterFactory) {
-        midnight = _marketExceptGate.midnight;
         subGate = _subGate;
         _marketExceptGate.enterGate = address(this);
         marketId = IdLib.toId(_marketExceptGate);
@@ -50,25 +47,22 @@ contract VaultV2CompatibleEnterGate is IEnterGate {
     /// @dev Transiently allow a vault shareholder to increase credit in the market.
     /// @dev The contract calling this function should not have debt.
     /// @dev The caller must use admission only for its own sale in marketId.
+    /// @dev The caller must take a buy offer without a callback.
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev The caller must check that the buyer holds shares in its parent vault.
     function admit(address user, address factory) external {
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isMidnightAdapter(msg.sender), Unauthorized());
 
         admitted = user;
-        admitter = msg.sender;
     }
 
     /// @dev Clear the admission, should be called after taking the buyer's offer.
     function unadmit() external {
         admitted = address(0);
-        admitter = address(0);
     }
 
-    /// @dev To prevent admitted users from buying more in their onBuy callback, admissions are disabled in the liquidation lock of the admitter.
     function canIncreaseCredit(address account) external view returns (bool) {
-        return (account == admitted && !IMidnight(midnight).liquidationLocked(marketId, admitter))
-            || IEnterSubGate(subGate).canIncreaseCredit(marketId, account);
+        return account == admitted || IEnterSubGate(subGate).canIncreaseCredit(marketId, account);
     }
 
     function canIncreaseDebt(address account) external view returns (bool) {
