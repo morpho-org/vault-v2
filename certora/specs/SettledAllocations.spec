@@ -62,7 +62,7 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
 }
 
 // Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage.
-// The calls to the adapters' allocate (0x1eadd778) and deallocate (0x4e45f1ff) are skipped, because they are checked in adapterUpdateSummary, and after them the vault has not written the returned ids yet.
+// Because call hooks run after the call, the calls to the adapters' allocate (0x1eadd778) and deallocate (0x4e45f1ff) are skipped, and the check is done in the summary instead.
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (selector != 0x1eadd778 && selector != 0x4e45f1ff) {
         checkSettledAllocations();
