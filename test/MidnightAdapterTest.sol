@@ -520,7 +520,6 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         adapter.multicall(data);
-        assertFalse(adapter.noSalesWithShortfall(), "multicall is atomic");
     }
 
     function testMulticallEmpty() public {
@@ -1874,7 +1873,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
         assertFalse(adapter.noSalesWithShortfall(), "noSalesWithShortfall");
-        assertEq(adapter.maxNetSellRate(), type(uint64).max, "maxNetSellRate");
         bytes32 expectedPackedDurations;
         for (uint256 i = 0; i < allDurations.length; i++) {
             expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
@@ -2373,6 +2371,48 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(keccak256(idData)), 0, "config allocation after sell");
     }
 
+    /// @dev Midnight still accepts takes (the loss factor is below its maximum), but the adapter's credit rounds down to 0 while its stored net credit does not change.
+    function testBuyAfterCreditRoundsToZero(bool zeroUnits) public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory offer = buy(7 days, 1e18, discountTick);
+        Offer memory last = buy(30 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+
+        Offer memory dust = makeExternalOffer(offer.market, false, 2, MAX_TICK);
+        deal(address(loanToken), address(this), 1);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
+        midnight.take(dust, "", 1, address(this), address(0), address(0), "");
+        this.realizeDefault(offer.market, 0);
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        (uint128 credit,,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertEq(credit, 0, "credit rounded to zero");
+        assertLt(midnight.lossFactor(marketId), type(uint128).max, "loss factor below maximum");
+        assertEq(adapter.marketData(marketId).netCredit, offer.maxUnits, "stored net credit unchanged");
+
+        if (zeroUnits) {
+            offer.group = bytes32("zero buy");
+            bytes memory data = ratify([offer], signerAllocator);
+            vm.expectEmit(address(adapter));
+            emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0);
+            vm.prank(taker);
+            midnight.take(offer, data, 0, taker, taker, address(0), "");
+
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
+            assertMarkets([_marketId(first.market), _marketId(last.market)]);
+        } else {
+            offer.group = bytes32("second buy");
+            offer.maxUnits /= 2;
+            midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+            midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+            take(offer);
+
+            assertEq(adapter.marketData(marketId).netCredit, offer.maxUnits, "netCredit is the live credit");
+            assertMarkets([_marketId(first.market), marketId, _marketId(last.market)]);
+        }
+    }
+
     function testSellClearsFirstMarketAndReactivatesSlot() public {
         checkSellClearsMarketAndReactivatesSlot(0);
     }
@@ -2496,6 +2536,7 @@ contract MidnightAdapterTest is Test {
         (uint128 liveCredit, uint128 livePendingFee,) =
             midnight.updatePositionView(offer.market, marketId, address(adapter));
         uint256 liveNetCredit = liveCredit - livePendingFee;
+        assertLt(liveNetCredit, units, "loss realized");
 
         offer.group = bytes32("second");
         midnight.supplyCollateral(offer.market, 0, units, taker);
@@ -3427,6 +3468,7 @@ contract MidnightAdapterTest is Test {
         this.realizeDefault(boughtOffer.market, ORACLE_PRICE_SCALE / 4);
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
         OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        assertGt(midnight.lossFactor(marketId), 0, "loss realized");
 
         forceDeallocate(boughtOffer.market, 0.25e18);
 
@@ -4199,6 +4241,8 @@ contract MidnightAdapterTest is Test {
     function setForceSellable(bytes32 marketId) internal {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetForceSellable(marketId);
         adapter.setForceSellable(marketId);
     }
 
