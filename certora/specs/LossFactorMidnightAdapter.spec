@@ -9,8 +9,8 @@ methods {
     // The adapter's net credit in Midnight can be any value.
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
 
-    // Summarized because, with optimistic_loop, loops longer than loop_iter are pruned: durationAllocations loops over marketIds, so it would only allow short market lists, and ids returns at least 4 ids.
-    // Remaining loops are over durations and over ids in the vault. They don't write the adapter's state, so paths with more iterations than loop_iter have counterparts with fewer iterations and the same market list.
+    // durationAllocations loops over marketIds and, with optimistic_loop, paths with more than loop_iter iterations are pruned, so without this summary onBuy would only be checked on short market lists. ids returns at least 4 ids, so every path through it would be pruned.
+    // The other loops are pruned too: realAssets loops over marketIds but writes nothing, and the remaining loops (over durations, and over ids in the vault) don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same stored loss factors.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
