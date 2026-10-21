@@ -30,6 +30,7 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         vm.prank(caller);
         address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, market, bytes32(0));
 
+        assertEq(factory.vaultV2CompatibleEnterGate(forwardedGate, IdLib.toId(market), bytes32(0)), created);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, address(factory));
@@ -51,6 +52,9 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         address second = factory.createVaultV2CompatibleEnterGate(gate, market, bytes32(uint256(1)));
 
         assertNotEq(first, second);
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(0)), first);
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(uint256(1))), second);
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, IdLib.toId(market), bytes32(uint256(2))), address(0));
         assertFalse(factory.isGate(first, VaultV2CompatibleEnterGate(second).marketId()));
         assertFalse(factory.isGate(second, VaultV2CompatibleEnterGate(first).marketId()));
         assertTrue(factory.isGate(first, VaultV2CompatibleEnterGate(first).marketId()));
