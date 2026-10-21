@@ -333,7 +333,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev From the adapter itself, data is abi.encode(market, withdraw): if withdraw, withdraws `assets` from market; otherwise (sell callback), `assets` are already held.
+    /// @dev From the adapter itself, data is abi.encode(market, shouldWithdraw): if shouldWithdraw, withdraws `assets` from market; otherwise (sell callback), `assets` are already held.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
@@ -356,10 +356,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            bool withdraw;
-            (market, withdraw) = abi.decode(data, (Market, bool));
+            bool shouldWithdraw;
+            (market, shouldWithdraw) = abi.decode(data, (Market, bool));
             marketId = IdLib.toId(market);
-            if (withdraw) {
+            if (shouldWithdraw) {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
                 // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
                 IMidnight(midnight).withdraw(market, assets, address(this), address(this));
