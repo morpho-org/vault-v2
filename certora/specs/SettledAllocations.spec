@@ -41,6 +41,7 @@ function checkSettledAllocations() {
 }
 
 // The call to the adapter is checked here, before the returned ids are recorded.
+// This summary can run several times in one entry point (forceDeallocate, then the liquidity adapter's deallocate in withdraw). Resetting the ghosts is safe, because checkSettledAllocations runs first and callWithPendingWrites and unexpectedAllocationWrite are never reset.
 function adapterUpdateSummary() returns (bytes32[], int256) {
     checkSettledAllocations();
     bytes32[] ids;
@@ -52,7 +53,7 @@ function adapterUpdateSummary() returns (bytes32[], int256) {
     return (ids, change);
 }
 
-// Call hooks run after the call. This is the same as checking before it, because all calls are summarized and none writes the vault's storage.
+// Call hooks run after the call. This is the same as checking before it, because no call runs the vault's code, so no call changes the ghosts.
 // Because call hooks run after the call, the calls to the adapters' allocate (0x1eadd778) and deallocate (0x4e45f1ff) are skipped, and the check is done in the summary instead.
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (selector != 0x1eadd778 && selector != 0x4e45f1ff) {
