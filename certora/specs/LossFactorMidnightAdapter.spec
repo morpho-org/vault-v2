@@ -27,7 +27,7 @@ methods {
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => NONDET;
     function _.setConsumed(bytes32, uint128, address) external => NONDET;
 
-    // The vault's calls into its adapters, which don't reenter this adapter.
+    // The vault's calls into its adapters. Its calls back into this adapter (e.g. allocate from onBuy) are dropped by this model: they are checked as entry points of their own.
     function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
     function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
 
