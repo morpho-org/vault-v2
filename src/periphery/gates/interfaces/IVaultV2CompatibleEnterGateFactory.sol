@@ -18,7 +18,6 @@ interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
 
     /* FUNCTIONS */
 
-    function initialAdapterFactory() external view returns (address);
     function createVaultV2CompatibleEnterGate(address subGate, Market memory market, bytes32 salt)
         external
         returns (address);

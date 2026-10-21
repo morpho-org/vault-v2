@@ -352,15 +352,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        // Deploy the gate factory next; the adapter factory stores its predicted address.
-        address enterGateFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode(
                 "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
             )
-        );
-        deployCode(
-            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(factory))
         );
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;

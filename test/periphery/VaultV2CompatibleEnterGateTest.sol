@@ -10,6 +10,7 @@ import {
     IWhitelistEnterSubGate
 } from "../../lib/midnight/src/periphery/whitelist-enter-subgate/interfaces/IWhitelistEnterSubGate.sol";
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
+import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
 
 /// forge-config: default.isolate = false
@@ -40,7 +41,9 @@ contract VaultV2CompatibleEnterGateTest is Test {
         market.midnight = midnight;
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsMidnightAdapter(adapter, true);
-        wrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(adapterFactory));
+        wrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
+        vm.prank(creditRoleSetter);
+        wrapper.addAdmitterFactory(address(adapterFactory));
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.liquidationLocked, (wrapper.marketId(), adapter)), abi.encode(false)
         );
@@ -58,7 +61,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAddAdmitterFactory(address factory) public {
         vm.expectEmit();
-        emit VaultV2CompatibleEnterGate.AddAdmitterFactory(factory);
+        emit IVaultV2CompatibleEnterGate.AddAdmitterFactory(factory);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(factory);
         assertTrue(wrapper.canAdmit(factory));
@@ -67,7 +70,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAddAdmitterFactoryRequiresCreditRoleSetter(address caller) public {
         vm.assume(caller != creditRoleSetter);
-        vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
         wrapper.addAdmitterFactory(makeAddr("otherFactory"));
     }
@@ -83,7 +86,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     function testAdmitRequiresAllowedFactory() public {
         MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
         otherFactory.setIsMidnightAdapter(adapter, true);
-        vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         wrapper.admit(depositor, address(otherFactory));
         assertFalse(wrapper.canIncreaseCredit(depositor));
@@ -91,7 +94,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmitRequiresFactoryMembership(address caller) public {
         vm.assume(caller != adapter);
-        vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
         wrapper.admit(depositor, address(adapterFactory));
         assertFalse(wrapper.canIncreaseCredit(depositor));
@@ -218,8 +221,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsWhitelistsSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper =
-            new VaultV2CompatibleEnterGate(address(subGate), market, address(adapterFactory));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
         assertNotEq(wrapper.marketId(), otherWrapper.marketId());
         subGate.setIsWhitelisted(wrapper.marketId(), true, depositor, true);
         subGate.setIsWhitelisted(otherWrapper.marketId(), false, depositor, true);
@@ -230,12 +232,12 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsAdmissionsAndFactoriesSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(0));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.liquidationLocked, (otherWrapper.marketId(), adapter)), abi.encode(false)
         );
         assertFalse(otherWrapper.canAdmit(address(adapterFactory)));
-        vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         otherWrapper.admit(depositor, address(adapterFactory));
 
@@ -259,14 +261,14 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateRoleSetterChangesForBothWrappers() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market, address(0));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), market);
         address newRoleSetter = makeAddr("newRoleSetter");
         vm.prank(creditRoleSetter);
         subGate.setRoleSetter(true, newRoleSetter);
         assertEq(wrapper.roleSetter(), newRoleSetter);
         assertEq(otherWrapper.roleSetter(), newRoleSetter);
 
-        vm.expectRevert(VaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(creditRoleSetter);
         otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(newRoleSetter);
@@ -280,8 +282,8 @@ contract VaultV2CompatibleEnterGateTest is Test {
             "WhitelistEnterSubGate.sol:WhitelistEnterSubGate",
             abi.encode(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen)
         );
-        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, market, address(adapterFactory));
-        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate, market, address(adapterFactory));
+        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, market);
+        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate, market);
         assertEq(first.canIncreaseCredit(depositor), creditOpen);
         assertEq(second.canIncreaseCredit(depositor), creditOpen);
         assertEq(first.canIncreaseDebt(depositor), debtOpen);
