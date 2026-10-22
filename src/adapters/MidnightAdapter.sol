@@ -21,8 +21,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault through withdrawToVault and to sell (except through forceDeallocate).
-/// @dev The vault's allocators and sentinels can also withdraw to the vault directly through vault.deallocate with data abi.encode(market, true).
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate).
+/// @dev The vault's allocators and sentinels can withdraw to the vault through vault.deallocate with data abi.encode(market, true).
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
@@ -300,10 +300,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this),
                 takerCallbackData
             );
-    }
-
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(market, true), withdrawnAssets);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.

@@ -142,7 +142,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.repay(market, units, borrower, address(0), "");
         vm.stopPrank();
 
-        adapter.withdrawToVault(market, units);
+        vm.prank(allocator);
+        vault.deallocate(address(adapter), abi.encode(market, true), units);
         uint256 shares = vault.balanceOf(depositor);
         vm.startPrank(depositor);
         vault.redeem(shares, depositor, depositor);
