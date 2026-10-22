@@ -44,6 +44,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;
+        emit Admit(msg.sender, user, factory);
     }
 
     /// @dev Clear the admission, should be called after taking the buyer's offer.

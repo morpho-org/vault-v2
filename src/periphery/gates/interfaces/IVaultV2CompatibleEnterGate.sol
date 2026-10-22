@@ -8,6 +8,7 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* EVENTS */
 
     event AddAdmitterFactory(address indexed factory);
+    event Admit(address indexed caller, address indexed user, address indexed factory);
 
     /* ERRORS */
 

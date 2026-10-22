@@ -69,6 +69,13 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertFalse(wrapper.canIncreaseCredit(recipient));
     }
 
+    function testAdmitEmitsEvent() public {
+        vm.expectEmit();
+        emit IVaultV2CompatibleEnterGate.Admit(adapter, depositor, address(adapterFactory));
+        vm.prank(adapter);
+        wrapper.admit(depositor, address(adapterFactory));
+    }
+
     function testEmptyAdmissionDoesNotAdmitZeroAddress() public {
         assertFalse(wrapper.canIncreaseCredit(address(0)));
         vm.prank(adapter);
