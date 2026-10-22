@@ -184,8 +184,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseTimelock(selector, newDuration);
     }
 
-    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed at the initial executableAt.
+    /// @dev This function requires great caution because it will irreversibly disable execution of a selector.
+    /// @dev Existing pending operations submitted before abdicating can not be executed either.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
@@ -312,7 +312,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[marketId].netCredit = newNetCredit;
         marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
+        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) the vault callback is expected; both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
@@ -360,7 +360,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
@@ -411,12 +410,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
         require(ttm <= maxTtm, BuyTtmTooHigh());
+        MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceSellable, UnauthorizedBuy());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
-        MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.forceSellable, UnauthorizedBuy());
-
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = _marketData.netCredit;
         uint128 currentLossFactor = IMidnight(midnight).lossFactor(marketId);
@@ -439,7 +437,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             .allocate(
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
             );
-
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
@@ -475,7 +472,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 DurationRelativeCapExceeded()
             );
         }
-
         SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
