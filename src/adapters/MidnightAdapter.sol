@@ -613,6 +613,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 netCredit = _marketData.netCredit;
             uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (lossFactor != _marketData.lossFactor) {
+                // Cached net credit includes credit being sold, which a loss realized mid-sale must not slash.
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit =
                     netCredit.mulDivDown(type(uint128).max - lossFactor, type(uint128).max - _marketData.lossFactor);
             }
