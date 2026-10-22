@@ -48,6 +48,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
 /// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
+/// @dev To bound the time to maturity of buys, create the adapter with a duration D and keep its absolute cap at 0. Buys with ttm >= D then revert with DurationZeroAbsoluteCap.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -88,7 +89,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
@@ -193,23 +193,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* TIMELOCKED CURATOR SETTINGS */
-
-    function increaseMaxTtm(uint256 newMaxTtm) external {
-        timelocked();
-        require(newMaxTtm >= maxTtm, MaxTtmTooLow());
-        maxTtm = newMaxTtm.toUint32();
-        emit IncreaseMaxTtm(newMaxTtm);
-    }
-
-    function decreaseMaxTtm(uint256 newMaxTtm) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        maxTtm = newMaxTtm.toUint32();
-        emit DecreaseMaxTtm(msg.sender, newMaxTtm);
-    }
 
     /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
@@ -411,7 +394,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(buyer == address(this), NotSelf());
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
-        require(ttm <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());

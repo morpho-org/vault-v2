@@ -69,8 +69,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         );
         setterRatifier = ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
-        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
-
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
