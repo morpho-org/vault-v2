@@ -123,7 +123,7 @@ Peripheral contracts are available in [src/periphery](./src/periphery/).
 
 ## Formal verification using Certora
 
-Vault V2 is formally verified with the [Certora Prover](https://www.certora.com/prover).
+Formal verification of Vault V2 is done with the [Certora Prover](https://www.certora.com/prover).
 See the [Certora README](./certora/README.md) for the full list of verified properties and the modeling assumptions they rely on.
 
 ## Audits
