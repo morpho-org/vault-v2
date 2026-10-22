@@ -121,8 +121,6 @@ Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](h
 Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
 Peripheral contracts are available in [src/periphery](./src/periphery/).
 
-## Formal verification using Certora
-
 Formal verification of Vault V2 is done with the [Certora Prover](https://www.certora.com/prover).
 See the [Certora README](./certora/README.md) for the full list of verified properties and the modeling assumptions they rely on.
 
