@@ -7,7 +7,7 @@ methods {
 
     // durationAllocations loops over marketIds and, with optimistic_loop, paths with more than loop_iter iterations are pruned, so without this summary onBuy would only be checked on short market lists, while the invariants depend on the list's length.
     // Without the ids summary, the prover doesn't resolve Midnight's calls in the functions that call ids, so the summaries below don't apply to them.
-    // The other loops are pruned too: realAssets loops over marketIds but writes nothing, and the remaining loops (over durations, and over ids in the vault) don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same market list.
+    // The other loops are pruned too: realAssets loops over marketIds but writes nothing, and the loops over durations don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same market list.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
@@ -16,11 +16,6 @@ methods {
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
-
-    // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
-    function _.realAssets() external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.balanceOf(address) external => NONDET;
 
     // The asset is assumed to be a standard ERC20 token.
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
