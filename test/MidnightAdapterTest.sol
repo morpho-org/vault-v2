@@ -24,7 +24,6 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -1841,23 +1840,18 @@ contract MidnightAdapterTest is Test {
         for (uint256 i; i < tooMany.length; i++) {
             tooMany[i] = i + 1;
         }
-        vm.expectRevert(DurationsLib.TooManyDurations.selector);
+        vm.expectRevert(IMidnightAdapterBase.TooManyDurations.selector);
         factory.createMidnightAdapter(address(newVault), tooMany, bytes32(0));
 
         uint256[] memory notIncreasing = new uint256[](2);
         notIncreasing[0] = 2 days;
         notIncreasing[1] = 1 days;
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(address(newVault), notIncreasing, bytes32(0));
 
         uint256[] memory zeroFirst = new uint256[](1);
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(address(newVault), zeroFirst, bytes32(0));
-
-        uint256[] memory tooHigh = new uint256[](1);
-        tooHigh[0] = uint256(type(uint32).max) + 1;
-        vm.expectRevert(DurationsLib.DurationTooHigh.selector);
-        factory.createMidnightAdapter(address(newVault), tooHigh, bytes32(0));
     }
 
     /* DURATIONS */
@@ -1871,13 +1865,9 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
+        assertEq(adapter.durations(), allDurations, "durations");
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
         assertFalse(adapter.noSalesWithShortfall(), "noSalesWithShortfall");
-        bytes32 expectedPackedDurations;
-        for (uint256 i = 0; i < allDurations.length; i++) {
-            expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
-        }
-        assertEq(adapter.packedDurations(), expectedPackedDurations, "packedDurations");
     }
 
     function testNoDurations() public {

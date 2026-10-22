@@ -92,7 +92,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
+    error TooManyDurations();
     error TooManyMarkets();
+    error DurationsNotIncreasing();
 
     /* FUNCTIONS */
 
@@ -102,7 +104,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function MAX_MARKETS() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
-    function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
