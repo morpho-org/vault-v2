@@ -429,10 +429,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // netRate = (newNetCredit - amortizedValue) / (amortizedValue * ttm), with amortizedValue the carried net
             // credit's discounted value plus paidAssets. Both terms are multiplied by discount to round only once.
             uint256 discount = WAD + _marketData.netRate * ttm;
-            uint256 carriedNetCredit = newNetCredit - boughtNetCredit;
             uint256 interestTimesDiscount =
-                carriedNetCredit * (discount - WAD) + (boughtNetCredit - paidAssets) * discount;
-            uint256 amortizedValueTimesDiscount = carriedNetCredit * WAD + paidAssets * discount;
+                (newNetCredit - boughtNetCredit) * (discount - WAD) + (boughtNetCredit - paidAssets) * discount;
+            uint256 amortizedValueTimesDiscount = (newNetCredit - boughtNetCredit) * WAD + paidAssets * discount;
             _marketData.netRate = interestTimesDiscount.mulDivDown(WAD, amortizedValueTimesDiscount * ttm).toUint64();
         }
 
