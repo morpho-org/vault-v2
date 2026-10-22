@@ -16,10 +16,12 @@ struct MarketData {
     /// @dev Midnight's loss factor of the market when netCredit was last updated.
     uint128 lossFactor;
     uint8 index;
-    /// @dev Allows selling with arbitrary loss on the market.
+    /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
+    uint128 minForceSellPrice;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -35,11 +37,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed sender, address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetMinNetRate(uint256 newMinNetRate);
+    event SetMinNetBuyRate(uint256 newMinNetBuyRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
-    event SetNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue);
+    event SetMaxNetSellRate(uint256 newMaxNetSellRate);
+    event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -79,12 +82,13 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotSelf();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
-    error NetRateTooLow();
+    error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
-    error SaleBelowFaceValue();
+    error ForceSellPriceTooLow();
+    error NetSellRateTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -102,9 +106,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
-    function minNetRate() external view returns (uint64);
+    function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
-    function noSalesBelowFaceValue() external view returns (bool);
+    function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -114,11 +118,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setMinNetRate(uint256 newMinNetRate) external;
+    function setMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
-    function setNoSalesBelowFaceValue(bool newNoSalesBelowFaceValue) external;
+    function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
+    function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
@@ -147,7 +152,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint48 maturity,
             uint128 lossFactor,
             uint8 index,
-            bool forceSellable
+            bool forceSellable,
+            uint128 minForceSellPrice
         );
 }
 
