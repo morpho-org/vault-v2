@@ -51,7 +51,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         admitted = address(0);
     }
 
-    /// @dev admitted is address(0) when nobody is admitted, which must not admit address(0).
+
     function canIncreaseCredit(address account) external view returns (bool) {
         return (admitted != address(0) && account == admitted) || IEnterSubGate(subGate).canIncreaseCredit(account);
     }
