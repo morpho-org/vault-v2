@@ -580,11 +580,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the durations that can be capped.
     function durations() external view returns (uint256[] memory) {
-        uint256[] memory _durations = new uint256[](durationsLength);
-        for (uint256 i = 0; i < durationsLength; i++) {
-            _durations[i] = packedDurations.get(i);
-        }
-        return _durations;
+        return packedDurations.unpack(durationsLength);
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
