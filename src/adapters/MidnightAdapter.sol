@@ -88,6 +88,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
+    /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
+    bytes32 internal transient overridenMarketId;
+    uint256 internal transient overridenMarketBoughtNetCredit;
+
     uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
@@ -419,11 +423,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = _marketData.netCredit;
-        // Temporarily store net credit as it was before the buy so accrual is correct.
-        _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
+        _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        (overridenMarketId, overridenMarketBoughtNetCredit) = (marketId, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
+        (overridenMarketId, overridenMarketBoughtNetCredit) = (bytes32(0), 0);
 
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -431,7 +436,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        _marketData.netCredit = newNetCredit;
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -612,7 +616,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+            if (marketId == overridenMarketId) {
+                netCredit = _marketData.netCredit - overridenMarketBoughtNetCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
