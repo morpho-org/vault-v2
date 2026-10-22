@@ -1048,14 +1048,25 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "remaining duration used");
     }
 
-    function testFirstBuyAtZeroPriceReverts() public {
-        // The division by zero comes from the market having no prior net credit.
+    function testFirstBuyAtZeroPrice() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
-        vm.expectRevert(stdError.divisionError);
         take(offer);
+
+        bytes32 marketId = _marketId(offer.market);
+        uint256 netCredit = adapter.marketData(marketId).netCredit;
+        uint256 ttm = offer.market.maturity - block.timestamp;
+        assertGt(netCredit, 0, "bought net credit");
+        assertEq(netCredit, offer.maxUnits, "market net credit");
+        assertEq(adapter.marketData(marketId).netRate, type(uint64).max, "maximum net rate");
+        assertEq(
+            adapter.realAssets(), netCredit.mulDivDown(1e18, 1e18 + type(uint64).max * ttm), "near-zero real assets"
+        );
+
+        vm.warp(offer.market.maturity);
+        assertEq(adapter.realAssets(), netCredit, "net credit at maturity");
     }
 
     function testBuyNetRateOverflowReverts() public {

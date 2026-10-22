@@ -428,7 +428,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
-            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            _marketData.netRate = amortizedValue > 0
+                ? (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64()
+                : type(uint64).max;
         }
 
         _marketData.netCredit = newNetCredit;
