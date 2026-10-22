@@ -185,7 +185,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev This function requires great caution because it will irreversibly disable execution of a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed neither.
+    /// @dev Existing pending operations submitted before abdicating can not be executed either.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
