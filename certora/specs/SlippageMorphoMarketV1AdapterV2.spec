@@ -18,6 +18,8 @@ methods {
     function expectedSupplyAssets(bytes32) internal returns (uint256) => NONDET;
     function updateList(bytes32, uint256, uint256) internal => NONDET;
 
+    function MathLib.mulDivUp(uint256 x, uint256 y, uint256 d) internal returns (uint256) => summaryMulDivUp(x, y, d);
+
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
@@ -28,6 +30,13 @@ methods {
 }
 
 persistent ghost uint256 constantBorrowRate;
+
+// Over-approximation of the rounded up division, that only keeps its defining property.
+function summaryMulDivUp(uint256 x, uint256 y, uint256 d) returns uint256 {
+    uint256 result;
+    require result * d >= x * y && (result - 1) * d < x * y, "result is x * y / d rounded up";
+    return result;
+}
 
 // Check that each allocation gets the adapter shares for at most one asset each.
 rule allocateGetsSharesForAtMostOneAssetEach(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
