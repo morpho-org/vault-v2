@@ -3,7 +3,6 @@
 
 // Each rule assumes that a guardrail is not met, and checks that the call reverts.
 methods {
-    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
