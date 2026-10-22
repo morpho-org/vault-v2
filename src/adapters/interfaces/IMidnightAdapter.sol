@@ -95,6 +95,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TooManyDurations();
     error TooManyMarkets();
     error DurationsNotIncreasing();
+    error DurationTooHigh();
 
     /* FUNCTIONS */
 

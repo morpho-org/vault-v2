@@ -107,6 +107,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(_durations.length <= MAX_DURATIONS, TooManyDurations());
         for (uint256 i; i < _durations.length; i++) {
             require(_durations[i] > (i == 0 ? 0 : _durations[i - 1]), DurationsNotIncreasing());
+            require(_durations[i] <= type(uint32).max, DurationTooHigh());
         }
         durations = _durations;
     }
@@ -456,7 +457,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         while (affectedDurationCount < _durations.length && _durations[affectedDurationCount] <= ttm) {
             affectedDurationCount++;
         }
-        uint256[] memory allocations = durationAllocations(affectedDurationCount);
+        uint256[] memory allocations = _durationAllocations(_durations, affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < affectedDurationCount; i++) {
             bytes32 id = keccak256(abi.encode("this/duration", address(this), _durations[i]));
@@ -588,7 +589,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
-        uint256[] memory _durations = durations;
+        return _durationAllocations(durations, length);
+    }
+
+    function _durationAllocations(uint256[] memory _durations, uint256 length)
+        internal
+        view
+        returns (uint256[] memory allocations)
+    {
         require(length <= _durations.length, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;

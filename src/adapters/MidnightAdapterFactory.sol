@@ -26,7 +26,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* FUNCTIONS */
 
-    /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0.
+    /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
     function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
         external
         returns (address)

@@ -1852,6 +1852,11 @@ contract MidnightAdapterTest is Test {
         uint256[] memory zeroFirst = new uint256[](1);
         vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(address(newVault), zeroFirst, bytes32(0));
+
+        uint256[] memory tooHigh = new uint256[](1);
+        tooHigh[0] = uint256(type(uint32).max) + 1;
+        vm.expectRevert(IMidnightAdapterBase.DurationTooHigh.selector);
+        factory.createMidnightAdapter(address(newVault), tooHigh, bytes32(0));
     }
 
     /* DURATIONS */
