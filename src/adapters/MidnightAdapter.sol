@@ -412,11 +412,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
         require(ttm <= maxTtm, BuyTtmTooHigh());
+        MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceSellable, UnauthorizedBuy());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
+        
         uint128 newNetCredit = currentNetCredit(marketId);
-        MarketData storage _marketData = marketData[marketId];
         uint256 oldNetCredit = _marketData.netCredit;
         // Temporarily store net credit as it was before the buy so accrual is correct.
         _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
@@ -424,12 +426,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
 
-        require(!_marketData.forceSellable, UnauthorizedBuy());
-        if (newNetCredit > 0) {
-            uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
-            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-        }
+        uint256 amortizedValue =
+            (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
+        _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
 
         _marketData.netCredit = newNetCredit;
         if (newNetCredit > 0 && oldNetCredit == 0) {
@@ -441,6 +440,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
         }
+        
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
