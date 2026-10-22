@@ -138,8 +138,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit DecreaseTimelock(selector, newDuration);
     }
 
-    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed at the initial executableAt.
+    /// @dev This function requires great caution because it will irreversibly disable execution of a selector.
+    /// @dev Existing pending operations submitted before abdicating can not be executed neither.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
