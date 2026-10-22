@@ -158,16 +158,12 @@ contract MidnightAdapterGasTest is BaseTest {
         );
     }
 
-    /// @dev Returns the intrinsic gas for a transaction with the given calldata, including the EIP-7623 calldata floor.
-    function _intrinsicGas(bytes memory callData) internal pure returns (uint256) {
-        uint256 zeroBytes;
+    /// @dev Returns the intrinsic gas for a transaction with the given calldata. The EIP-7623 calldata floor doesn't reduce the gas available to execution.
+    function _intrinsicGas(bytes memory callData) internal pure returns (uint256 gas) {
+        gas = 21_000;
         for (uint256 i = 0; i < callData.length; i++) {
-            if (callData[i] == 0) zeroBytes++;
+            gas += callData[i] == 0 ? 4 : 16;
         }
-        uint256 tokens = zeroBytes + 4 * (callData.length - zeroBytes);
-        uint256 standard = 21_000 + 4 * tokens;
-        uint256 floor = 21_000 + 10 * tokens;
-        return standard > floor ? standard : floor;
     }
 
     /// @dev Has the borrower take a vault buy offer, and returns the bought units.
