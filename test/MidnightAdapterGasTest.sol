@@ -150,6 +150,8 @@ contract MidnightAdapterGasTest is BaseTest {
         // So that the penalty withdrawal accrues interest.
         vm.warp(block.timestamp + 1 hours);
         bytes memory data = abi.encode(offer, abi.encode(root, uint256(0), new bytes32[](0)));
+        // HyperEVM runs Cancun. The setup needs Osaka for clz, but the force deallocation doesn't execute it.
+        vm.setEvmVersion("cancun");
         uint256 executionGas = deallocator.forceDeallocate(vault, address(adapter), data, units);
 
         // The metered call to the vault pays for a cold account access, which the transaction's target doesn't.
@@ -158,15 +160,12 @@ contract MidnightAdapterGasTest is BaseTest {
         assertLt(txGas, HYPEREVM_SMALL_BLOCK_GAS_LIMIT, "gas");
     }
 
-    /// @dev Returns the gas used by a transaction with the given calldata and execution gas (EIP-2028 and EIP-7623).
-    function _txGas(bytes memory callData, uint256 executionGas) internal pure returns (uint256) {
-        uint256 tokens;
+    /// @dev Returns the gas used by a transaction with the given calldata and execution gas, with Cancun pricing.
+    function _txGas(bytes memory callData, uint256 executionGas) internal pure returns (uint256 gas) {
+        gas = 21_000 + executionGas;
         for (uint256 i = 0; i < callData.length; i++) {
-            tokens += callData[i] == 0 ? 1 : 4;
+            gas += callData[i] == 0 ? 4 : 16;
         }
-        uint256 standardGas = 4 * tokens + executionGas;
-        uint256 floorGas = 10 * tokens;
-        return 21_000 + (standardGas > floorGas ? standardGas : floorGas);
     }
 
     /// @dev Has the borrower take a vault buy offer, and returns the bought units.
