@@ -10,7 +10,13 @@ methods {
     function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
+    function MorphoMarketV1.lastUpdate(MorphoHarness.Id) external returns (uint256) envfree;
     function Utils.unwrapId(MorphoHarness.Id) external returns (bytes32) envfree;
+
+    // Sound because the rules only look at the supply shares of the adapter and the market totals.
+    function allocation(MorphoHarness.MarketParams memory) internal returns (uint256) => NONDET;
+    function expectedSupplyAssets(bytes32) internal returns (uint256) => NONDET;
+    function updateList(bytes32, uint256, uint256) internal => NONDET;
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -39,6 +45,9 @@ rule deallocateLosesLessThanOneShare(env e, bytes data, uint256 assets, bytes4 s
     MorphoHarness.Id id = Utils.id(Utils.decodeMarketParams(data));
     bytes32 marketId = Utils.unwrapId(id);
     uint256 sharesBefore = supplyShares(marketId);
+
+    // Safe because the market totals are taken after interest accrual, and accruing interest twice in the same block is a no-op.
+    require MorphoMarketV1.lastUpdate(id) == e.block.timestamp, "assume interest is already accrued";
 
     deallocate(e, data, assets, selector, sender);
 
