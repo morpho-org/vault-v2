@@ -426,9 +426,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
-            uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
-            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            // netRate = (newNetCredit - amortizedValue) / (amortizedValue * ttm), with amortizedValue the carried net
+            // credit's discounted value plus paidAssets. Both terms are multiplied by discount to round only once.
+            uint256 discount = WAD + _marketData.netRate * ttm;
+            uint256 carriedNetCredit = newNetCredit - boughtNetCredit;
+            uint256 interestTimesDiscount =
+                carriedNetCredit * (discount - WAD) + (boughtNetCredit - paidAssets) * discount;
+            uint256 amortizedValueTimesDiscount = carriedNetCredit * WAD + paidAssets * discount;
+            _marketData.netRate = interestTimesDiscount.mulDivDown(WAD, amortizedValueTimesDiscount * ttm).toUint64();
         }
 
         _marketData.netCredit = newNetCredit;
@@ -501,12 +506,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-            if (shortfall > 0) {
+            // Same as in onBuy, with amortizedValue the remaining net credit's discounted value plus the shortfall (the
+            // sold net credit's discounted value minus sellerAssets).
+            uint256 discount = WAD + _marketData.netRate * ttm;
+            if (soldNetCredit * WAD > sellerAssets * discount) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                uint256 shortfallTimesDiscount = soldNetCredit * WAD - sellerAssets * discount;
+                uint256 interestTimesDiscount = newNetCredit * (discount - WAD);
+                require(shortfallTimesDiscount <= interestTimesDiscount, ShortfallTooHigh());
+                _marketData.netRate = (interestTimesDiscount - shortfallTimesDiscount)
+                    .mulDivDown(WAD, (newNetCredit * WAD + shortfallTimesDiscount) * ttm)
+                    .toUint64();
             }
         }
 
