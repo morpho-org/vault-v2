@@ -118,7 +118,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true, allocator);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData =
             abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
@@ -248,7 +248,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         });
         bytes32 root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(allocator);
-        priceSubRatifier.setIsRootRatified(address(adapter), root, true);
+        priceSubRatifier.setIsRootRatified(address(adapter), root, true, allocator);
         bytes32[] memory proof = new bytes32[](0);
         bytes memory ratifierData =
             abi.encode(address(priceSubRatifier), abi.encode(root, uint256(0), proof, address(0)));
