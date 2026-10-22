@@ -4921,6 +4921,11 @@ contract MidnightAdapterTest is Test {
             abi.encodeCall(IMidnightAdapterBase.take, (externalBuy, "", externalBuy.maxUnits, "")),
             IMidnightAdapterBase.SellInProgress.selector
         );
+        callback.push(
+            address(realVault),
+            abi.encodeCall(IVaultV2.deallocate, (address(adapter), abi.encode(initial.market), 0)),
+            IMidnightAdapterBase.SellInProgress.selector
+        );
         (Offer memory forced, bytes32 root_) = makeForceDeallocateOffer(initial.market, 1e15);
         bytes memory data = abi.encode(forced, abi.encode(root_, 0, proof([forced])));
         callback.push(
@@ -5470,8 +5475,8 @@ contract MidnightAdapterTest is Test {
         adapterBuy.market = market;
         adapterBuy.group = bytes32("nested purchase");
         buyer.push(
-            address(adapter),
-            abi.encodeCall(IMidnightAdapterBase.take, (adapterBuy, "", adapterBuy.maxUnits, "")),
+            address(realVault),
+            abi.encodeCall(IVaultV2.deallocate, (address(adapter), abi.encode(market), 0)),
             IMidnightAdapterBase.SellInProgress.selector
         );
         buyer.push(
