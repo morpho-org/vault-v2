@@ -27,13 +27,8 @@ contract ForceDeallocator {
         SafeERC20Lib.safeApprove(vault.asset(), adapter, type(uint256).max);
     }
 
-    function forceDeallocate(IVaultV2 vault, address adapter, bytes memory data, uint256 assets)
-        external
-        returns (uint256 gas)
-    {
-        gas = gasleft();
-        uint256 penaltyShares = vault.forceDeallocate(adapter, data, assets, address(this));
-        gas = gas - gasleft();
+    function forceDeallocate(IVaultV2 vault, address adapter, bytes memory data, uint256 assets, uint256 gas) external {
+        uint256 penaltyShares = vault.forceDeallocate{gas: gas}(adapter, data, assets, address(this));
         require(penaltyShares > 0, "no penalty");
     }
 }
@@ -152,17 +147,22 @@ contract MidnightAdapterGasTest is BaseTest {
         bytes memory data = abi.encode(offer, abi.encode(root, uint256(0), new bytes32[](0)));
         // HyperEVM runs Cancun. The setup needs Osaka for clz, but the force deallocation doesn't execute it.
         vm.setEvmVersion("cancun");
-        uint256 executionGas = deallocator.forceDeallocate(vault, address(adapter), data, units);
-
-        // The metered call to the vault pays for a cold account access, which the transaction's target doesn't.
-        uint256 txGas =
-            _txGas(abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), data, units, address(0))), executionGas);
-        assertLt(txGas, HYPEREVM_SMALL_BLOCK_GAS_LIMIT, "gas");
+        // The vault is the transaction's target, so the call gets the transaction's gas limit minus the intrinsic gas.
+        deallocator.forceDeallocate(
+            vault,
+            address(adapter),
+            data,
+            units,
+            HYPEREVM_SMALL_BLOCK_GAS_LIMIT
+                - _intrinsicGas(
+                    abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), data, units, address(deallocator)))
+                )
+        );
     }
 
-    /// @dev Returns the gas used by a transaction with the given calldata and execution gas, with Cancun pricing.
-    function _txGas(bytes memory callData, uint256 executionGas) internal pure returns (uint256 gas) {
-        gas = 21_000 + executionGas;
+    /// @dev Returns the intrinsic gas for a transaction with the given calldata, using Cancun pricing.
+    function _intrinsicGas(bytes memory callData) internal pure returns (uint256 gas) {
+        gas = 21_000;
         for (uint256 i = 0; i < callData.length; i++) {
             gas += callData[i] == 0 ? 4 : 16;
         }
