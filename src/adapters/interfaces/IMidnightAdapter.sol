@@ -12,14 +12,14 @@ struct MarketData {
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
     uint64 netRate;
     uint48 maturity;
-    /// @dev The fields above fill one slot. The fields below are not read by realAssets when no market has an unsynced loss.
-    /// @dev Midnight's loss factor of the market when netCredit was last updated.
-    uint128 lossFactor;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    /// @dev The fields above fill one slot. The fields below are not read by realAssets when no market has an unsynced loss.
+    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    uint128 lossFactor;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
     uint128 minForceSellPrice;
 }
@@ -150,9 +150,9 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint128 netCredit,
             uint64 netRate,
             uint48 maturity,
-            uint128 lossFactor,
             uint8 index,
             bool forceSellable,
+            uint128 lossFactor,
             uint128 minForceSellPrice
         );
 }

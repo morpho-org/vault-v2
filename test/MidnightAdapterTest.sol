@@ -2398,7 +2398,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2441,7 +2441,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2706,7 +2706,7 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
@@ -2727,14 +2727,14 @@ contract MidnightAdapterTest is Test {
 
         adapter.withdrawToVault(offerU.market, 0);
         assertEq(adapter.marketIdsLength(), 1, "withdraw: marketIdsLength");
-        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "withdraw: data");
+        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)), "withdraw: data");
         assertEq(adapter.realAssets(), valueBefore, "withdraw: realAssets");
 
         bytes memory data = ratify([offerU], signerAllocator);
         vm.prank(taker);
         midnight.take(offerU, data, 0, taker, taker, address(0), "");
         assertEq(adapter.marketIdsLength(), 1, "buy: marketIdsLength");
-        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "buy: data");
+        assertEq(abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)), "buy: data");
         assertEq(adapter.realAssets(), valueBefore, "buy: realAssets");
 
         // Midnight requires a non-zero maxUnits, but the taken units are zero.
@@ -2744,7 +2744,9 @@ contract MidnightAdapterTest is Test {
         );
         assertEq(adapter.marketIdsLength(), 1, "forceDeallocate: marketIdsLength");
         assertEq(
-            abi.encode(adapter.marketData(idU)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "forceDeallocate: data"
+            abi.encode(adapter.marketData(idU)),
+            abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)),
+            "forceDeallocate: data"
         );
         assertEq(adapter.realAssets(), valueBefore, "forceDeallocate: realAssets");
 
@@ -3180,7 +3182,7 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offerA.market, midnight.credit(idA, address(adapter)), MAX_TICK);
         assertEq(adapter.marketIdsLength(), 1, "market removed");
-        assertEq(abi.encode(adapter.marketData(idA)), abi.encode(MarketData(0, 0, 0, 0, 0, false)), "data deleted");
+        assertEq(abi.encode(adapter.marketData(idA)), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)), "data deleted");
 
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
         OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
@@ -4118,12 +4120,13 @@ contract MidnightAdapterTest is Test {
         vm.record();
         adapter.maxTtm();
         (reads,) = vm.accesses(address(adapter));
-        bytes32 configSlot = reads[0];
+        // lastLossFactorSum does not fit in the config slot, so it takes the next one.
+        bytes32 lossFactorSumSlot = bytes32(uint256(reads[0]) + 1);
 
-        // Expected slots: the length slot, the config slot, then for each market its struct slot and its marketIds element slot.
+        // Expected slots: the length slot, the loss factor sum slot, then for each market its struct slot and its marketIds element slot.
         bytes32[] memory expected = new bytes32[](2 + 2 * 3);
         expected[0] = lengthSlot;
-        expected[1] = configSlot;
+        expected[1] = lossFactorSumSlot;
         for (uint256 i = 0; i < 3; i++) {
             bytes32 marketId = _marketId(offers[i].market);
             vm.record();
@@ -4183,7 +4186,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
     }
 
