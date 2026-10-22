@@ -1786,7 +1786,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
-        assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
+        assertDurations(IMidnightAdapter(newAdapter), allDurations);
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
@@ -1813,7 +1813,7 @@ contract MidnightAdapterTest is Test {
         singleDuration[0] = allDurations[0];
         address otherDurationsAdapter = factory.createMidnightAdapter(address(newVault), singleDuration, salt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
-        assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
+        assertDurations(IMidnightAdapter(otherDurationsAdapter), singleDuration);
         assertEq(
             factory.midnightAdapter(address(newVault), keccak256(abi.encode(singleDuration)), salt),
             otherDurationsAdapter,
@@ -1856,6 +1856,13 @@ contract MidnightAdapterTest is Test {
 
     /* DURATIONS */
 
+    function assertDurations(IMidnightAdapter target, uint256[] memory expected) internal view {
+        assertEq(target.durationsLength(), expected.length, "durationsLength");
+        for (uint256 i; i < expected.length; i++) {
+            assertEq(target.durations(i), expected[i], "duration");
+        }
+    }
+
     function testConstructorGetters() public view {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
@@ -1864,8 +1871,7 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
-        assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
-        assertEq(adapter.durations(), allDurations, "durations");
+        assertDurations(adapter, allDurations);
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
         assertFalse(adapter.noSalesWithShortfall(), "noSalesWithShortfall");
     }
@@ -1894,7 +1900,7 @@ contract MidnightAdapterTest is Test {
         this.takeWithAccrual(offer, data, taker, address(0));
 
         assertEq(noDurations.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "buy works");
-        assertEq(noDurations.durations(), new uint256[](0), "durations");
+        assertEq(noDurations.durationsLength(), 0, "durationsLength");
         assertEq(noDurations.durationAllocations(0), new uint256[](0), "durationAllocations");
         vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
         noDurations.durationAllocations(1);

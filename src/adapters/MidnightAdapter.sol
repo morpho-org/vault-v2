@@ -81,7 +81,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
-    uint256[] internal storedDurations;
+    /// @dev Returns the durations that can be capped.
+    uint256[] public override durations;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
@@ -104,13 +105,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         adapterId = keccak256(abi.encode("this", address(this)));
 
         require(_durations.length <= MAX_DURATIONS, TooManyDurations());
-        uint256 currentDuration;
         for (uint256 i; i < _durations.length; i++) {
-            uint256 duration = _durations[i];
-            require(duration > currentDuration, DurationsNotIncreasing());
-            currentDuration = duration;
-            storedDurations.push(duration);
+            require(_durations[i] > (i == 0 ? 0 : _durations[i - 1]), DurationsNotIncreasing());
         }
+        durations = _durations;
     }
 
     /* MULTICALL */
@@ -453,7 +451,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256[] memory _durations = storedDurations;
+        uint256[] memory _durations = durations;
         uint256 affectedDurationCount;
         while (affectedDurationCount < _durations.length && _durations[affectedDurationCount] <= ttm) {
             affectedDurationCount++;
@@ -584,18 +582,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return idsArray;
     }
 
-    /// @dev Returns the durations that can be capped.
-    function durations() external view returns (uint256[] memory) {
-        return storedDurations;
-    }
-
     function durationsLength() external view returns (uint256) {
-        return storedDurations.length;
+        return durations.length;
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
-        uint256[] memory _durations = storedDurations;
+        uint256[] memory _durations = durations;
         require(length <= _durations.length, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
