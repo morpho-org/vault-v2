@@ -107,6 +107,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
   It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
+- [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault makes external calls only when it has applied all allocation changes returned by adapters, so allocations are up to date whenever another contract runs.
 
 # Verification setup
 
