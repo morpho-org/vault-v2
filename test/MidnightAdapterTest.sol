@@ -4088,8 +4088,6 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
         midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
-        vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0);
         take(roll);
 
@@ -5156,10 +5154,6 @@ contract MidnightAdapterTest is Test {
         offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(
-            _marketId(initial.market), withdrawnAssets, sameMarket ? 8e18 : 8e18 - withdrawnAssets
-        );
         directTake(offer);
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, sameMarket ? 8e18 : 8e18 - withdrawnAssets);
@@ -5183,10 +5177,6 @@ contract MidnightAdapterTest is Test {
         Market memory market = makeBuyOffer(sameMarket ? 7 days : 6 days, 0, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, withdrawnAssets, MAX_TICK);
 
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(
-            _marketId(initial.market), withdrawnAssets, sameMarket ? 8e18 : 8e18 - withdrawnAssets
-        );
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits, abi.encode(address(adapter), abi.encode(initial.market)));
 
