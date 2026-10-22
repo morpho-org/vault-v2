@@ -145,8 +145,6 @@ contract MidnightAdapterGasTest is BaseTest {
         // So that the penalty withdrawal accrues interest.
         vm.warp(block.timestamp + 1 hours);
         bytes memory data = abi.encode(offer, abi.encode(root, uint256(0), new bytes32[](0)));
-        // HyperEVM runs Cancun. The setup needs Osaka for clz, but the force deallocation doesn't execute it.
-        vm.setEvmVersion("cancun");
         // The vault is the transaction's target, so the call gets the transaction's gas limit minus the intrinsic gas.
         deallocator.forceDeallocate(
             vault,
@@ -160,12 +158,16 @@ contract MidnightAdapterGasTest is BaseTest {
         );
     }
 
-    /// @dev Returns the intrinsic gas for a transaction with the given calldata, using Cancun pricing.
-    function _intrinsicGas(bytes memory callData) internal pure returns (uint256 gas) {
-        gas = 21_000;
+    /// @dev Returns the intrinsic gas for a transaction with the given calldata, including the EIP-7623 calldata floor.
+    function _intrinsicGas(bytes memory callData) internal pure returns (uint256) {
+        uint256 zeroBytes;
         for (uint256 i = 0; i < callData.length; i++) {
-            gas += callData[i] == 0 ? 4 : 16;
+            if (callData[i] == 0) zeroBytes++;
         }
+        uint256 tokens = zeroBytes + 4 * (callData.length - zeroBytes);
+        uint256 standard = 21_000 + 4 * tokens;
+        uint256 floor = 21_000 + 10 * tokens;
+        return standard > floor ? standard : floor;
     }
 
     /// @dev Has the borrower take a vault buy offer, and returns the bought units.
