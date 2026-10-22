@@ -356,7 +356,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer without a callback, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -366,11 +366,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
+            require(offer.buy && offer.market.loanToken == asset && offer.callback == address(0), IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate, marketId)
+                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
             if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
 
@@ -427,8 +427,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (market.enterGate != address(0) && enterGateFactory != address(0)) {
             // Adapters must not buy through another adapter's transient admission.
             require(
-                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
-                    .canIncreaseCredit(marketId, address(this)),
+                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate()).canIncreaseCredit(address(this)),
                 IncorrectEnterGate()
             );
         }
@@ -459,7 +458,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit > 0 && oldNetCredit == 0) {
             if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
-                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate, marketId)
+                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );

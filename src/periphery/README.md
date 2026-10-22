@@ -32,32 +32,32 @@ Whitelisted accounts can still deposit assets that originally belong to non-whit
 ## Midnight Enter Gates and Subgates
 
 These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
-Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions for a specific market.
+Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions.
 
 ### `VaultV2CompatibleEnterGate`
 
 Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
 Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
-For ordinary permission checks, the gate calls its `subGate` with its fixed `marketId` and the account.
-During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval.
+One gate can be the `enterGate` of any number of markets, on any Midnight.
+For ordinary permission checks, the gate calls its `subGate` with the account.
+During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The buy offer taken through `forceDeallocate` has no callback, and the adapter clears the admission as soon as its sale returns.
 
 ### `VaultV2CompatibleEnterGateFactory`
 
 Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
-The factory records each gate and its market ID in `isCreated[gate][marketId]`.
+The factory records each gate in `isCreated[gate]` and indexes it by subgate and salt in `vaultV2CompatibleEnterGate`.
 
 ### `WhitelistEnterSubGate`
 
-A subgate that restricts which accounts can increase their credit or debt in each Midnight market.
-`VaultV2CompatibleEnterGate` calls this subgate with a market ID and an account.
-The subgate cannot be used directly as `Market.enterGate` or as a Vault V2 gate.
+A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
+`VaultV2CompatibleEnterGate` calls this subgate with an account.
+The subgate has the functions of a Midnight enter gate, so a market can also use it directly as `Market.enterGate`, without admissions. It is not a Vault V2 gate.
 
-Each side (credit, debt) has its own whitelist per market: only whitelisted accounts can enter on that side.
-Each side has its own role setter, who grants or revokes the whitelister role on that side across all markets.
+Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
+Each side has its own role setter, who grants or revokes the whitelister role on that side.
 Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
-Whitelist updates and signatures include the market ID. Nonces are separate for each market.
 `setIsWhitelistedWithSig` is a no-op instead of a revert when the signed nonce is stale and the account is already set to the signed value.
-A side can be made open at deployment, letting any account enter on that side in all markets (forever).
+A side can be made open at deployment, letting any account enter on that side (forever).
 
 ### `WhitelistEnterSubGateFactory`
 

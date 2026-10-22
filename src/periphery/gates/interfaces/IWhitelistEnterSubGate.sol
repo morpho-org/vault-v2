@@ -4,8 +4,8 @@ pragma solidity >=0.5.0;
 
 import {IEnterSubGate} from "./IEnterSubGate.sol";
 
-/// @dev keccak256("SetIsWhitelisted(bytes32 marketId,bool creditSide,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)").
-bytes32 constant SET_IS_WHITELISTED_TYPEHASH = 0x03332143ba0ae522faefd74cec6be3aeffbcb872c5d82f2ed6db1bb9005b559c;
+/// @dev keccak256("SetIsWhitelisted(bool creditSide,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)").
+bytes32 constant SET_IS_WHITELISTED_TYPEHASH = 0xa19ec4634ebb855ea0b75237f7a684a4cb96e8cdae8536e4128409e9ea8d4982;
 
 /// @dev keccak256("EIP712Domain(uint256 chainId,address verifyingContract)").
 bytes32 constant EIP712_DOMAIN_TYPEHASH = 0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218;
@@ -24,16 +24,11 @@ interface IWhitelistEnterSubGate is IEnterSubGate {
     event SetRoleSetter(bool creditSide, address indexed newRoleSetter);
     event SetIsWhitelister(bool creditSide, address indexed account, bool newIsWhitelister);
     event SetIsWhitelisted(
-        address indexed whitelister,
-        bytes32 indexed marketId,
-        bool creditSide,
-        address indexed account,
-        bool newIsWhitelisted
+        address indexed whitelister, bool creditSide, address indexed account, bool newIsWhitelisted
     );
     event SetIsWhitelistedWithSig(
         address caller,
         address indexed whitelister,
-        bytes32 indexed marketId,
         bool creditSide,
         address indexed account,
         bool newIsWhitelisted,
@@ -45,18 +40,14 @@ interface IWhitelistEnterSubGate is IEnterSubGate {
     function CREDIT_OPEN() external view returns (bool);
     function DEBT_OPEN() external view returns (bool);
     function isWhitelister(bool creditSide, address account) external view returns (bool);
-    function nonces(bytes32 marketId, bool creditSide, address whitelister, address account)
-        external
-        view
-        returns (uint256);
-    function isWhitelisted(bytes32 marketId, bool creditSide, address account) external view returns (bool);
+    function nonces(bool creditSide, address whitelister, address account) external view returns (uint256);
+    function isWhitelisted(bool creditSide, address account) external view returns (bool);
 
     /// SETTERS ///
     function setRoleSetter(bool creditSide, address newRoleSetter) external;
     function setIsWhitelister(bool creditSide, address account, bool newIsWhitelister) external;
-    function setIsWhitelisted(bytes32 marketId, bool creditSide, address account, bool newIsWhitelisted) external;
+    function setIsWhitelisted(bool creditSide, address account, bool newIsWhitelisted) external;
     function setIsWhitelistedWithSig(
-        bytes32 marketId,
         bool creditSide,
         address account,
         bool newIsWhitelisted,
