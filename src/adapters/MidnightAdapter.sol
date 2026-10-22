@@ -396,6 +396,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Can revert on extremely high rates.
+    /// @dev The funding adapter's deallocate must not make this adapter buy (nested onBuy), otherwise the allocation
+    /// accounting is broken: the inner onBuy reads the net credit from before the outer buy.
     function onBuy(
         bytes32 marketId,
         Market memory market,
