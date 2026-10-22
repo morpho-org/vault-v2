@@ -80,7 +80,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotMidnight();
     error NotSelf();
     error NonEmptyCallbackData();
-    error OtherSellInProgress();
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
     error ShortfallTooHigh();

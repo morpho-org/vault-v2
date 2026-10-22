@@ -416,13 +416,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
         uint128 newNetCredit = currentNetCredit(marketId);
-        MarketData storage _marketData = marketData[marketId];
-        uint256 oldNetCredit = _marketData.netCredit;
-        // Temporarily store net credit as it was before the buy so accrual is correct.
-        _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
 
         require(!_marketData.forceSellable, UnauthorizedBuy());
         if (newNetCredit > 0) {
@@ -432,6 +429,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         _marketData.netCredit = newNetCredit;
+        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -612,12 +610,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
-            uint256 netCredit;
-            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
-                netCredit = _marketData.netCredit;
-            } else {
-                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                netCredit = currentNetCredit(marketId);
+            uint256 netCredit = _marketData.netCredit;
+            uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+            if (lossFactor != _marketData.lossFactor) {
+                netCredit =
+                    netCredit.mulDivDown(type(uint128).max - lossFactor, type(uint128).max - _marketData.lossFactor);
             }
             assets += netCredit.mulDivDown(
                 WAD, WAD + _marketData.netRate * _marketData.maturity.zeroFloorSub(block.timestamp)

@@ -73,6 +73,7 @@ contract SaleCallback {
 
     address internal immutable midnight;
     Action[] internal actions;
+    mapping(uint256 actionIndex => bytes result) public actionResults;
 
     constructor(address midnight_, address token, address vault) {
         midnight = midnight_;
@@ -99,6 +100,7 @@ contract SaleCallback {
                         revert(add(result, 32), mload(result))
                     }
                 }
+                actionResults[i] = result;
             } else {
                 require(!success, "expected callback action to revert");
                 require(result.length >= 4 && bytes4(result) == action.expectedRevert, "wrong callback revert");
@@ -2912,50 +2914,16 @@ contract MidnightAdapterTest is Test {
             adapter.realAssets(), uint256(netCredit).mulDivDown(1e18, 1e18 + rate * timeToMaturity), "cached net credit"
         );
 
-        // A loss-factor change makes realAssets fall back to reading Midnight.
+        // realAssets scales the cached net credit without reading the position.
         this.realizeDefault(offer.market, ORACLE_PRICE_SCALE / 4);
-        vm.expectRevert("position read");
-        adapter.realAssets();
-    }
-
-    function testCurrentNetCreditMatchesMidnight(
-        uint128 credit,
-        uint128 pendingFee,
-        uint128 lastLossFactor,
-        uint128 lossFactor,
-        uint256 elapsed
-    ) public {
-        pendingFee = uint128(bound(pendingFee, 0, credit));
-        // A loss factor equal to the cached one (0) would make realAssets skip Midnight.
-        lossFactor = uint128(bound(lossFactor, lastLossFactor > 0 ? lastLossFactor : 1, type(uint128).max));
-        elapsed = bound(elapsed, 0, 60 days);
-        Offer memory offer = buy(30 days, 1e18, MAX_TICK);
-        bytes32 marketId = _marketId(offer.market);
-
-        stdstore.enable_packed_slots();
-        setMidnightCredit(marketId, address(adapter), credit);
-        stdstore.enable_packed_slots()
-            .target(address(midnight))
-            .sig("pendingFee(bytes32,address)")
-            .with_key(marketId)
-            .with_key(address(adapter))
-            .checked_write(pendingFee);
-        stdstore.enable_packed_slots()
-            .target(address(midnight))
-            .sig("lastLossFactor(bytes32,address)")
-            .with_key(marketId)
-            .with_key(address(adapter))
-            .checked_write(lastLossFactor);
-        stdstore.enable_packed_slots()
-            .target(address(midnight))
-            .sig("lossFactor(bytes32)")
-            .with_key(marketId)
-            .checked_write(lossFactor);
-
-        skip(elapsed);
-        (uint128 expectedCredit, uint128 expectedPendingFee,) =
-            midnight.updatePositionView(offer.market, marketId, address(adapter));
-        assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
+        uint128 lossFactor = midnight.lossFactor(marketId);
+        uint256 slashedNetCredit = uint256(netCredit)
+            .mulDivDown(type(uint128).max - lossFactor, type(uint128).max - adapter.marketData(marketId).lossFactor);
+        assertEq(
+            adapter.realAssets(),
+            slashedNetCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity),
+            "loss-adjusted cached net credit"
+        );
     }
 
     function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
@@ -2972,22 +2940,48 @@ contract MidnightAdapterTest is Test {
         uint256 rate = (netCredit - paid) * 1e18 / (paid * 30 days);
 
         skip(elapsed);
-        assertCurrentNetCredit(offer.market, rate);
+        assertCurrentNetCredit(offer.market, rate, false);
 
         uint256 price = fullLoss ? 0 : ORACLE_PRICE_SCALE / 4;
         OracleMock(storedCollaterals[0].oracle).setPrice(price);
         OracleMock(storedCollaterals[1].oracle).setPrice(price);
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
-        assertCurrentNetCredit(offer.market, rate);
+        assertCurrentNetCredit(offer.market, rate, true);
 
         midnight.updatePosition(offer.market, address(adapter));
-        assertCurrentNetCredit(offer.market, rate);
+        assertCurrentNetCredit(offer.market, rate, true);
 
         skip(30 days);
-        assertCurrentNetCredit(offer.market, rate);
+        assertCurrentNetCredit(offer.market, rate, true);
     }
 
-    function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
+    function testRealAssetsLocalSlashMatchesMidnight(uint256 price) public {
+        Offer memory initial = freshPosition(discountTick);
+        uint128 storedLossFactor = adapter.marketData(_marketId(initial.market)).lossFactor;
+
+        this.realizeDefault(initial.market, bound(price, 0, ORACLE_PRICE_SCALE / 2));
+
+        assertGt(midnight.lossFactor(_marketId(initial.market)), storedLossFactor, "loss realized");
+        assertLocalSlashMatchesMidnight(initial.market);
+    }
+
+    function testRealAssetsLocalSlashMatchesMidnightAcrossSyncedLosses(uint256 firstPrice) public {
+        Offer memory initial = freshPosition(discountTick);
+        bytes32 marketId = _marketId(initial.market);
+        MarketData memory storedData = adapter.marketData(marketId);
+
+        this.realizeDefault(initial.market, bound(firstPrice, ORACLE_PRICE_SCALE / 4, ORACLE_PRICE_SCALE / 2));
+        uint128 firstLossFactor = midnight.lossFactor(marketId);
+        midnight.updatePosition(initial.market, address(adapter));
+        this.realizeDefault(initial.market, 0);
+
+        assertGt(midnight.lossFactor(marketId), firstLossFactor, "second loss realized");
+        assertEq(adapter.marketData(marketId).netCredit, storedData.netCredit, "adapter credit remains unsynced");
+        assertEq(adapter.marketData(marketId).lossFactor, storedData.lossFactor, "adapter loss remains unsynced");
+        assertLocalSlashMatchesMidnight(initial.market);
+    }
+
+    function testRealAssetsLossSlashingAndCacheSynchronization(uint256 units) public {
         units = bound(units, 1000, 100e18);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
@@ -3005,11 +2999,11 @@ contract MidnightAdapterTest is Test {
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
         uint256 expectedValue = uint256(credit - pendingFee).mulDivDown(1e18, 1e18 + rate * 15 days);
         assertLt(credit - pendingFee, oldNetCredit, "loss realized");
-        assertEq(adapter.realAssets(), expectedValue, "exact loss-adjusted amortized value");
+        assertApproxEqAbs(adapter.realAssets(), expectedValue, 2, "loss-adjusted amortized value");
         assertEq(adapter.marketData(marketId).netCredit, oldNetCredit, "view does not update the cache");
 
         midnight.updatePosition(offer.market, address(adapter));
-        assertEq(adapter.realAssets(), expectedValue, "permissionless position update");
+        assertApproxEqAbs(adapter.realAssets(), expectedValue, 2, "permissionless position update");
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, credit - pendingFee);
@@ -4476,24 +4470,38 @@ contract MidnightAdapterTest is Test {
         }
     }
 
-    function setMidnightCredit(bytes32 marketId, address account, uint256 credit) internal {
-        stdstore.target(address(midnight))
-            .sig("credit(bytes32,address)")
-            .with_key(marketId)
-            .with_key(account)
-            .checked_write(credit);
-    }
-
-    function assertCurrentNetCredit(Market memory market, uint256 rate) internal view {
+    function assertCurrentNetCredit(Market memory market, uint256 rate, bool allowRounding) internal view {
         bytes32 marketId = _marketId(market);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
         uint256 netCredit = credit - pendingFee;
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        assertEq(
-            adapter.realAssets(),
-            netCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity),
-            "real maturity still determines the rate"
-        );
+        uint256 expectedValue = netCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity);
+        if (allowRounding) {
+            assertApproxEqAbs(adapter.realAssets(), expectedValue, 2, "real maturity still determines the rate");
+        } else {
+            assertEq(adapter.realAssets(), expectedValue, "real maturity still determines the rate");
+        }
+    }
+
+    function assertLocalSlashMatchesMidnight(Market memory market) internal view {
+        bytes32 marketId = _marketId(market);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
+        uint256 expectedValue =
+            uint256(credit - pendingFee).mulDivDown(1e18, 1e18 + adapter.marketData(marketId).netRate * timeToMaturity);
+        uint256 actualValue = adapter.realAssets();
+
+        assertLe(actualValue, expectedValue, "local slash must not overvalue Midnight's position");
+        assertApproxEqAbs(actualValue, expectedValue, 2, "local slash tracks Midnight's position");
+    }
+
+    function expectedLocalValue(Market memory market, MarketData memory storedData) internal view returns (uint256) {
+        uint256 netCredit = storedData.netCredit;
+        uint128 lossFactor = midnight.lossFactor(_marketId(market));
+        if (lossFactor != storedData.lossFactor) {
+            netCredit = netCredit.mulDivDown(type(uint128).max - lossFactor, type(uint128).max - storedData.lossFactor);
+        }
+        return netCredit.mulDivDown(1e18, 1e18 + storedData.netRate * market.maturity.zeroFloorSub(block.timestamp));
     }
 
     function assertMarketIndex(bytes32 marketId, uint256 expected) internal view {
@@ -4696,29 +4704,25 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testBackingCallbackFirstValuationAfterDefaultBlocked() public {
+    function testBackingCallbackValuesAfterDefault() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        MarketData memory storedData = adapter.marketData(_marketId(initial.market));
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         uint256 expected = realVault.totalAssets();
         SaleCallback callback = newCallback();
-        callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapterBase.OtherSellInProgress.selector
-        );
-        callback.push(
-            address(realVault),
-            abi.encodeCall(IVaultV2.accrueInterest, ()),
-            IMidnightAdapterBase.OtherSellInProgress.selector
-        );
-        callback.push(
-            address(realVault),
-            abi.encodeCall(realVault.deposit, (1e18, recipient)),
-            IMidnightAdapterBase.OtherSellInProgress.selector
-        );
+        callback.push(address(adapter), abi.encodeCall(IAdapter.realAssets, ()), bytes4(0));
+        callback.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), bytes4(0));
+        callback.push(address(realVault), abi.encodeCall(realVault.deposit, (1e18, recipient)), bytes4(0));
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), expected);
-        assertEq(backing(), expected);
-        assertEq(realVault.balanceOf(recipient), 0);
+        assertEq(
+            abi.decode(callback.actionResults(0), (uint256)),
+            expectedLocalValue(initial.market, storedData),
+            "callback uses locally slashed stored credit"
+        );
+        assertEq(realVault._totalAssets(), expected + 1e18);
+        assertEq(realVault.totalAssets(), expected + 1e18);
+        assertEq(backing(), expected + 1e18);
+        assertGt(realVault.balanceOf(recipient), 0, "callback deposit succeeded");
     }
 
     /// forge-config: default.isolate = true
@@ -4862,12 +4866,13 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testBackingCrossMarketSnapshotBlocked() public {
+    function testBackingCrossMarketBuyDuringLossSale() public {
         Offer memory initial = freshPosition(MAX_TICK);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         uint256 expected = realVault.totalAssets();
         SaleCallback callback = newCallback();
         Offer memory inner = makeBuyOffer(6 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(inner.market, 0, 2e18, address(callback));
         callback.push(
             address(midnight),
             abi.encodeCall(
@@ -4882,12 +4887,13 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            IMidnightAdapterBase.OtherSellInProgress.selector
+            bytes4(0)
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
+        assertEq(realVault._totalAssets(), expected);
         assertEq(realVault.totalAssets(), expected);
         assertEq(backing(), expected);
+        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, inner.maxUnits, "nested take succeeds");
     }
 
     /// forge-config: default.isolate = true
@@ -4952,55 +4958,47 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testBackingDefaultDuringSaleBlocksOnlyUnassistedReads() public {
+    function testBackingDefaultDuringSaleAllowsUnassistedReads() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        MarketData memory storedData = adapter.marketData(_marketId(initial.market));
         SaleCallback callback = newCallback();
         callback.push(
             address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
         );
-        callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapterBase.OtherSellInProgress.selector
+        callback.push(address(adapter), abi.encodeCall(IAdapter.realAssets, ()), bytes4(0));
+        callback.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), bytes4(0));
+        callback.push(address(realVault), abi.encodeCall(realVault.deposit, (1e18, recipient)), bytes4(0));
+        callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
+        uint256 postLossValue = expectedLocalValue(initial.market, storedData);
+        assertEq(
+            abi.decode(callback.actionResults(1), (uint256)),
+            postLossValue,
+            "callback values the pre-sale credit after default"
         );
-        callback.push(
-            address(realVault),
-            abi.encodeCall(IVaultV2.accrueInterest, ()),
-            IMidnightAdapterBase.OtherSellInProgress.selector
-        );
-        callback.push(
-            address(realVault),
-            abi.encodeCall(realVault.deposit, (1e18, recipient)),
-            IMidnightAdapterBase.OtherSellInProgress.selector
-        );
-        this.saleThenDeposit(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertApproxEqAbs(backing(), 9e18, 1);
-        assertEq(realVault._totalAssets(), backing());
-    }
-
-    function saleThenDeposit(Offer memory offer, SaleCallback callback) external {
-        callbackSale(offer, callback);
-        assertFalse(midnight.liquidationLocked(_marketId(offer.market), address(adapter)));
         assertEq(realVault.firstTotalAssets(), 0);
-        assertEq(realVault.totalAssets(), backing());
-        deal(address(loanToken), address(this), 1e18);
-        realVault.deposit(1e18, recipient);
+        assertEq(realVault._totalAssets(), postLossValue + 3e18, "callback deposit uses the post-loss share price");
+        assertEq(realVault.totalAssets(), postLossValue + 3e18, "accrued value remains capped before settlement");
+        assertApproxEqAbs(backing(), postLossValue + 5e18, 2, "settled sale proceeds restore backing");
+        assertGt(realVault.balanceOf(recipient), 0, "callback deposit succeeded");
     }
 
     /// forge-config: default.isolate = true
     function testBackingPartialSaleThenCompleteDefault() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        MarketData memory storedData = adapter.marketData(_marketId(initial.market));
         SaleCallback callback = newCallback();
         callback.push(address(this), abi.encodeCall(this.realizeDefault, (initial.market, 0)), bytes4(0));
-        callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapterBase.OtherSellInProgress.selector
-        );
-        callback.push(
-            address(realVault),
-            abi.encodeCall(IVaultV2.accrueInterest, ()),
-            IMidnightAdapterBase.OtherSellInProgress.selector
-        );
+        callback.push(address(adapter), abi.encodeCall(IAdapter.realAssets, ()), bytes4(0));
+        callback.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), bytes4(0));
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), 6e18);
+        assertEq(
+            abi.decode(callback.actionResults(1), (uint256)),
+            expectedLocalValue(initial.market, storedData),
+            "complete default clears callback valuation"
+        );
+        assertEq(realVault.firstTotalAssets(), 0);
+        assertEq(realVault._totalAssets(), 2e18);
+        assertEq(realVault.totalAssets(), 2e18);
         assertEq(backing(), 6e18);
         assertEq(adapter.marketIdsLength(), 0);
     }
@@ -5508,8 +5506,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A loss realized inside the callback blocks a redemption in the same callback: realAssets cannot value the locked market while its loss is unrealized.
-    function testCbLossDuringForceDeallocateBlocksCallbackRedeem() public {
+    /// @dev A loss realized inside the callback is reflected in a redemption in the same callback.
+    function testCbLossDuringForceDeallocateAllowsCallbackRedeem() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
         buyer.exec(address(realVault), abi.encodeCall(realVault.deposit, (2e18, address(buyer))));
@@ -5522,20 +5520,29 @@ contract MidnightAdapterTest is Test {
         buyer.push(
             address(realVault),
             abi.encodeCall(realVault.redeem, (buyerShares, address(buyer), address(buyer))),
-            IMidnightAdapterBase.OtherSellInProgress.selector
+            bytes4(0)
         );
 
         callbackForceDeallocate(initial.market, 1e15, buyer);
         assertTrue(buyer.called(), "callback ran");
 
-        assertEq(loanToken.balanceOf(address(buyer)), buyerBalanceBefore - 1e15, "buyer paid for credit");
-        assertEq(realVault.balanceOf(address(buyer)), buyerShares, "callback redemption reverted");
+        uint256 buyerBalanceAfter = loanToken.balanceOf(address(buyer));
+        uint256 redeemedAssets = buyerBalanceAfter - (buyerBalanceBefore - 1e15);
+        assertGt(redeemedAssets, 0, "callback redemption succeeded");
+        assertEq(realVault.balanceOf(address(buyer)), 0, "callback shares redeemed");
         uint256 penaltyAssets = uint256(1e15).mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18);
-        assertEq(realVault.totalAssets(), backing() - penaltyAssets, "loss and penalty visible after the tx");
+        assertApproxEqAbs(
+            realVault.totalAssets(),
+            12e18 - 4e18 - redeemedAssets - penaltyAssets,
+            2,
+            "loss, redemption, and penalty visible after the tx"
+        );
         assertEq(
             realVault.allocation(adapter.adapterId()), adapter.marketData(_marketId(initial.market)).netCredit, "caps"
         );
-        assertApproxEqAbs(backing(), 12e18 - 4e18 + 1e15 / 2, 2, "half of the remaining credit is lost");
+        assertApproxEqAbs(
+            backing(), 12e18 - 4e18 + 1e15 / 2 - redeemedAssets, 2, "loss and callback redemption reduce backing"
+        );
     }
 
     /// forge-config: default.isolate = true
