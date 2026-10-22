@@ -307,9 +307,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate only syncs market data.
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(market), withdrawnAssets);
-        emit WithdrawToVault(marketId, withdrawnAssets, marketData[marketId].netCredit);
+        (uint128 newNetCredit, int256 netCreditChange) = sync(market, marketId, marketData[marketId].netCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), netCreditChange), withdrawnAssets);
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -335,8 +335,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev The regular branch expects `data` to be abi.encode(market).
-    /// @dev The forceDeallocate branch expects `data` to be abi.encode(offer, ratifierData). The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
+    /// @dev Called by this adapter from a sell callback or a withdraw.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -360,10 +360,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             return (ids(offer.market), netCreditChange);
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            Market memory market = abi.decode(data, (Market));
-            bytes32 marketId = IdLib.toId(market);
-            (, int256 netCreditChange) = sync(market, marketId, marketData[marketId].netCredit);
-            return (ids(market), netCreditChange);
+            returnExactBytes(data);
         }
     }
 
@@ -487,8 +484,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate only syncs market data.
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(market), sellerAssets);
+        int256 netCreditChange;
+        (newNetCredit, netCreditChange) = sync(market, marketId, _marketData.netCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), netCreditChange), sellerAssets);
 
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
