@@ -34,7 +34,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         emit AddAdmitterFactory(factory);
     }
 
-    /// @dev Transiently allow a vault shareholder to increase credit in any market of this gate.
+    /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The contract calling this function should not have debt.
     /// @dev The caller must use admission only for its own sale.
     /// @dev The caller must take a buy offer without a callback.
