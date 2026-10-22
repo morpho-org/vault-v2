@@ -92,6 +92,7 @@ contract MidnightAdapterGasTest is BaseTest {
 
     function setUp() public override {
         vm.setEvmVersion("osaka");
+        vm.pauseGasMetering();
         super.setUp();
 
         oneToken = 10 ** underlyingTokenDecimals;
@@ -265,6 +266,7 @@ contract MidnightAdapterGasTest is BaseTest {
         assertNotEq(forceCaller, onBehalf, "caller");
         assertGt(onBehalfSharesBefore, 0, "onBehalf shares");
         assertEq(vault.allowance(onBehalf, forceCaller), delegatedAllowance, "delegated allowance");
+        vm.resumeGasMetering();
     }
 
     /// @dev Exercises maximum collaterals, fees, penalty, and loss-factor desync across all markets.
