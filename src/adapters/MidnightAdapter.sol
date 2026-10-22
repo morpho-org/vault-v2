@@ -312,7 +312,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[marketId].netCredit = newNetCredit;
         marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) deallocate does not call withdrawToVault; both net credit values fit in uint128.
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
@@ -360,7 +360,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
@@ -445,7 +444,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
         } else if (fundingAdapter != address(0)) {
-            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
             IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
         }
 
@@ -468,7 +466,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        // forge-lint: disable-next-item(reentrancy-no-eth, unsafe-typecast) reentry is expected; both net credit values fit in uint128.
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .allocate(
                 address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
