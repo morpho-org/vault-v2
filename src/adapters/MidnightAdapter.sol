@@ -36,10 +36,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// FORCE DEALLOCATE
-/// @dev The adapter is the maker of a sell offer at price zero, and takes it on behalf of the given taker, who must have authorized the adapter on Midnight.
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
-/// @dev The taker must hold shares of the parent vault.
-/// @dev With a taker that holds at least one share, forceDeallocate can sell as much as the penalty allows.
+/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
