@@ -422,7 +422,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         // Temporarily store net credit as it was before the buy so accrual is correct.
         _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
-        if (oldNetCredit > 0) updateLossFactor(_marketData, marketId);
+        if (newNetCredit > 0) {
+            if (oldNetCredit == 0) {
+                require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+                _marketData.maturity = market.maturity.toUint48();
+                // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+                _marketData.index = uint8(marketIds.length);
+                marketIds.push(marketId);
+            }
+            updateLossFactor(_marketData, marketId);
+        } else if (oldNetCredit > 0) {
+            removeMarket(marketId);
+        }
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
 
@@ -433,16 +444,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         _marketData.netCredit = newNetCredit;
-        if (newNetCredit > 0 && oldNetCredit == 0) {
-            updateLossFactor(_marketData, marketId);
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            _marketData.index = uint8(marketIds.length);
-            marketIds.push(marketId);
-        } else if (newNetCredit == 0 && oldNetCredit > 0) {
-            removeMarket(marketId);
-        }
 
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
