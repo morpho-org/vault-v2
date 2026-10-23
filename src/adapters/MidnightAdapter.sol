@@ -108,6 +108,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
+        emit Constructor(_parentVault, _midnight, _durations);
     }
 
     /* MULTICALL */

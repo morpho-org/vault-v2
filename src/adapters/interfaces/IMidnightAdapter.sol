@@ -28,6 +28,7 @@ struct MarketData {
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
+    event Constructor(address indexed parentVault, address indexed midnight, uint256[] durations);
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Accept(bytes4 indexed selector, bytes data);
