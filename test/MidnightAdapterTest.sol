@@ -1925,7 +1925,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit();
         emit IMidnightAdapterBase.Constructor(address(newVault), address(midnight), allDurations);
-        factory.createMidnightAdapter(address(newVault), allDurations, bytes32(0));
+        factory.createMidnightAdapter(address(newVault), allDurations, false, bytes32(0));
     }
 
     function testConstructorGetters() public view {
