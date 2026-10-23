@@ -81,6 +81,13 @@ jobs:
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
 
+      - name: Install solc (0.8.37)
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.37/solc-static-linux
+          echo "5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a  solc-static-linux" | sha256sum --check
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc-0.8.37
+
       - name: Apply munging
         run: make -C lib/metamorpho/certora munged
 
