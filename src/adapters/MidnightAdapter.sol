@@ -307,18 +307,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
-        uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                withdrawnAssets
-            );
+        (uint128 newNetCredit, int256 netCreditChange) = sync(market, marketId, marketData[marketId].netCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), netCreditChange), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
     }
 
@@ -363,14 +353,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            (uint128 newNetCredit, int256 netCreditChange) =
+                sync(offer.market, marketId, marketData[marketId].netCredit);
             emit ForceDeallocate(marketId, assets, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+            return (ids(offer.market), netCreditChange);
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -431,17 +417,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        _marketData.netCredit = newNetCredit;
-        if (newNetCredit > 0 && oldNetCredit == 0) {
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            _marketData.index = uint8(marketIds.length);
-            marketIds.push(marketId);
-        } else if (newNetCredit == 0 && oldNetCredit > 0) {
-            removeMarket(marketId);
-        }
-
+        (, int256 netCreditChange) = sync(market, marketId, oldNetCredit);
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
@@ -469,10 +445,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .allocate(
-                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
-            );
+        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), netCreditChange), paidAssets);
 
         SafeERC20Lib.forceApproveMax(asset, midnight);
         emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
@@ -510,17 +483,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                sellerAssets
-            );
+        int256 netCreditChange;
+        (newNetCredit, netCreditChange) = sync(market, marketId, _marketData.netCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), netCreditChange), sellerAssets);
 
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
@@ -542,6 +507,29 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
+    }
+
+    function sync(Market memory market, bytes32 marketId, uint256 oldNetCredit)
+        internal
+        returns (uint128 newNetCredit, int256 netCreditChange)
+    {
+        newNetCredit = currentNetCredit(marketId);
+        MarketData storage _marketData = marketData[marketId];
+        _marketData.netCredit = newNetCredit;
+        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+
+        if (newNetCredit > 0 && oldNetCredit == 0) {
+            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            _marketData.maturity = market.maturity.toUint48();
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+            _marketData.index = uint8(marketIds.length);
+            marketIds.push(marketId);
+        } else if (newNetCredit == 0 && oldNetCredit > 0) {
+            removeMarket(marketId);
+        }
+
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        netCreditChange = int256(uint256(newNetCredit)) - int256(oldNetCredit);
     }
 
     function removeMarket(bytes32 marketId) internal {
