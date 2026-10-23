@@ -22,6 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
 /// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
@@ -324,17 +325,32 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by this adapter from a buy callback or sell callback, or by allocators/sentinels or the vault's liquidity path with data abi.encode(true, market).
+    /// @dev Called by this adapter from a buy callback or sell callback. Allocators and sentinels can call deallocate with data abi.encode(true, market) to withdraw from a market.
     /// @dev The sell callback reports the market's IDs and net-credit change with data abi.encode(false, ids, change).
-    /// @dev Called by anyone through forceDeallocate with data abi.encode(offer, ratifierData). The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. Data abi.encode(false, offer, ratifierData) sells to the offer; abi.encode(true, market) withdraws from the market. For a sale, the caller is the receiver and pays the full credit value.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
-        if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
+        if (abi.decode(data, (bool))) {
+            // Permissionless: vault.deallocate restricts callers to allocators and sentinels; forceDeallocate is open to anyone and charges the vault's penalty.
+            (, Market memory market) = abi.decode(data, (bool, Market));
+            bytes32 marketId = IdLib.toId(market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+            IMidnight(midnight).withdraw(market, assets, address(this), address(this));
+
+            uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
+            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+        } else if (messageSig == IVaultV2.forceDeallocate.selector) {
+            (, Offer memory offer, bytes memory ratifierData) = abi.decode(data, (bool, Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
@@ -350,21 +366,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
-        } else if (abi.decode(data, (bool))) {
-            // Permissionless (vault gates to allocators/sentinels/liquidity path): withdraw from the market.
-            (, Market memory market) = abi.decode(data, (bool, Market));
-            bytes32 marketId = IdLib.toId(market);
-            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
-            IMidnight(midnight).withdraw(market, assets, address(this), address(this));
-
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             (, bytes32[] memory _ids, int256 change) = abi.decode(data, (bool, bytes32[], int256));

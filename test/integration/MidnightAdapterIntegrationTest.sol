@@ -333,7 +333,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         deal(address(underlyingToken), depositor, units - sellerAssets);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
-        vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
+        vault.forceDeallocate(address(adapter), abi.encode(false, offer, ratifierData), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }
