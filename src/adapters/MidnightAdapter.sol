@@ -620,20 +620,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
-            uint128 currentLossFactor = IMidnight(midnight).lossFactor(marketId);
-            uint128 cachedLossFactor = _marketData.lossFactor;
-            uint32 maturity = _marketData.maturity;
-            uint48 realAssetsNetCredit = _marketData.realAssetsNetCredit;
-            uint48 realAssetsNetRate = _marketData.realAssetsNetRate;
             uint256 netCredit;
-            if (currentLossFactor == cachedLossFactor) {
-                netCredit = realAssetsNetCredit.toUint256();
+            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+                netCredit = _marketData.realAssetsNetCredit.toUint256();
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
-                WAD, WAD + realAssetsNetRate.toUint256() * maturity.zeroFloorSub(block.timestamp)
+                WAD,
+                WAD + _marketData.realAssetsNetRate.toUint256() * _marketData.maturity.zeroFloorSub(block.timestamp)
             );
         }
         return assets;
