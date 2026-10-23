@@ -110,6 +110,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(_durations[i] <= type(uint32).max, DurationTooHigh());
         }
         durations = _durations;
+        emit Constructor(_parentVault, _midnight, _durations);
     }
 
     /* MULTICALL */
