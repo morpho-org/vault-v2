@@ -105,6 +105,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         adapterId = keccak256(abi.encode("this", address(this)));
 
         packedDurations = DurationsLib.pack(_durations);
+        emit Constructor(_parentVault, _midnight, _durations);
     }
 
     /* MULTICALL */
