@@ -17,6 +17,15 @@ library DurationsLib {
         }
     }
 
+    /// @dev Assumes length <= MAX_DURATIONS.
+    function unpack(bytes32 packedDurations, uint256 length) internal pure returns (uint256[] memory) {
+        uint256[] memory durations = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            durations[i] = get(packedDurations, i);
+        }
+        return durations;
+    }
+
     function pack(uint256[] memory durations) internal pure returns (bytes32) {
         require(durations.length <= MAX_DURATIONS, TooManyDurations());
         unchecked {
