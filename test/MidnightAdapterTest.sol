@@ -3163,7 +3163,7 @@ contract MidnightAdapterTest is Test {
         midnight.setIsAuthorized(address(adapter), true, taker);
 
         uint256 penaltyShares =
-            realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market), 0.5e18, address(this));
+            realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, taker), 0.5e18, address(this));
         vm.stopPrank();
 
         assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
@@ -3459,13 +3459,31 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(market, 0.5e18);
     }
 
-    function testForceDeallocateCallerMustAuthorizeAdapter() public {
+    function testForceDeallocateTakerMustAuthorizeAdapter() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         deal(address(loanToken), address(this), 0.5e18);
         midnight.setIsAuthorized(address(adapter), false, address(this));
 
         vm.expectRevert(IMidnight.TakerUnauthorized.selector);
         forceDeallocate(boughtOffer.market, 0.5e18);
+    }
+
+    /// @dev The caller can take for another account only with that account's Midnight authorization.
+    function testForceDeallocateCallerMustBeAuthorizedByTaker(bool authorized) public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        address buyer = makeAddr("buyer");
+        deal(address(loanToken), address(this), 0.5e18);
+        vm.startPrank(buyer);
+        midnight.setIsAuthorized(address(adapter), true, buyer);
+        midnight.setIsAuthorized(address(this), authorized, buyer);
+        vm.stopPrank();
+
+        if (!authorized) vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        parentVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
+
+        assertEq(midnight.credit(marketId, buyer), authorized ? 0.5e18 : 0, "taker credit");
+        assertEq(loanToken.balanceOf(address(this)), authorized ? 0 : 0.5e18, "caller paid");
     }
 
     /// @dev The forced sale is at price zero, which adds nothing to consumed: setConsumed cannot block it.
@@ -3887,8 +3905,9 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
-        (, int256 change) =
-            parentVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market), assets, address(this));
+        (, int256 change) = parentVault.forceDeallocate(
+            address(adapter), abi.encode(boughtOffer.market, address(this)), assets, address(this)
+        );
 
         assertEq(change, -int256(assets), "change");
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
@@ -4316,7 +4335,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function forceDeallocate(Market memory market, uint256 assets) internal {
-        parentVault.forceDeallocate(address(adapter), abi.encode(market), assets, address(this));
+        parentVault.forceDeallocate(address(adapter), abi.encode(market, address(this)), assets, address(this));
     }
 
     function setUpRealVault() internal {
@@ -4371,7 +4390,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
-        return realVault.forceDeallocate(address(adapter), abi.encode(market), assets, address(this));
+        return realVault.forceDeallocate(address(adapter), abi.encode(market, address(this)), assets, address(this));
     }
 
     function submitAndCall(IVaultV2 vault, bytes memory call_) internal {
@@ -4755,7 +4774,8 @@ contract MidnightAdapterTest is Test {
         callback.push(
             address(realVault),
             abi.encodeCall(
-                IVaultV2.forceDeallocate, (address(adapter), abi.encode(initial.market), 1e15, address(callback))
+                IVaultV2.forceDeallocate,
+                (address(adapter), abi.encode(initial.market, address(callback)), 1e15, address(callback))
             ),
             IMidnightAdapterBase.SellInProgress.selector
         );

@@ -35,6 +35,10 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
+/// FORCE DEALLOCATE
+/// @dev The adapter is the maker of a sell offer at price zero, and takes it on behalf of the given taker, who must have authorized the adapter on Midnight.
+/// @dev The caller must be the taker, or be authorized by the taker on Midnight.
+///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
@@ -349,7 +353,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the caller at face value plus the settlement fee.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -358,7 +362,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            Market memory market = abi.decode(data, (Market));
+            (Market memory market, address taker) = abi.decode(data, (Market, address));
+            require(taker == caller || IMidnight(midnight).isAuthorized(taker, caller), NotAuthorized());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
@@ -385,7 +390,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFee);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
-            IMidnight(midnight).take(offer, hex"", assets, caller, address(0), address(0), hex"");
+            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
             forceSelling = false;
 
             uint128 newNetCredit = currentNetCredit(marketId);
