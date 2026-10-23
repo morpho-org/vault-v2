@@ -73,6 +73,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
+    /* TRANSIENT STORAGE */
+
+    /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
+    bytes32 public transient overridenMarketId;
+    uint256 public transient overridenMarketBoughtNetCredit;
+
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -96,12 +102,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-
-    /* TRANSIENT STORAGE */
-
-    /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
-    bytes32 public transient overridenMarketId;
-    uint256 public transient overridenMarketBoughtNetCredit;
 
     /* CONSTRUCTOR */
 
