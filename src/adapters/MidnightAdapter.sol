@@ -96,7 +96,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-    uint144 lastLossFactorSum;
+    uint256 lastLossFactorSum;
 
     /* CONSTRUCTOR */
 
