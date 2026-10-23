@@ -12,7 +12,6 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
-import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -56,12 +55,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
     using MathLib for uint48;
-    using DurationsLib for bytes32;
 
     /* CONSTANTS */
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
+    uint256 internal constant MAX_DURATIONS = 8;
 
     /* IMMUTABLES */
 
@@ -69,9 +68,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Sorted in ascending order.
-    bytes32 public immutable packedDurations;
-    uint256 public immutable durationsLength;
 
     /* TIMELOCKS STORAGE */
 
@@ -85,6 +81,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
+    /// @dev Returns the durations that can be capped.
+    uint256[] public override durations;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
@@ -106,8 +104,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         adapterId = keccak256(abi.encode("this", address(this)));
 
-        packedDurations = DurationsLib.pack(_durations);
-        durationsLength = _durations.length;
+        require(_durations.length <= MAX_DURATIONS, TooManyDurations());
+        for (uint256 i; i < _durations.length; i++) {
+            require(_durations[i] > (i == 0 ? 0 : _durations[i - 1]), DurationsNotIncreasing());
+            require(_durations[i] <= type(uint32).max, DurationTooHigh());
+        }
+        durations = _durations;
         emit Constructor(_parentVault, _midnight, _durations);
     }
 
@@ -451,14 +453,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
+        uint256[] memory _durations = durations;
         uint256 affectedDurationCount;
-        while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
+        while (affectedDurationCount < _durations.length && _durations[affectedDurationCount] <= ttm) {
             affectedDurationCount++;
         }
-        uint256[] memory allocations = durationAllocations(affectedDurationCount);
+        uint256[] memory allocations = _durationAllocations(_durations, affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < affectedDurationCount; i++) {
-            bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
+            bytes32 id = keccak256(abi.encode("this/duration", address(this), _durations[i]));
             uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
             require(absoluteCap > 0, DurationZeroAbsoluteCap());
             require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());
@@ -584,21 +587,28 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return idsArray;
     }
 
-    /// @dev Returns the durations that can be capped.
-    function durations() external view returns (uint256[] memory) {
-        return packedDurations.unpack(durationsLength);
+    function durationsLength() external view returns (uint256) {
+        return durations.length;
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
-        require(length <= durationsLength, InvalidLength());
+        return _durationAllocations(durations, length);
+    }
+
+    function _durationAllocations(uint256[] memory _durations, uint256 length)
+        internal
+        view
+        returns (uint256[] memory allocations)
+    {
+        require(length <= _durations.length, InvalidLength());
         allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
-            while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
+            while (bucket < length && _durations[bucket] <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         for (uint256 j = length - 1; j > 0; j--) {

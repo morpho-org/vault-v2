@@ -24,7 +24,6 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -1787,7 +1786,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
-        assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
+        assertDurations(IMidnightAdapter(newAdapter), allDurations);
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
@@ -1814,7 +1813,7 @@ contract MidnightAdapterTest is Test {
         singleDuration[0] = allDurations[0];
         address otherDurationsAdapter = factory.createMidnightAdapter(address(newVault), singleDuration, salt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
-        assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
+        assertDurations(IMidnightAdapter(otherDurationsAdapter), singleDuration);
         assertEq(
             factory.midnightAdapter(address(newVault), keccak256(abi.encode(singleDuration)), salt),
             otherDurationsAdapter,
@@ -1841,26 +1840,33 @@ contract MidnightAdapterTest is Test {
         for (uint256 i; i < tooMany.length; i++) {
             tooMany[i] = i + 1;
         }
-        vm.expectRevert(DurationsLib.TooManyDurations.selector);
+        vm.expectRevert(IMidnightAdapterBase.TooManyDurations.selector);
         factory.createMidnightAdapter(address(newVault), tooMany, bytes32(0));
 
         uint256[] memory notIncreasing = new uint256[](2);
         notIncreasing[0] = 2 days;
         notIncreasing[1] = 1 days;
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(address(newVault), notIncreasing, bytes32(0));
 
         uint256[] memory zeroFirst = new uint256[](1);
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
         factory.createMidnightAdapter(address(newVault), zeroFirst, bytes32(0));
 
         uint256[] memory tooHigh = new uint256[](1);
         tooHigh[0] = uint256(type(uint32).max) + 1;
-        vm.expectRevert(DurationsLib.DurationTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationTooHigh.selector);
         factory.createMidnightAdapter(address(newVault), tooHigh, bytes32(0));
     }
 
     /* DURATIONS */
+
+    function assertDurations(IMidnightAdapter target, uint256[] memory expected) internal view {
+        assertEq(target.durationsLength(), expected.length, "durationsLength");
+        for (uint256 i; i < expected.length; i++) {
+            assertEq(target.durations(i), expected[i], "duration");
+        }
+    }
 
     function testConstructorEvent() public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
@@ -1878,14 +1884,9 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0, "vault allowance");
         assertEq(adapter.maxTtm(), type(uint32).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
-        assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
+        assertDurations(adapter, allDurations);
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
         assertFalse(adapter.noSalesWithShortfall(), "noSalesWithShortfall");
-        bytes32 expectedPackedDurations;
-        for (uint256 i = 0; i < allDurations.length; i++) {
-            expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
-        }
-        assertEq(adapter.packedDurations(), expectedPackedDurations, "packedDurations");
     }
 
     function testNoDurations() public {
@@ -1912,7 +1913,7 @@ contract MidnightAdapterTest is Test {
         this.takeWithAccrual(offer, data, taker, address(0));
 
         assertEq(noDurations.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "buy works");
-        assertEq(noDurations.durations(), new uint256[](0), "durations");
+        assertEq(noDurations.durationsLength(), 0, "durationsLength");
         assertEq(noDurations.durationAllocations(0), new uint256[](0), "durationAllocations");
         vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
         noDurations.durationAllocations(1);
