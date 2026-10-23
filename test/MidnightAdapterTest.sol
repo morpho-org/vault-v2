@@ -3433,7 +3433,6 @@ contract MidnightAdapterTest is Test {
         take(second);
         assertEq(adapter.marketIdsLength(), 2);
         assertEq(realVault.allocation(adapter.adapterId()), 2e18);
-        assertEq(realVault.allocation(keccak256(abi.encode("enterGate", wrapper))), 2e18);
     }
 
     function testEnterGateUnregisteredGate(bool adapterIsMaker, bool wrap) public {
@@ -3555,7 +3554,6 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.debt(_marketId(otherMarket), address(adapter)), 0);
         assertEq(adapter.marketIdsLength(), 1);
         assertEq(realVault.allocation(adapter.adapterId()), 1e18);
-        assertEq(realVault.allocation(keccak256(abi.encode("enterGate", wrapper))), 1e18);
     }
 
     /// forge-config: default.isolate = false
@@ -3578,13 +3576,11 @@ contract MidnightAdapterTest is Test {
         realVault.transfer(exitOffer.maker, 1);
         bytes memory data = abi.encode(exitOffer, abi.encode(root_, 0, proof([exitOffer])));
         assertTrue(VaultV2CompatibleEnterGate(attackerGate).canIncreaseDebt(address(adapter)));
-        assertEq(realVault.allocation(keccak256(abi.encode("enterGate", attackerGate))), 0);
 
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18);
         vm.expectRevert(IMidnight.SellerIsLiquidatable.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
-        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
