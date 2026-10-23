@@ -617,27 +617,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity.
     function realAssets() external view returns (uint256) {
         uint256 assets;
-        uint256 marketCount = marketIds.length;
-        for (uint256 i = 0; i < marketCount; i++) {
-            bytes32 marketId;
-            assembly ("memory-safe") {
-                mstore(0x00, marketIds.slot)
-                marketId := sload(add(keccak256(0x00, 0x20), i))
-            }
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint128 currentLossFactor = IMidnight(midnight).lossFactor(marketId);
-            uint256 packedMarketData;
-            assembly ("memory-safe") {
-                packedMarketData := sload(_marketData.slot)
-            }
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint128 cachedLossFactor = uint128(packedMarketData);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint32 maturity = uint32(packedMarketData >> 128);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint48 realAssetsNetCredit = uint48(packedMarketData >> 160);
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint48 realAssetsNetRate = uint48(packedMarketData >> 208);
+            uint128 cachedLossFactor = _marketData.lossFactor;
+            uint32 maturity = _marketData.maturity;
+            uint48 realAssetsNetCredit = _marketData.realAssetsNetCredit;
+            uint48 realAssetsNetRate = _marketData.realAssetsNetRate;
             uint256 netCredit;
             if (currentLossFactor == cachedLossFactor) {
                 netCredit = realAssetsNetCredit.toUint256();

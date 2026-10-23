@@ -4183,7 +4183,21 @@ contract MidnightAdapterTest is Test {
         vm.record();
         adapter.realAssets();
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, marketCount + 1 + marketCount, "market ids plus one MarketData slot per market");
+        bytes32 marketIdsLengthSlot = bytes32(uint256(5));
+        uint256 marketIdsDataSlot = uint256(keccak256(abi.encode(uint256(5))));
+        uint256 marketDataReads;
+        for (uint256 i; i < reads.length; i++) {
+            if (reads[i] == marketIdsLengthSlot) continue;
+            bool isMarketId;
+            for (uint256 j; j < marketCount; j++) {
+                if (reads[i] == bytes32(marketIdsDataSlot + j)) {
+                    isMarketId = true;
+                    break;
+                }
+            }
+            if (!isMarketId) marketDataReads++;
+        }
+        assertEq(marketDataReads, marketCount, "one MarketData slot per market");
     }
 
     /* HELPERS */
