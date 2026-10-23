@@ -88,10 +88,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
-    bytes32 public transient overridenMarketId;
-    uint256 public transient overridenMarketBoughtNetCredit;
-
     uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
@@ -100,6 +96,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
+
+    /* TRANSIENT STORAGE */
+
+    /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
+    bytes32 public transient overridenMarketId;
+    uint256 public transient overridenMarketBoughtNetCredit;
 
     /* CONSTRUCTOR */
 
