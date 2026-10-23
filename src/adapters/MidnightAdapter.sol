@@ -77,6 +77,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
+    /* TRANSIENT STORAGE */
+
+    /// @dev Set to true so forceDeallocate offers are ratified.
+    bool transient forceSelling;
+
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -100,9 +105,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-
-    /// @dev Set to true so forceDeallocate offers are ratified.
-    bool transient forceSelling;
 
     /* CONSTRUCTOR */
 
