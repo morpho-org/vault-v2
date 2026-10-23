@@ -13,11 +13,13 @@ import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {FloatLib} from "./libraries/FloatLib.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Values each market with netCredit rounded down and netRate rounded up to 40 significant bits (relative error below 2^-38), so that it reads one storage slot per market.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
@@ -55,8 +57,10 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for uint32;
     using MathLib for uint48;
     using DurationsLib for bytes32;
+    using FloatLib for uint48;
 
     /* CONSTANTS */
 
@@ -316,8 +320,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+        updateMarketData(marketId, newNetCredit);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -372,8 +375,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
-            marketData[marketId].netCredit = newNetCredit;
-            marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
+            updateMarketData(marketId, newNetCredit);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -426,8 +428,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        updateMarketData(marketId, newNetCredit);
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
@@ -438,10 +439,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
-
+        _marketData.realAssetsNetRate = FloatLib.toFloatUp(_marketData.netRate);
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
+            _marketData.maturity = market.maturity.toUint32();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
@@ -518,8 +519,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        updateMarketData(marketId, newNetCredit);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -551,6 +551,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
+    function updateMarketData(bytes32 marketId, uint128 newNetCredit) internal {
+        MarketData storage _marketData = marketData[marketId];
+        _marketData.netCredit = newNetCredit;
+        _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        _marketData.realAssetsNetCredit = FloatLib.toFloatDown(newNetCredit);
+        _marketData.realAssetsNetRate = FloatLib.toFloatUp(_marketData.netRate);
+    }
+
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
@@ -560,6 +568,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.lossFactor = 0;
         _marketData.netRate = 0;
         _marketData.maturity = 0;
+        _marketData.realAssetsNetRate = 0;
         _marketData.index = 0;
     }
 
@@ -618,17 +627,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
+            uint128 cachedLossFactor = _marketData.lossFactor;
+            uint32 maturity = _marketData.maturity;
+            uint48 realAssetsNetCredit = _marketData.realAssetsNetCredit;
+            uint48 realAssetsNetRate = _marketData.realAssetsNetRate;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
                 netCredit = _marketData.netCredit - inProgressBuyBoughtNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
-                netCredit = _marketData.netCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == cachedLossFactor) {
+                netCredit = realAssetsNetCredit.toUint256();
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
             }
             assets += netCredit.mulDivDown(
-                WAD, WAD + _marketData.netRate * _marketData.maturity.zeroFloorSub(block.timestamp)
+                WAD, WAD + realAssetsNetRate.toUint256() * maturity.zeroFloorSub(block.timestamp)
             );
         }
         return assets;

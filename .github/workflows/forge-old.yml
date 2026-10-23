@@ -10,6 +10,9 @@ on:
 jobs:
   compare-bytecode:
     runs-on: ubuntu-latest
+    # Linting runs in the lint job; forge v1.8.3's linter runs out of memory on MidnightAdapter.
+    env:
+      FOUNDRY_LINT_LINT_ON_BUILD: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
