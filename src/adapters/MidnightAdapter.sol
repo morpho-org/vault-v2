@@ -347,6 +347,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketData[marketId].netCredit = newNetCredit;
             marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            emit WithdrawToVault(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else if (messageSig == IVaultV2.forceDeallocate.selector) {
