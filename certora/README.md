@@ -54,6 +54,9 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
+- [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
+  It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
+  These hold whatever the adapter's net credit in Midnight is.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
@@ -108,6 +111,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
   It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
+- [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault makes external calls only when it has applied all allocation changes returned by adapters, so allocations are up to date whenever another contract runs.
 
 # Verification setup
 
