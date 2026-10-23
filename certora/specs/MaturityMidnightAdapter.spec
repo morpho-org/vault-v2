@@ -57,23 +57,27 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
 strong invariant nonZeroMaturityHasNonZeroNetCredit()
     forall bytes32 marketId. currentContract.marketData[marketId].maturity != 0 => currentContract.marketData[marketId].netCredit != 0;
 
-// Whether a zero net credit has been stored for the market, as the adapter does before removing a market.
-persistent ghost mapping(bytes32 => bool) ghostZeroNetCreditStored;
+// Whether the market's maturity has been reset to zero while the market was out of the list and had a zero stored net credit, as when the market is removed.
+persistent ghost mapping(bytes32 => bool) ghostMaturityResetOnRemoval;
 
-hook Sstore currentContract.marketData[KEY bytes32 marketId].netCredit uint128 netCredit {
-    if (netCredit == 0) ghostZeroNetCreditStored[marketId] = true;
+hook Sstore currentContract.marketData[KEY bytes32 marketId].maturity uint48 maturity {
+    if (maturity == 0) {
+        uint8 index = currentContract.marketData[marketId].index;
+        bool listed = index < currentContract.marketIds.length && currentContract.marketIds[index] == marketId;
+        ghostMaturityResetOnRemoval[marketId] = !listed && currentContract.marketData[marketId].netCredit == 0;
+    }
 }
 
-// Prove that a call changes a non-zero stored maturity only by resetting it to zero, and only if it also stores a zero net credit for the market, as when the market is removed.
+// Prove that a call changes a non-zero stored maturity only by resetting it to zero, and only once the market is out of the list with a zero stored net credit, as when the market is removed.
 // The net credit can be non-zero again at the end of the call: in this model, Midnight's net credit can be any value, so withdrawToVault can store a non-zero net credit after onBuy removed the market.
 // This is a property of each call: across calls, a market can be removed and bought again, and in the adapter it then gets the same maturity because the market id commits to the maturity, which this model abstracts.
 rule maturityImmutable(env e, method f, calldataarg args, bytes32 marketId) {
     requireInvariant nonZeroMaturityHasNonZeroNetCredit();
-    require !ghostZeroNetCreditStored[marketId], "no zero net credit stored yet in this call";
+    require !ghostMaturityResetOnRemoval[marketId], "no maturity reset yet in this call";
     uint48 maturityBefore = currentContract.marketData[marketId].maturity;
 
     f(e, args);
 
     uint48 maturityAfter = currentContract.marketData[marketId].maturity;
-    assert maturityBefore != 0 && maturityAfter != maturityBefore => maturityAfter == 0 && ghostZeroNetCreditStored[marketId];
+    assert maturityBefore != 0 && maturityAfter != maturityBefore => maturityAfter == 0 && ghostMaturityResetOnRemoval[marketId];
 }
