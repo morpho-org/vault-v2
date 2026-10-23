@@ -35,7 +35,6 @@ rule buyRevertsIfNetRateTooLow(env e, bytes32 marketId, MidnightAdapter.Market m
     mathint ttm = market.maturity - e.block.timestamp;
     mathint boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
 
-    // In real numbers: (boughtNetCredit - paidAssets) / paidAssets < minNetBuyRate * ttm / WAD, written without division.
     require (boughtNetCredit - paidAssets) * WAD() < minNetBuyRate() * ttm * paidAssets, "assume the net rate is below minNetBuyRate";
 
     onBuy@withrevert(e, marketId, market, paidAssets, boughtCredit, buyPendingFeeIncrease, buyer, callbackData);
