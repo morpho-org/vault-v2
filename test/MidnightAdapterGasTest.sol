@@ -41,16 +41,14 @@ contract WorstCaseForceDeallocator {
         address onBehalf,
         address caller,
         uint256 gas
-    ) external returns (uint256 penaltyShares, uint256 withdrawnShares) {
+    ) external {
         vm.prank(caller, caller);
-        return exiter.forceDeallocate{gas: gas}(vault, adapter, data, assets, onBehalf);
+        exiter.forceDeallocate{gas: gas}(vault, adapter, data, assets, onBehalf);
     }
 }
 
 contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
     IMorpho internal immutable morpho;
-    uint256 private lastPenaltyShares;
-    uint256 private lastWithdrawnShares;
 
     constructor(IMorpho morpho_) {
         morpho = morpho_;
@@ -58,14 +56,12 @@ contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
 
     function forceDeallocate(IVaultV2 vault, address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
-        returns (uint256 penaltyShares, uint256 withdrawnShares)
     {
         address asset = vault.asset();
         SafeERC20Lib.safeApprove(asset, adapter, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, address(morpho), type(uint256).max);
 
         morpho.flashLoan(asset, assets, abi.encode(vault, adapter, data, onBehalf, msg.sender));
-        return (lastPenaltyShares, lastWithdrawnShares);
     }
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
@@ -73,8 +69,8 @@ contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
         (IVaultV2 vault, address adapter, bytes memory forceDeallocateData, address onBehalf, address caller) =
             abi.decode(data, (IVaultV2, address, bytes, address, address));
 
-        lastPenaltyShares = vault.forceDeallocate(adapter, forceDeallocateData, assets, onBehalf);
-        lastWithdrawnShares = vault.withdraw(assets, address(this), onBehalf);
+        vault.forceDeallocate(adapter, forceDeallocateData, assets, onBehalf);
+        vault.withdraw(assets, address(this), onBehalf);
 
         address asset = vault.asset();
         uint256 balance = IERC20(asset).balanceOf(address(this));
@@ -312,7 +308,7 @@ contract MidnightAdapterGasTest is BaseTest {
             FlashLoanForceDeallocator.forceDeallocate,
             (vault, address(adapter), forceDeallocateData, soldUnits, onBehalf)
         );
-        (uint256 penaltyShares, uint256 withdrawnShares) = deallocator.forceDeallocate(
+        deallocator.forceDeallocate(
             exiter,
             vault,
             address(adapter),
@@ -323,8 +319,8 @@ contract MidnightAdapterGasTest is BaseTest {
             GAS_LIMIT - _intrinsicGas(callData)
         );
 
-        assertGt(penaltyShares, 0, "penalty shares");
-        assertGt(withdrawnShares, 0, "withdrawn shares");
+        uint256 sharesSpent = onBehalfSharesBefore - vault.balanceOf(onBehalf);
+        assertGt(sharesSpent, vault.previewWithdraw(soldUnits), "penalty shares");
         assertGt(vault.balanceOf(performanceFeeRecipient), 0, "performance fee shares");
         assertGt(vault.balanceOf(managementFeeRecipient), 0, "management fee shares");
         assertGt(
@@ -332,12 +328,7 @@ contract MidnightAdapterGasTest is BaseTest {
         );
         assertGt(midnight.continuousFeeCredit(soldMarketId), continuousFeeCreditBefore, "continuous fee");
         assertEq(adapter.marketIdsLength(), adapter.MAX_MARKETS() - 1, "sold market removed");
-        assertEq(
-            vault.allowance(onBehalf, address(exiter)),
-            delegatedAllowance - penaltyShares - withdrawnShares,
-            "allowance spent"
-        );
-        assertEq(vault.balanceOf(onBehalf), onBehalfSharesBefore - penaltyShares - withdrawnShares, "shares spent");
+        assertEq(vault.allowance(onBehalf, address(exiter)), delegatedAllowance - sharesSpent, "allowance spent");
         assertEq(underlyingToken.balanceOf(address(morpho)), soldUnits, "Morpho Blue repaid");
         assertEq(underlyingToken.balanceOf(address(exiter)), 0, "exiter balance");
         assertGt(underlyingToken.balanceOf(forceCaller), 0, "force caller received assets");
