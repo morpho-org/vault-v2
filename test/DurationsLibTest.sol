@@ -59,4 +59,14 @@ contract DurationsLibTest is Test {
             assertEq(packedDurations.get(i), i < length ? i + 1 : 0);
         }
     }
+
+    function testPackAndUnpack(uint256 length) public pure {
+        length = bound(length, 0, MAX_DURATIONS);
+        uint256[] memory durations = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            durations[i] = i + 1;
+        }
+
+        assertEq(durations.pack().unpack(length), durations);
+    }
 }

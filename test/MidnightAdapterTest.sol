@@ -2190,12 +2190,13 @@ contract MidnightAdapterTest is Test {
         bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
         assertEq(ids[1], keccak256(abi.encode("enterGate", enterGate)));
-        assertEq(ids[2], keccak256(abi.encode("liquidatorGate", liquidatorGate)));
-        assertEq(ids[3], keccak256(abi.encode("rcfThreshold", rcfThreshold)));
+        uint256 k = liquidatorGate == address(0) ? 0 : 1;
+        if (k != 0) assertEq(ids[2], keccak256(abi.encode("liquidatorGate", liquidatorGate)));
+        assertEq(ids[2 + k], keccak256(abi.encode("rcfThreshold", rcfThreshold)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            assertEq(ids[i * 2 + 4], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
+            assertEq(ids[i * 2 + 3 + k], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
-                ids[i * 2 + 5],
+                ids[i * 2 + 4 + k],
                 keccak256(
                     abi.encode(
                         "collateralParams",
@@ -2208,7 +2209,13 @@ contract MidnightAdapterTest is Test {
             );
         }
 
-        assertEq(ids.length, 4 + market.collateralParams.length * 2);
+        assertEq(ids.length, 3 + k + market.collateralParams.length * 2);
+        if (k == 0) {
+            bytes32 zeroLiquidatorGateId = keccak256(abi.encode("liquidatorGate", address(0)));
+            for (uint256 i = 0; i < ids.length; i++) {
+                assertNotEq(ids[i], zeroLiquidatorGateId);
+            }
+        }
 
         market.maturity = bound(otherMaturity, 1, 700 days);
         vm.assume(market.maturity != bound(maturity, 1, 700 days));
@@ -4300,15 +4307,14 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         realVault.setMaxRate(1e18 / uint256(365 days));
 
-        bytes[] memory idDatas = new bytes[](8);
+        bytes[] memory idDatas = new bytes[](7);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
         idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
         idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
         idDatas[5] = abi.encode("enterGate", address(0));
-        idDatas[6] = abi.encode("liquidatorGate", address(0));
-        idDatas[7] = abi.encode("rcfThreshold", uint256(0));
+        idDatas[6] = abi.encode("rcfThreshold", uint256(0));
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
