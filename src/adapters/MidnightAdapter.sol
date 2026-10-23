@@ -268,7 +268,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
+    /// @dev Setting type(uint128).max fully consumes all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
