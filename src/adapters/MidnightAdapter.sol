@@ -312,7 +312,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit > 0) updateLossFactor(marketData[marketId], marketId);
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        else if (oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -368,7 +368,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit > 0) updateLossFactor(marketData[marketId], marketId);
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            else if (oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
@@ -515,7 +515,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit > 0) updateLossFactor(_marketData, marketId);
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        else if (oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
