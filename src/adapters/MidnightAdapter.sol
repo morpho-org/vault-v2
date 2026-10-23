@@ -89,8 +89,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(bytes32 marketId => MarketData) public marketData;
 
     /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
-    bytes32 internal transient overridenMarketId;
-    uint256 internal transient overridenMarketBoughtNetCredit;
+    bytes32 public transient overridenMarketId;
+    uint256 public transient overridenMarketBoughtNetCredit;
 
     uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
