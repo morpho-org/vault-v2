@@ -1,26 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// Model of the adapter's environment: the parent vault is linked, Midnight, the asset and the vault's other adapters and gates are not in the scene.
-// Assumes that external calls do not reenter the adapter: properties are checked on the body of each function, and Midnight's callbacks (onBuy, onSell) and the vault's calls into the adapter are checked as entry points of their own.
-methods {
-    // A multicall is a sequence of the other calls, which are each checked.
-    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+// Uses the market list spec's model of the adapter's environment, and its invariants to tell whether a market is listed.
+import "MarketIdsMidnightAdapter.spec";
 
+methods {
     // The adapter's net credit in Midnight can be any value.
     function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
 
-    // durationAllocations loops over marketIds and, with optimistic_loop, paths with more than loop_iter iterations are pruned, so without this summary onBuy would only be checked on short market lists. ids returns at least 4 ids, so every path through it would be pruned.
-    // The other loops are pruned too: realAssets loops over marketIds but writes nothing, and the remaining loops (over durations, and over ids in the vault) don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same stored maturities.
-    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
-    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
-
-    // Views, resolved so that strong invariants are not checked at these calls (lossFactor is called in the middle of market list updates).
-    function _.lossFactor(bytes32) external => NONDET;
     function _.liquidationLocked(bytes32, address) external => NONDET;
-
-    // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
-    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
     // Calls into Midnight, resolved so that they don't havoc the adapter's state. Midnight's take calls back the adapter's onBuy or onSell, which this model drops: they are checked as entry points of their own.
     function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => NONDET;
@@ -30,64 +18,43 @@ methods {
     // The vault's calls into its adapters. Its calls back into this adapter (e.g. allocate from onBuy) are dropped by this model: they are checked as entry points of their own.
     function _.allocate(bytes, uint256, bytes4, address) external => NONDET;
     function _.deallocate(bytes, uint256, bytes4, address) external => NONDET;
-
-    // Views called by the vault's accrueInterest, resolved so that strong invariants are not checked at these calls (onBuy calls accrueInterest after Midnight credits the adapter, before the adapter records it).
-    function _.realAssets() external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.balanceOf(address) external => NONDET;
-
-    // The asset is assumed to be a standard ERC20 token.
-    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
-    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
-    function SafeERC20Lib.forceApproveMax(address, address) internal => NONDET;
 }
 
-function arbitraryIds() returns bytes32[] {
-    bytes32[] idsArray;
-    return idsArray;
-}
-
-function arbitraryAllocations(uint256 length) returns uint256[] {
-    uint256[] allocations;
-    require allocations.length == length, "durationAllocations returns length allocations";
-    return allocations;
-}
+definition isListed(bytes32 marketId) returns bool = currentContract.marketData[marketId].index < currentContract.marketIds.length && currentContract.marketIds[currentContract.marketData[marketId].index] == marketId;
 
 // Prove that a market with a non-zero stored maturity has a non-zero stored net credit.
 strong invariant nonZeroMaturityHasNonZeroNetCredit()
     forall bytes32 marketId. currentContract.marketData[marketId].maturity != 0 => currentContract.marketData[marketId].netCredit != 0;
 
-// Whether a market has been popped from the list in this call.
-persistent ghost bool ghostMarketPopped;
-
-hook Sstore currentContract.marketIds.length uint256 newLength (uint256 oldLength) {
-    if (newLength < oldLength) ghostMarketPopped = true;
-}
-
-// Whether the market's maturity has been reset to zero after a market was popped from the list and while its stored net credit was zero, as when the market is removed.
-persistent ghost mapping(bytes32 => bool) ghostMaturityResetOnRemoval;
-
-// Whether a non-zero maturity of the market has been overwritten by a different non-zero maturity.
-persistent ghost mapping(bytes32 => bool) ghostMaturityOverwritten;
+// Whether a non-zero maturity of the market has been changed, other than by a reset to zero once the market is out of the list with a zero stored net credit, as when the market is removed.
+persistent ghost mapping(bytes32 => bool) ghostInvalidMaturityWrite;
 
 hook Sstore currentContract.marketData[KEY bytes32 marketId].maturity uint48 maturity (uint48 oldMaturity) {
-    if (oldMaturity != 0 && maturity != 0 && maturity != oldMaturity) ghostMaturityOverwritten[marketId] = true;
-    if (maturity == 0) ghostMaturityResetOnRemoval[marketId] = ghostMarketPopped && currentContract.marketData[marketId].netCredit == 0;
+    if (
+        oldMaturity != 0
+            && maturity != oldMaturity
+            && !(maturity == 0
+            && !isListed(marketId)
+            && currentContract.marketData[marketId].netCredit == 0)
+    ) {
+        ghostInvalidMaturityWrite[marketId] = true;
+    }
 }
 
-// Prove that a call never overwrites a non-zero stored maturity with a different non-zero one, and changes a non-zero stored maturity only by resetting it to zero, and only after a market is popped from the list and while its stored net credit is zero, as when the market is removed.
+// Prove that a call changes a non-zero stored maturity only by resetting it to zero, once the market is out of the list with a zero stored net credit, as when the market is removed. Every write is checked, so the maturity is never changed in the middle of a call either.
 // The net credit can be non-zero again at the end of the call: in this model, Midnight's net credit can be any value, so withdrawToVault can store a non-zero net credit after onBuy removed the market.
 // This is a property of each call: across calls, a market can be removed and bought again, and in the adapter it then gets the same maturity because the market id commits to the maturity, which this model abstracts.
 rule maturityImmutable(env e, method f, calldataarg args, bytes32 marketId) {
+    requireInvariant marketIdsLengthBounded();
+    requireInvariant marketIdsIndex();
+    requireInvariant listedHasNonZeroNetCredit();
     requireInvariant nonZeroMaturityHasNonZeroNetCredit();
-    require !ghostMarketPopped, "no market popped yet in this call";
-    require !ghostMaturityResetOnRemoval[marketId], "no maturity reset yet in this call";
-    require !ghostMaturityOverwritten[marketId], "no maturity overwritten yet in this call";
+    require !ghostInvalidMaturityWrite[marketId], "no invalid maturity write yet in this call";
     uint48 maturityBefore = currentContract.marketData[marketId].maturity;
 
     f(e, args);
 
     uint48 maturityAfter = currentContract.marketData[marketId].maturity;
-    assert maturityBefore != 0 && maturityAfter != maturityBefore => maturityAfter == 0 && ghostMaturityResetOnRemoval[marketId];
-    assert !ghostMaturityOverwritten[marketId];
+    assert !ghostInvalidMaturityWrite[marketId];
+    assert maturityBefore != 0 => maturityAfter == maturityBefore || maturityAfter == 0;
 }
