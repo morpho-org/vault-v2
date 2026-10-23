@@ -38,6 +38,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// FORCE DEALLOCATE
 /// @dev The adapter is the maker of a sell offer at price zero, and takes it on behalf of the given taker, who must have authorized the adapter on Midnight.
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
+/// @dev The taker must hold shares of the parent vault.
+/// @dev With a taker that holds at least one share, forceDeallocate can sell as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
@@ -364,6 +366,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Market memory market, address taker) = abi.decode(data, (Market, address));
             require(taker == caller || IMidnight(midnight).isAuthorized(taker, caller), NotAuthorized());
+            require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());

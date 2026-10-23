@@ -88,6 +88,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
+    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
