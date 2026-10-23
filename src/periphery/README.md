@@ -11,18 +11,58 @@ Adapter registry contracts are in [registries](./registries/).
 Vault allocators configure which adapters are active, which markets can be pulled from, each market's absolute cap, and whether idle assets can be pulled from publicly.
 Public callers must pay the vault's penalty on each `reallocate` or `allocateFromIdle` call, a proportion of the assets moved, paid in the market's loan token and sent directly to the vault (a donation).
 
-## Whitelist Receive Shares Gate
+## Vault V2 Gates
+
+Vault V2 calls these gates to check transfers of vault shares or assets.
+They are configured on the vault, not on a Midnight market.
+
+### Whitelist Receive Shares Gate
 
 `WhitelistReceiveSharesGate` is an implementation of the vault's `receiveSharesGate`.
 It restricts who can receive vault shares, including shares minted on deposits/mints and shares received by transfer.
 A whitelisted account can still hold shares on behalf of non-whitelisted accounts, so this gate does not fully restrict who can access the vault's payoff.
 If an account transfers shares to another account, for example into another protocol, it may be unable to receive them back if that account is not whitelisted later.
 
-## Whitelist Send Assets Gate
+### Whitelist Send Assets Gate
 
 `WhitelistSendAssetsGate` is an implementation of the vault's `sendAssetsGate`.
 It restricts who can send assets into the vault on deposits and mints.
 Whitelisted accounts can still deposit assets that originally belong to non-whitelisted accounts, so this gate does not fully restrict whose funds can enter the vault.
+
+## Midnight Enter Gates and Subgates
+
+These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
+Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions.
+
+### `VaultV2CompatibleEnterGate`
+
+Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
+Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
+One gate can be the `enterGate` of any number of markets, on any Midnight.
+For ordinary permission checks, the gate calls its `subGate` with the account.
+During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The buy offer taken through `forceDeallocate` has no callback, and the adapter clears the admission as soon as its sale returns.
+
+### `VaultV2CompatibleEnterGateFactory`
+
+Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
+The factory records each gate in `isCreated[gate]` and indexes it by subgate and salt in `vaultV2CompatibleEnterGate`.
+
+### `WhitelistEnterSubGate`
+
+A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
+`VaultV2CompatibleEnterGate` calls this subgate with an account.
+The subgate has the functions of a Midnight enter gate, so a market can also use it directly as `Market.enterGate`, without admissions. It is not a Vault V2 gate.
+
+Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
+Each side has its own role setter, who grants or revokes the whitelister role on that side.
+Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
+`setIsWhitelistedWithSig` is a no-op instead of a revert when the signed nonce is stale and the account is already set to the signed value.
+A side can be made open at deployment, letting any account enter on that side (forever).
+
+### `WhitelistEnterSubGateFactory`
+
+Deploys a deterministic `WhitelistEnterSubGate` using `CREATE2` with a salt derived from the caller and a caller-provided pre-salt.
+The factory records subgates in `isCreated`.
 
 ## Registries
 
