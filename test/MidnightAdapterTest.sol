@@ -896,9 +896,8 @@ contract MidnightAdapterTest is Test {
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
             uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
-                + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
-            if (newAmortizedValue <= 100e18 - units) low = mid;
+            uint256 shortfallTimesDiscount = units * 1e18 - units / 2 * (1e18 + rate * 30 days);
+            if (shortfallTimesDiscount <= (100e18 - units) * rate * 30 days) low = mid;
             else high = mid;
         }
 
@@ -2589,7 +2588,7 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(parentVault)), 11);
     }
 
-    function testBuyRoundsCarriedValueUp() public {
+    function testBuyRateSingleRounding() public {
         deal(address(loanToken), address(parentVault), 20);
         Offer memory offer = buy(30 days, 10, discountTick);
         bytes32 marketId = _marketId(offer.market);
@@ -2601,8 +2600,25 @@ contract MidnightAdapterTest is Test {
 
         assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
         assertEq(adapter.marketData(marketId).netCredit, 20);
-        assertEq(adapter.marketData(marketId).netRate, 0, "carried value rounded up");
-        assertEq(adapter.realAssets(), 20);
+        assertGt(adapter.marketData(marketId).netRate, 0, "carried interest kept");
+        assertEq(adapter.realAssets(), 19);
+    }
+
+    function testZeroUnitBuyKeepsNetRate(uint256 assets, uint256 elapsed) public {
+        assets = bound(assets, 10, 100e18);
+        elapsed = bound(elapsed, 0, 30 days - 1);
+        Offer memory offer = buy(30 days, assets, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 rate = adapter.marketData(marketId).netRate;
+        skip(elapsed);
+
+        offer.group = bytes32("zero buy");
+        offer.expiry = block.timestamp;
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.prank(taker);
+        midnight.take(offer, data, 0, taker, taker, address(0), "");
+
+        assertEq(adapter.marketData(marketId).netRate, rate);
     }
 
     function testSellFromMaturityChecksMaxNetSellRate(
