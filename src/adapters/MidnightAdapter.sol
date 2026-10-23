@@ -452,10 +452,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256[] memory _durations = durations;
+        uint256 durationCount = durations.length;
         uint256 affectedDurationCount;
-        while (affectedDurationCount < _durations.length && _durations[affectedDurationCount] <= ttm) {
+        uint256[] memory _durations = new uint256[](durationCount);
+        while (affectedDurationCount < durationCount) {
+            uint256 duration = durations[affectedDurationCount];
+            if (duration > ttm) break;
+            _durations[affectedDurationCount] = duration;
             affectedDurationCount++;
+        }
+        assembly ("memory-safe") {
+            mstore(_durations, affectedDurationCount)
         }
         uint256[] memory allocations = _durationAllocations(_durations, affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
