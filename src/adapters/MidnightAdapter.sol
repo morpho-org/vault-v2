@@ -195,7 +195,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev This function requires great caution because it will irreversibly disable execution of a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed neither.
+    /// @dev Existing pending operations submitted before abdicating can not be executed either.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
@@ -595,13 +595,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate, the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray = new bytes32[](3 + market.collateralParams.length * 2);
+        bytes32[] memory idsArray =
+            new bytes32[](2 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
+        if (market.liquidatorGate != address(0)) {
+            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
+        }
         idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
@@ -613,11 +616,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the durations that can be capped.
     function durations() external view returns (uint256[] memory) {
-        uint256[] memory _durations = new uint256[](durationsLength);
-        for (uint256 i = 0; i < durationsLength; i++) {
-            _durations[i] = packedDurations.get(i);
-        }
-        return _durations;
+        return packedDurations.unpack(durationsLength);
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
