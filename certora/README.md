@@ -57,6 +57,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
 - [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
   It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
   These hold whatever the adapter's net credit in Midnight is.
+- [`MaturityMidnightAdapter.spec`](specs/MaturityMidnightAdapter.spec) checks that a call changes a stored maturity of the Midnight adapter only by resetting it to zero in a call that stores a zero net credit for the market, as when its market is removed, and that a market with a non-zero stored maturity has a non-zero stored net credit.
 
 ## Caps and configuration delays
 
