@@ -9,6 +9,7 @@ import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapt
 import {
     IMidnightAdapterPriceRatifierV1
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
 import {
@@ -20,6 +21,8 @@ import {
 } from "../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IMorpho} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorphoFlashLoanCallback} from "../lib/morpho-blue/src/interfaces/IMorphoCallbacks.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
@@ -29,12 +32,8 @@ import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.
 contract WorstCaseForceDeallocator {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    function setUp(IVaultV2 vault, uint256 assets, address recipient) external {
-        SafeERC20Lib.safeApprove(vault.asset(), address(vault), assets);
-        vault.deposit(assets, recipient);
-    }
-
     function forceDeallocate(
+        FlashLoanForceDeallocator exiter,
         IVaultV2 vault,
         address adapter,
         bytes memory data,
@@ -42,9 +41,44 @@ contract WorstCaseForceDeallocator {
         address onBehalf,
         address caller,
         uint256 gas
-    ) external returns (uint256 penaltyShares) {
+    ) external returns (uint256 penaltyShares, uint256 withdrawnShares) {
         vm.prank(caller, caller);
-        penaltyShares = vault.forceDeallocate{gas: gas}(adapter, data, assets, onBehalf);
+        return exiter.forceDeallocate{gas: gas}(vault, adapter, data, assets, onBehalf);
+    }
+}
+
+contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
+    IMorpho internal immutable morpho;
+    uint256 private lastPenaltyShares;
+    uint256 private lastWithdrawnShares;
+
+    constructor(IMorpho morpho_) {
+        morpho = morpho_;
+    }
+
+    function forceDeallocate(IVaultV2 vault, address adapter, bytes memory data, uint256 assets, address onBehalf)
+        external
+        returns (uint256 penaltyShares, uint256 withdrawnShares)
+    {
+        address asset = vault.asset();
+        SafeERC20Lib.safeApprove(asset, adapter, type(uint256).max);
+        SafeERC20Lib.safeApprove(asset, address(morpho), type(uint256).max);
+
+        morpho.flashLoan(asset, assets, abi.encode(vault, adapter, data, onBehalf, msg.sender));
+        return (lastPenaltyShares, lastWithdrawnShares);
+    }
+
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
+        require(msg.sender == address(morpho));
+        (IVaultV2 vault, address adapter, bytes memory forceDeallocateData, address onBehalf, address caller) =
+            abi.decode(data, (IVaultV2, address, bytes, address, address));
+
+        lastPenaltyShares = vault.forceDeallocate(adapter, forceDeallocateData, assets, onBehalf);
+        lastWithdrawnShares = vault.withdraw(assets, address(this), onBehalf);
+
+        address asset = vault.asset();
+        uint256 balance = IERC20(asset).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(asset, caller, balance - assets);
     }
 }
 
@@ -75,6 +109,8 @@ contract MidnightAdapterGasTest is BaseTest {
     ERC20Mock internal collateralToken;
     CollateralParams internal collateralParams;
     WorstCaseForceDeallocator internal deallocator;
+    FlashLoanForceDeallocator internal exiter;
+    IMorpho internal morpho;
     address internal depositor;
     address internal performanceFeeRecipient;
     address internal managementFeeRecipient;
@@ -94,6 +130,10 @@ contract MidnightAdapterGasTest is BaseTest {
         vm.setEvmVersion("osaka");
         vm.pauseGasMetering();
         super.setUp();
+
+        morpho = IMorpho(deployCode("Morpho.sol", abi.encode(makeAddr("morpho-owner"))));
+        exiter = new FlashLoanForceDeallocator(morpho);
+        deallocator = new WorstCaseForceDeallocator();
 
         oneToken = 10 ** underlyingTokenDecimals;
         initialAssets = 100_000_000 * oneToken;
@@ -194,17 +234,10 @@ contract MidnightAdapterGasTest is BaseTest {
             _createBadDebt(market, collateralIndex, purchasedUnits[i], i);
         }
 
-        deallocator = new WorstCaseForceDeallocator();
-        deal(address(underlyingToken), address(deallocator), 2 * purchasedUnits[0]);
-        deallocator.setUp(vault, purchasedUnits[0], forceCaller);
-        deal(address(underlyingToken), forceCaller, purchasedUnits[0]);
-        vm.prank(forceCaller);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), type(uint256).max);
-
         onBehalf = depositor;
         delegatedAllowance = type(uint128).max;
         vm.prank(depositor);
-        vault.approve(forceCaller, delegatedAllowance);
+        vault.approve(address(exiter), delegatedAllowance);
         onBehalfSharesBefore = vault.balanceOf(onBehalf);
 
         performanceFeeRecipient = makeAddr("performance-fee-recipient");
@@ -228,6 +261,7 @@ contract MidnightAdapterGasTest is BaseTest {
         assertGt(uint256(currentCredit) - pendingFee, 0, "sold market credit");
         soldUnits = currentCredit;
         assertGt(soldUnits, 0, "sold units");
+        deal(address(underlyingToken), address(morpho), soldUnits);
 
         Offer memory offer = Offer({
             market: soldMarket,
@@ -264,17 +298,22 @@ contract MidnightAdapterGasTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), 0, "management fee shares before");
         assertEq(onBehalf, depositor, "delegated on behalf");
         assertNotEq(forceCaller, onBehalf, "caller");
+        assertNotEq(address(exiter), onBehalf, "exiter");
         assertGt(onBehalfSharesBefore, 0, "onBehalf shares");
-        assertEq(vault.allowance(onBehalf, forceCaller), delegatedAllowance, "delegated allowance");
+        assertEq(vault.allowance(onBehalf, address(exiter)), delegatedAllowance, "delegated allowance");
+        assertEq(underlyingToken.balanceOf(address(morpho)), soldUnits, "Morpho Blue flash loan balance");
         vm.resumeGasMetering();
     }
 
-    /// @dev Exercises maximum collaterals, fees, penalty, and loss-factor desync across all markets.
+    /// @dev Exercises the worst-case force deallocation through a Morpho Blue flash loan.
     /// forge-config: default.isolate = true
     function testForceDeallocateGasWorstCase() public {
-        bytes memory callData =
-            abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), forceDeallocateData, soldUnits, onBehalf));
-        uint256 penaltyShares = deallocator.forceDeallocate(
+        bytes memory callData = abi.encodeCall(
+            FlashLoanForceDeallocator.forceDeallocate,
+            (vault, address(adapter), forceDeallocateData, soldUnits, onBehalf)
+        );
+        (uint256 penaltyShares, uint256 withdrawnShares) = deallocator.forceDeallocate(
+            exiter,
             vault,
             address(adapter),
             forceDeallocateData,
@@ -285,6 +324,7 @@ contract MidnightAdapterGasTest is BaseTest {
         );
 
         assertGt(penaltyShares, 0, "penalty shares");
+        assertGt(withdrawnShares, 0, "withdrawn shares");
         assertGt(vault.balanceOf(performanceFeeRecipient), 0, "performance fee shares");
         assertGt(vault.balanceOf(managementFeeRecipient), 0, "management fee shares");
         assertGt(
@@ -292,8 +332,15 @@ contract MidnightAdapterGasTest is BaseTest {
         );
         assertGt(midnight.continuousFeeCredit(soldMarketId), continuousFeeCreditBefore, "continuous fee");
         assertEq(adapter.marketIdsLength(), adapter.MAX_MARKETS() - 1, "sold market removed");
-        assertEq(vault.allowance(onBehalf, forceCaller), delegatedAllowance - penaltyShares, "allowance spent");
-        assertEq(vault.balanceOf(onBehalf), onBehalfSharesBefore - penaltyShares, "shares spent");
+        assertEq(
+            vault.allowance(onBehalf, address(exiter)),
+            delegatedAllowance - penaltyShares - withdrawnShares,
+            "allowance spent"
+        );
+        assertEq(vault.balanceOf(onBehalf), onBehalfSharesBefore - penaltyShares - withdrawnShares, "shares spent");
+        assertEq(underlyingToken.balanceOf(address(morpho)), soldUnits, "Morpho Blue repaid");
+        assertEq(underlyingToken.balanceOf(address(exiter)), 0, "exiter balance");
+        assertGt(underlyingToken.balanceOf(forceCaller), 0, "force caller received assets");
     }
 
     /// @dev Returns the intrinsic gas for a transaction with the given calldata. The EIP-7623 calldata floor doesn't reduce the gas available to execution.
