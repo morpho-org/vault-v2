@@ -1837,6 +1837,14 @@ contract MidnightAdapterTest is Test {
 
     /* DURATIONS */
 
+    function testConstructorEvent() public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+
+        vm.expectEmit();
+        emit IMidnightAdapterBase.Constructor(address(newVault), address(midnight));
+        factory.createMidnightAdapter(address(newVault), bytes32(0));
+    }
+
     function testConstructorGetters() public view {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
