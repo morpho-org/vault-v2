@@ -6,8 +6,8 @@ methods {
     function MAX_MARKETS() external returns (uint256) envfree;
 
     // durationAllocations loops over marketIds and, with optimistic_loop, paths with more than loop_iter iterations are pruned, so without this summary onBuy would only be checked on short market lists, while the invariants depend on the list's length.
-    // Without the ids summary, the prover doesn't resolve Midnight's calls in the functions that call ids, so the summaries below don't apply to them.
-    // The other loops are pruned too: realAssets loops over marketIds but writes nothing, and the loops over durations don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same market list.
+    // The ids summary is needed, because otherwise the prover wouldn't resolve Midnight's calls in the functions that call ids.
+    // It's fine if other loops are pruned: realAssets loops over marketIds but writes nothing, and the loops over durations don't write the adapter's state, so a path with more iterations has a counterpart with fewer iterations and the same market list.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
@@ -17,8 +17,7 @@ methods {
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Resolved so that strong invariants are not checked at this call: onBuy calls it after Midnight credits the adapter, before the adapter records the credit.
-    // The vault's accrueInterest only writes the vault's storage, and only calls views of the adapters, gates and asset.
+    // Resolved so that strong invariants are not checked at this call, for listedHasNonZeroNetCredit it fails because the netCredit could be 0 because of slashing but the market is not yet removed.
     function _.accrueInterest() external => NONDET;
 
     // The asset is assumed to be a standard ERC20 token.
