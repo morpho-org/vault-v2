@@ -2140,14 +2140,14 @@ contract MidnightAdapterTest is Test {
         decreaseDurationCap(1, 0.9e18);
         Offer memory next = fundedDurationOffer(7 days, 4e18);
         next.group = bytes32("funded duration buy");
-        next.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         // The seven-day exposure falls from 12 to 8 during funding: below 90%.
         take(next);
         assertEq(storedDurationAllocations(adapter)[1], 8e18);
 
         decreaseDurationCap(1, 0.6e18);
         next = fundedDurationOffer(6 days, 4e18);
-        next.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         take(next);
         assertEq(storedDurationAllocations(adapter)[1], 4e18);
         assertEq(storedDurationAllocations(adapter)[0], 8e18);
@@ -4122,7 +4122,7 @@ contract MidnightAdapterTest is Test {
         Offer memory roll = makeBuyOffer(initial.market.maturity - block.timestamp, 50e18, MAX_TICK);
         roll.market = initial.market;
         roll.group = bytes32(vm.randomUint());
-        roll.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        roll.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
         midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
         vm.expectEmit(address(adapter));
@@ -5194,7 +5194,7 @@ contract MidnightAdapterTest is Test {
         uint256 withdrawnAssets = fullWithdrawal ? 8e18 : 3e18;
         Offer memory offer = makeBuyOffer(sameMarket ? 7 days : 6 days, withdrawnAssets, MAX_TICK);
         offer.group = bytes32("self-funded purchase");
-        offer.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
         directTake(offer);
@@ -5221,7 +5221,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeExternalOffer(market, false, withdrawnAssets, MAX_TICK);
 
         vm.prank(signerAllocator);
-        adapter.take(offer, "", offer.maxUnits, abi.encode(address(adapter), abi.encode(true, initial.market)));
+        adapter.take(offer, "", offer.maxUnits, abi.encode(address(adapter), abi.encode(initial.market)));
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, sameMarket ? 8e18 : 8e18 - withdrawnAssets);
         assertEq(adapter.marketData(_marketId(market)).netCredit, sameMarket ? 8e18 : offer.maxUnits);
@@ -5247,7 +5247,7 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = makeBuyOffer(sameMarket ? 7 days : 6 days, 3e18, MAX_TICK);
         offer.group = bytes32("self-funded purchase");
-        offer.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         directTake(offer);
 
@@ -5269,7 +5269,7 @@ contract MidnightAdapterTest is Test {
         midnight.repay(initial.market, 8e18, taker, address(0), "");
 
         Offer memory offer = makeBuyOffer(6 days, 1e18, MAX_TICK);
-        offer.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         directTake(offer);
 
@@ -5290,7 +5290,7 @@ contract MidnightAdapterTest is Test {
         offer.callbackData = abi.encode(address(adapter), abi.encode(false, adapter.ids(initial.market), int256(-1)));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
-        vm.expectRevert(IMidnightAdapterBase.SelfFundingMustWithdraw.selector);
+        vm.expectRevert();
         directTake(offer);
     }
 
@@ -5298,7 +5298,7 @@ contract MidnightAdapterTest is Test {
     function testBackingSelfFundingInsufficientLiquidityReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
         Offer memory offer = makeBuyOffer(6 days, 3e18, MAX_TICK);
-        offer.callbackData = abi.encode(address(adapter), abi.encode(true, initial.market));
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
         vm.expectRevert(stdError.arithmeticError);
@@ -5326,7 +5326,7 @@ contract MidnightAdapterTest is Test {
 
         SaleCallback callback = newCallback();
         Offer memory inner = makeBuyOffer(5 days, fundingLocked ? 3e18 : 2e18, MAX_TICK);
-        inner.callbackData = abi.encode(address(adapter), abi.encode(true, fundingMarket));
+        inner.callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
         midnight.supplyCollateral(inner.market, 0, inner.maxUnits, address(callback));
         bool succeeds = !fundingLocked;
         callback.push(
