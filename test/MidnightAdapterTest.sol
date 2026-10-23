@@ -1864,7 +1864,7 @@ contract MidnightAdapterTest is Test {
     function assertDurations(IMidnightAdapter target, uint256[] memory expected) internal view {
         assertEq(target.durationsLength(), expected.length, "durationsLength");
         for (uint256 i; i < expected.length; i++) {
-            assertEq(uint256(target.durations(i)), expected[i], "duration");
+            assertEq(target.durations(i), expected[i], "duration");
         }
     }
 
