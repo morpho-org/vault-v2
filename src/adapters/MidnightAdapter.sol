@@ -19,7 +19,7 @@ import {FloatLib} from "./libraries/FloatLib.sol";
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
-/// @dev Values each market with netCredit rounded down and netRate rounded up to 40 significant bits, so that it reads one storage slot per market.
+/// @dev Values each market with netCredit rounded down and netRate rounded up to 40 significant bits (relative error below 2^-38), so that it reads one storage slot per market.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
