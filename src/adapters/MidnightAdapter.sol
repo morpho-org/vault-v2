@@ -69,9 +69,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Sorted in ascending order.
-    bytes32 public immutable packedDurations;
-    uint256 public immutable durationsLength;
 
     /* TIMELOCKS STORAGE */
 
@@ -96,6 +93,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
+
+    /// @dev Sorted in ascending order.
+    bytes32 public packedDurations;
+    uint256 public durationsLength;
 
     /* CONSTRUCTOR */
 
@@ -193,6 +194,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* TIMELOCKED CURATOR SETTINGS */
+
+    /// @dev Removing a duration stops enforcing its caps.
+    function setDurations(uint256[] memory newDurations) external {
+        timelocked();
+        packedDurations = DurationsLib.pack(newDurations);
+        durationsLength = newDurations.length;
+        emit SetDurations(newDurations);
+    }
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();

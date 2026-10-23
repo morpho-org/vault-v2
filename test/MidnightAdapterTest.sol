@@ -1910,6 +1910,202 @@ contract MidnightAdapterTest is Test {
         noDurations.durationAllocations(1);
     }
 
+    function testSetDurations(uint256 length) public {
+        length = bound(length, 0, 8);
+        uint256[] memory newDurations = new uint256[](length);
+        for (uint256 i; i < length; i++) {
+            newDurations[i] = (i + 1) * 1 days;
+        }
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        assertEq(adapter.durations(), newDurations, "durations");
+        assertEq(adapter.durationsLength(), length, "durationsLength");
+        assertEq(adapter.packedDurations(), DurationsLib.pack(newDurations), "packedDurations");
+    }
+
+    function testSetDurationsTimelock() public {
+        uint256[] memory newDurations = new uint256[](1);
+        newDurations[0] = 14 days;
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations));
+        submitTimelock(IMidnightAdapterBase.setDurations.selector, 1 days);
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setDurations(newDurations);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        adapter.submit(data);
+
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setDurations(newDurations);
+        assertEq(adapter.durations(), allDurations, "unchanged before execution");
+
+        skip(1 days);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setDurations.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetDurations(newDurations);
+        vm.prank(taker);
+        adapter.setDurations(newDurations);
+        assertEq(adapter.durations(), newDurations, "executed by anyone");
+        assertEq(adapter.executableAt(data), 0, "submission consumed");
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setDurations(newDurations);
+    }
+
+    function testSetDurationsAbdicated() public {
+        uint256[] memory newDurations = new uint256[](0);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (IMidnightAdapterBase.setDurations.selector)));
+        adapter.abdicate(IMidnightAdapterBase.setDurations.selector);
+
+        vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
+        adapter.setDurations(newDurations);
+        assertEq(adapter.durations(), allDurations, "unchanged after abdication");
+    }
+
+    function testSetDurationsInvalid(uint256 invalidKind) public {
+        invalidKind = bound(invalidKind, 0, 4);
+        uint256[] memory newDurations;
+        bytes4 expectedRevert = DurationsLib.DurationsNotIncreasing.selector;
+        if (invalidKind == 0) {
+            newDurations = new uint256[](9);
+            expectedRevert = DurationsLib.TooManyDurations.selector;
+        } else if (invalidKind <= 2) {
+            newDurations = new uint256[](2);
+            newDurations[0] = 2 days;
+            newDurations[1] = invalidKind == 1 ? 1 days : 2 days;
+        } else {
+            newDurations = new uint256[](1);
+            if (invalidKind == 4) {
+                newDurations[0] = uint256(type(uint32).max) + 1;
+                expectedRevert = DurationsLib.DurationTooHigh.selector;
+            }
+        }
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations));
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(expectedRevert);
+        adapter.setDurations(newDurations);
+        assertEq(adapter.durations(), allDurations, "invalid durations leave configuration unchanged");
+        assertEq(adapter.executableAt(data), block.timestamp, "invalid durations leave submission pending");
+    }
+
+    /// forge-config: default.isolate = true
+    function testSetDurationsRecountsExistingPositions() public {
+        setUpRealVault();
+        Offer memory first = buyOnRealVault(7 days, 1e18);
+        Offer memory second = buyOnRealVault(30 days, 2e18);
+        uint256[] memory newDurations = new uint256[](2);
+        newDurations[0] = 2 days;
+        newDurations[1] = 14 days;
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        uint256[] memory allocations = storedDurationAllocations(adapter);
+        assertEq(allocations[0], 3e18, "2 day exposure");
+        assertEq(allocations[1], 2e18, "14 day exposure");
+        assertEq(adapter.marketData(_marketId(first.market)).netCredit, 1e18, "first position unchanged");
+        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 2e18, "second position unchanged");
+        assertEq(adapter.realAssets(), 3e18, "valuation unchanged");
+        assertEq(realVault.allocation(adapter.adapterId()), 3e18, "vault allocation unchanged");
+        assertEq(loanToken.balanceOf(address(realVault)), 7e18, "vault assets unchanged");
+        assertEq(realVault.allocation(keccak256(durationIdData(adapter, 14 days))), 0, "no vault duration allocation");
+    }
+
+    /// forge-config: default.isolate = true
+    function testSetDurationsEnforcesNewCaps(bool relative) public {
+        setUpRealVault();
+        buyOnRealVault(30 days, 2e18);
+        uint256[] memory newDurations = new uint256[](1);
+        newDurations[0] = 14 days;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        Offer memory offer = fundedDurationOffer(31 days, 1e18);
+        vm.expectRevert(IMidnightAdapterBase.DurationZeroAbsoluteCap.selector);
+        take(offer);
+
+        bytes memory idData = durationIdData(adapter, 14 days);
+        submitAndCall(
+            realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, relative ? type(uint128).max : 2e18))
+        );
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, relative ? 0.2e18 : 1e18)));
+        vm.expectRevert(
+            relative
+                ? IMidnightAdapterBase.DurationRelativeCapExceeded.selector
+                : IMidnightAdapterBase.DurationAbsoluteCapExceeded.selector
+        );
+        take(offer);
+        assertEq(storedDurationAllocations(adapter)[0], 2e18, "failed buys roll back");
+
+        if (relative) {
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 0.3e18)));
+        } else {
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, 3e18)));
+        }
+        take(offer);
+        assertEq(storedDurationAllocations(adapter)[0], 3e18, "existing position counts toward the new cap");
+    }
+
+    /// forge-config: default.isolate = true
+    function testSetDurationsRemovalAndReaddition() public {
+        setUpRealVault();
+        buyOnRealVault(30 days, 2e18);
+        decreaseDurationAbsoluteCap(1, 0);
+        uint256[] memory newDurations = new uint256[](0);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        buyOnRealVault(31 days, 1e18);
+        assertEq(storedDurationAllocations(adapter), new uint256[](0), "no duration checks");
+        assertEq(realVault.allocation(adapter.adapterId()), 3e18, "adapter allocation still tracked");
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (allDurations)));
+        adapter.setDurations(allDurations);
+        assertEq(storedDurationAllocations(adapter)[1], 3e18, "all existing positions counted again");
+        Offer memory offer = fundedDurationOffer(32 days, 1e18);
+        vm.expectRevert(IMidnightAdapterBase.DurationZeroAbsoluteCap.selector);
+        take(offer);
+    }
+
+    /// forge-config: default.isolate = true
+    function testSetDurationsDoesNotBlockExits(uint256 exitKind) public {
+        exitKind = bound(exitKind, 0, 2);
+        setUpRealVault();
+        Offer memory initial = buyOnRealVault(30 days, 2e18);
+        uint256[] memory newDurations = new uint256[](1);
+        newDurations[0] = 14 days;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        if (exitKind == 0) {
+            sellUnits(initial.market, 1e18, MAX_TICK);
+        } else if (exitKind == 1) {
+            vm.prank(taker);
+            midnight.repay(initial.market, 1e18, taker, address(0), "");
+            adapter.withdrawToVault(initial.market, 1e18);
+        } else {
+            forceDeallocateOnRealVault(initial.market, 1e18);
+        }
+        assertEq(storedDurationAllocations(adapter)[0], 1e18, "new duration cap does not block exits");
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "vault allocation updated");
+    }
+
     /* INTERNAL DURATION CAPS */
 
     /// forge-config: default.isolate = true
