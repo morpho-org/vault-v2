@@ -7,9 +7,6 @@ methods {
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
     function noSalesWithShortfall() external returns (bool) envfree;
-
-    // Over-approximation that keeps the adapter's storage, which the guardrails read after this call.
-    function currentNetCredit(bytes32 marketId) internal returns (uint128) => NONDET;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
