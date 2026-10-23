@@ -12,9 +12,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* STORAGE */
 
-    /// @dev durationsHash is keccak256(abi.encode(durations)).
-    mapping(address parentVault => mapping(bytes32 durationsHash => mapping(bytes32 salt => address))) public
-        midnightAdapter;
+    mapping(address parentVault => mapping(bytes32 salt => address)) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
 
     /* CONSTRUCTOR */
@@ -26,15 +24,11 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* FUNCTIONS */
 
-    /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
-        external
-        returns (address)
-    {
-        address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
-        midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
+    function createMidnightAdapter(address parentVault, bytes32 salt) external returns (address) {
+        address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight));
+        midnightAdapter[parentVault][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);
+        emit CreateMidnightAdapter(parentVault, salt, _midnightAdapter);
         return _midnightAdapter;
     }
 }

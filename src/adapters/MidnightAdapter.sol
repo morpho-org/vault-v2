@@ -85,7 +85,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
@@ -100,15 +99,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         adapterId = keccak256(abi.encode("this", address(this)));
-
-        packedDurations = DurationsLib.pack(_durations);
-        durationsLength = _durations.length;
     }
 
     /* MULTICALL */
@@ -201,23 +197,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         packedDurations = DurationsLib.pack(newDurations);
         durationsLength = newDurations.length;
         emit SetDurations(newDurations);
-    }
-
-    function increaseMaxTtm(uint256 newMaxTtm) external {
-        timelocked();
-        require(newMaxTtm >= maxTtm, MaxTtmTooLow());
-        maxTtm = newMaxTtm.toUint32();
-        emit IncreaseMaxTtm(newMaxTtm);
-    }
-
-    function decreaseMaxTtm(uint256 newMaxTtm) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        maxTtm = newMaxTtm.toUint32();
-        emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
     /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
@@ -419,7 +398,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(buyer == address(this), NotSelf());
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
-        require(ttm <= maxTtm, BuyTtmTooHigh());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;

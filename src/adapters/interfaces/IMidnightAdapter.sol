@@ -38,8 +38,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinNetBuyRate(uint256 newMinNetBuyRate);
     event SetDurations(uint256[] newDurations);
-    event IncreaseMaxTtm(uint256 newMaxTtm);
-    event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
@@ -68,15 +66,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
-    error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
     error LoanAssetMismatch();
-    error MaxTtmTooHigh();
-    error MaxTtmTooLow();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
@@ -104,7 +99,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
@@ -120,8 +114,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function setDurations(uint256[] memory newDurations) external;
-    function increaseMaxTtm(uint256 newMaxTtm) external;
-    function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
