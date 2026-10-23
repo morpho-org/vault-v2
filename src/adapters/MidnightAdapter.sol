@@ -73,6 +73,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
+    /* TRANSIENT STORAGE */
+
+    /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
+    bytes32 public transient inProgressBuyMarketId;
+    uint256 public transient inProgressBuyBoughtNetCredit;
+
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -108,6 +114,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
+        emit Constructor(_parentVault, _midnight, _durations);
     }
 
     /* MULTICALL */
@@ -185,7 +192,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev This function requires great caution because it will irreversibly disable execution of a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed neither.
+    /// @dev Existing pending operations submitted before abdicating can not be executed either.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
@@ -419,11 +426,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = _marketData.netCredit;
-        // Temporarily store net credit as it was before the buy so accrual is correct.
-        _marketData.netCredit = (newNetCredit - boughtNetCredit).toUint128();
+        _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
+        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
 
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -431,7 +439,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
         }
 
-        _marketData.netCredit = newNetCredit;
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
@@ -563,14 +570,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the gates, the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the enter gate, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray = new bytes32[](4 + market.collateralParams.length * 2);
+        bytes32[] memory idsArray =
+            new bytes32[](3 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
 
         uint256 j;
         idsArray[j++] = adapterId;
         idsArray[j++] = keccak256(abi.encode("enterGate", market.enterGate));
-        idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
+        if (market.liquidatorGate != address(0)) {
+            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
+        }
         idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
@@ -582,11 +592,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the durations that can be capped.
     function durations() external view returns (uint256[] memory) {
-        uint256[] memory _durations = new uint256[](durationsLength);
-        for (uint256 i = 0; i < durationsLength; i++) {
-            _durations[i] = packedDurations.get(i);
-        }
-        return _durations;
+        return packedDurations.unpack(durationsLength);
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
@@ -613,7 +619,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
+            if (marketId == inProgressBuyMarketId) {
+                netCredit = _marketData.netCredit - inProgressBuyBoughtNetCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
