@@ -348,7 +348,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    /// @dev Users who exit through forceDeallocate with their own buy offer should make it at a price below market to avoid being frontrun.
+    /// @dev Users who exit through forceDeallocate with their own buy offer should either ratify it and deallocate atomically or make it at a price below market to avoid being frontrun.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
