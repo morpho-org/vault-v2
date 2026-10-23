@@ -385,10 +385,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 maxAssets: type(uint128).max,
                 continuousFeeCap: type(uint256).max
             });
-            uint256 settlementFee = assets.mulDivUp(
+            uint256 settlementFeeAssets = assets.mulDivUp(
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
-            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFee);
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
