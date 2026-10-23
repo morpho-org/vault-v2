@@ -68,6 +68,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
+    address internal immutable durationsPointer;
 
     /* TIMELOCKS STORAGE */
 
@@ -81,8 +82,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
-    /// @dev Returns the durations that can be capped.
-    uint256[] public override durations;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
@@ -109,7 +108,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(_durations[i] > (i == 0 ? 0 : _durations[i - 1]), DurationsNotIncreasing());
             require(_durations[i] <= type(uint32).max, DurationTooHigh());
         }
-        durations = _durations;
+        bytes memory runtimeCode = abi.encodePacked(bytes1(0), _durations);
+        bytes memory initCode = abi.encodePacked(
+            hex"63",
+            // forge-lint: disable-next-line(unsafe-typecast) MAX_DURATIONS bounds runtimeCode to 257 bytes.
+            uint32(runtimeCode.length),
+            hex"80600e6000396000f3",
+            runtimeCode
+        );
+        address pointer;
+        assembly ("memory-safe") {
+            pointer := create(0, add(initCode, 0x20), mload(initCode))
+        }
+        require(pointer != address(0));
+        durationsPointer = pointer;
     }
 
     /* MULTICALL */
@@ -452,7 +464,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256[] memory _durations = durations;
+        uint256[] memory _durations = _loadDurations();
         uint256 affectedDurationCount;
         while (affectedDurationCount < _durations.length && _durations[affectedDurationCount] <= ttm) {
             affectedDurationCount++;
@@ -586,13 +598,37 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return idsArray;
     }
 
+    function durations(uint256 index) external view override returns (uint256) {
+        uint256[] memory _durations = _loadDurations();
+        require(index < _durations.length, InvalidLength());
+        return _durations[index];
+    }
+
     function durationsLength() external view returns (uint256) {
-        return durations.length;
+        address pointer = durationsPointer;
+        uint256 size;
+        assembly ("memory-safe") {
+            size := extcodesize(pointer)
+        }
+        return (size - 1) / 32;
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
-        return _durationAllocations(durations, length);
+        return _durationAllocations(_loadDurations(), length);
+    }
+
+    function _loadDurations() internal view returns (uint256[] memory _durations) {
+        address pointer = durationsPointer;
+        uint256 size;
+        assembly ("memory-safe") {
+            size := extcodesize(pointer)
+        }
+        uint256 durationCount = (size - 1) / 32;
+        _durations = new uint256[](durationCount);
+        assembly ("memory-safe") {
+            extcodecopy(pointer, add(_durations, 0x20), 1, sub(size, 1))
+        }
     }
 
     function _durationAllocations(uint256[] memory _durations, uint256 length)
