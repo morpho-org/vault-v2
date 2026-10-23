@@ -607,7 +607,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
-            while (bucket < length && _durations[bucket] <= ttm) bucket++;
+            while (bucket < length) {
+                uint256 duration;
+                // bucket < length <= _durations.length.
+                assembly ("memory-safe") {
+                    duration := mload(add(add(_durations, 0x20), shl(5, bucket)))
+                }
+                if (duration > ttm) break;
+                bucket++;
+            }
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         for (uint256 j = length - 1; j > 0; j--) {
