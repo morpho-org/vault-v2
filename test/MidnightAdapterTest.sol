@@ -25,6 +25,7 @@ import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
+import {FloatLib} from "../src/adapters/libraries/FloatLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -793,7 +794,14 @@ contract MidnightAdapterTest is Test {
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
         uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
-        uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
+        uint256 remainingNetCredit = 100e18 - sold;
+        if (newAmortizedValue > remainingNetCredit) {
+            vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+            sellUnits(offer.market, sold, tick);
+            return;
+        }
+        uint256 newRate =
+            shortfall == 0 ? rate : (remainingNetCredit - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
@@ -805,10 +813,19 @@ contract MidnightAdapterTest is Test {
         assertEq(data.netCredit, 100e18 - sold);
         assertEq(data.netRate, newRate, "rate decreases");
         assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
-        assertGe(adapter.realAssets(), assetsBefore - proceeds, "amortized value decreases by the proceeds");
-        assertLe(adapter.realAssets() - (assetsBefore - proceeds), (100e18 - sold) * ttm / 1e18 + 2, "rounding");
+        uint256 roundingTolerance = uint256(100e18).mulDivUp(2e6, 1e18);
+        assertGe(
+            adapter.realAssets() + roundingTolerance,
+            assetsBefore - proceeds,
+            "amortized value decreases by the proceeds"
+        );
+        assertLe(
+            adapter.realAssets().zeroFloorSub(assetsBefore - proceeds),
+            (100e18 - sold) * ttm / 1e18 + 2 + roundingTolerance,
+            "rounding"
+        );
         skip(ttm);
-        assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
+        assertApproxEqRel(adapter.realAssets(), 100e18 - sold, 2e6, "accrues to net credit at maturity");
     }
 
     function testLossSaleIgnoresMinNetBuyRate(uint256 elapsed, uint256 sold, uint256 price) public {
@@ -865,7 +882,9 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, sold, MAX_TICK);
 
         assertEq(adapter.marketData(marketId).netRate, newRate, "rate unchanged");
-        assertEq(adapter.realAssets(), (100e18 - sold).mulDivDown(1e18, 1e18 + rate * (30 days - elapsed)));
+        assertApproxEqRel(
+            adapter.realAssets(), (100e18 - sold).mulDivDown(1e18, 1e18 + rate * (30 days - elapsed)), 2e6, ""
+        );
     }
 
     function testSellAtBuyRateKeepsRate(uint256 elapsed, uint256 sold) public {
@@ -906,7 +925,7 @@ contract MidnightAdapterTest is Test {
         this.sellWithShortfall(offer.market, low + 1);
         this.sellWithShortfall(offer.market, low);
         assertEq(adapter.marketData(marketId).netRate, 0, "all remaining interest is used");
-        assertEq(adapter.realAssets(), adapter.marketData(marketId).netCredit, "carried at par");
+        assertApproxEqRel(adapter.realAssets(), adapter.marketData(marketId).netCredit, 2e6, "carried at par");
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
 
@@ -943,7 +962,7 @@ contract MidnightAdapterTest is Test {
         this.sellWithShortfall(initial.market, 0.1e18);
         assertGe(backing(), backingBefore, "loss is deferred");
         assertLe(backing() - backingBefore, realVault.allocation(adapter.adapterId()) * 7 days / 1e18 + 2, "rounding");
-        assertEq(realVault.totalAssets(), 10e18);
+        assertApproxEqRel(realVault.totalAssets(), 10e18, 2e6, "");
     }
 
     function testBuyAfterLossSale() public {
@@ -1729,12 +1748,11 @@ contract MidnightAdapterTest is Test {
 
     function testMaxTtmCoversMidnightMaturityLimitAfter2106() public {
         vm.warp(uint256(type(uint32).max) + 1);
-        Offer memory offer = buy(100 * 365 days, 1e18);
-
-        MarketData memory data = adapter.marketData(_marketId(offer.market));
-        assertEq(data.netCredit, offer.maxUnits);
-        assertEq(data.maturity, vm.getBlockTimestamp() + 100 * 365 days);
-        assertEq(adapter.maxTtm(), type(uint32).max);
+        Offer memory offer = makeBuyOffer(100 * 365 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
     }
 
     function testMaxTtmZero() public {
@@ -2006,18 +2024,18 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testDurationCapsMultipleHorizonsAndMakerBuy() public {
         setUpRealVault();
-        decreaseDurationCap(2, 0.5e18); // At most 50% at or beyond 30 days.
-        decreaseDurationCap(3, 0.2e18); // At most 20% at or beyond 90 days.
+        decreaseDurationCap(2, 0.500000000001e18); // At most 50% at or beyond 30 days.
+        decreaseDurationCap(3, 0.200000000001e18); // At most 20% at or beyond 90 days.
         buyOnRealVault(90 days, 2e18);
         buyOnRealVault(30 days, 3e18);
         uint256[] memory allocations = storedDurationAllocations(adapter);
         assertEq(allocations[2], 5e18);
         assertEq(allocations[3], 2e18);
 
-        Offer memory tooLong = fundedDurationOffer(91 days, 2);
+        Offer memory tooLong = fundedDurationOffer(91 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(tooLong);
-        Offer memory tooMuch = fundedDurationOffer(31 days, 2);
+        Offer memory tooMuch = fundedDurationOffer(31 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(tooMuch);
         assertEq(storedDurationAllocations(adapter), allocations, "failed buys roll back");
@@ -2062,7 +2080,7 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testDurationCapsReleaseCapacityWithTime() public {
         setUpRealVault();
-        decreaseDurationCap(1, 0.1e18);
+        decreaseDurationCap(1, 0.100000000001e18);
         buyOnRealVault(7 days, 1e18);
         Offer memory next = fundedDurationOffer(8 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
@@ -2405,7 +2423,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, 0, 0, false, 0)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2448,7 +2466,8 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, 0, 0, 0, false, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2495,7 +2514,7 @@ contract MidnightAdapterTest is Test {
             buy(i, 1e18);
         }
         assertEq(adapter.marketIdsLength(), 250);
-        assertEq(adapter.realAssets(), 250e18);
+        assertApproxEqRel(adapter.realAssets(), 250e18, 2e6, "");
 
         Offer memory offer = makeBuyOffer(251, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
@@ -2519,7 +2538,7 @@ contract MidnightAdapterTest is Test {
         }
 
         assertEq(adapter.marketIdsLength(), boughtNum - soldNum);
-        assertEq(adapter.realAssets(), (boughtNum - soldNum) * 1e18);
+        assertApproxEqRel(adapter.realAssets(), (boughtNum - soldNum) * 1e18, 2e6, "");
     }
 
     function testBuyAfterUnsyncedLossUsesCurrentNetCredit() public {
@@ -2555,7 +2574,7 @@ contract MidnightAdapterTest is Test {
         uint256 amortizedValue = liveNetCredit.mulDivUp(1e18, 1e18 + rate * duration) + paid2;
         uint256 newRate = (liveNetCredit + units - amortizedValue) * 1e18 / (amortizedValue * duration);
         uint256 expectedValue = (liveNetCredit + units).mulDivDown(1e18, 1e18 + newRate * duration);
-        assertEq(adapter.realAssets(), expectedValue);
+        assertApproxEqRel(adapter.realAssets(), expectedValue, 2e6, "");
         assertEq(adapter.marketData(marketId).netCredit, liveNetCredit + units);
     }
 
@@ -2644,9 +2663,10 @@ contract MidnightAdapterTest is Test {
             assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit reduced");
             assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
             assertEq(adapter.marketIdsLength(), 1, "market retained");
-            assertEq(
+            assertApproxEqRel(
                 assetsBefore + vaultBalanceBefore - assetsAfter - loanToken.balanceOf(address(parentVault)),
                 shortfall,
+                2e6,
                 "shortfall realized immediately"
             );
         } else {
@@ -2689,7 +2709,7 @@ contract MidnightAdapterTest is Test {
         Offer memory first = buy(1, 1e18);
         Offer memory second = buy(2, 1e18);
         skip(3);
-        assertEq(adapter.realAssets(), 2e18, "realAssets");
+        assertApproxEqRel(adapter.realAssets(), 2e18, 2e6, "realAssets");
         assertMarkets([_marketId(first.market), _marketId(second.market)]);
     }
 
@@ -2713,7 +2733,8 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, 0, 0, 0, false, 0))
         );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
@@ -2757,21 +2778,24 @@ contract MidnightAdapterTest is Test {
         assertGt(interest, 0, "bought at a discount");
         uint256 rate = interest * 1e18 / (paid * duration);
 
-        assertEq(adapter.realAssets(), uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * duration), "at buy");
+        assertApproxEqRel(
+            adapter.realAssets(), uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * duration), 2e6, "at buy"
+        );
         assertGe(adapter.realAssets(), paid, "rounding is realized immediately");
         assertLt(
             adapter.realAssets() - paid, uint256(offer.maxUnits).mulDivUp(duration, 1e18), "initial rounding is bounded"
         );
         skip(duration / 3);
-        assertEq(
+        assertApproxEqRel(
             adapter.realAssets(),
             uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * (2 * duration / 3)),
+            2e6,
             "a third of the way"
         );
         skip(2 * duration / 3);
-        assertEq(adapter.realAssets(), offer.maxUnits, "net credit at maturity");
+        assertApproxEqRel(adapter.realAssets(), offer.maxUnits, 2e6, "net credit at maturity");
         skip(365 days);
-        assertEq(adapter.realAssets(), offer.maxUnits, "flat after maturity");
+        assertApproxEqRel(adapter.realAssets(), offer.maxUnits, 2e6, "flat after maturity");
     }
 
     function testSecondBuyAccruesExistingDiscount() public {
@@ -2795,16 +2819,17 @@ contract MidnightAdapterTest is Test {
         uint256 amortizedValue = uint256(first.maxUnits).mulDivUp(1e18, 1e18 + firstRate * 15 days) + paid;
         uint256 rate = (totalNetCredit - amortizedValue) * 1e18 / (amortizedValue * 15 days);
         uint256 valueAfter = totalNetCredit.mulDivDown(1e18, 1e18 + rate * 15 days);
-        assertEq(adapter.realAssets(), valueAfter, "second purchase updates the rate");
+        assertApproxEqRel(adapter.realAssets(), valueAfter, 2e6, "second purchase updates the rate");
         assertGe(valueAfter, valueBefore + paid, "rounding is realized immediately");
         skip(15 days / 2);
-        assertEq(
+        assertApproxEqRel(
             adapter.realAssets(),
             totalNetCredit.mulDivDown(1e18, 1e18 + rate * (15 days / 2)),
+            2e6,
             "combined discount accrues"
         );
         skip(15 days / 2);
-        assertEq(adapter.realAssets(), totalNetCredit, "net credit at maturity");
+        assertApproxEqRel(adapter.realAssets(), totalNetCredit, 2e6, "net credit at maturity");
     }
 
     function testWithdrawZeroPreservesAmortizedValue() public {
@@ -2822,7 +2847,7 @@ contract MidnightAdapterTest is Test {
 
         skip(1 days);
         uint256 expectedValue = uint256(offer.maxUnits).mulDivDown(1e18, 1e18 + rate * 28 days);
-        assertEq(adapter.realAssets(), expectedValue, "rate unchanged by synchronization");
+        assertApproxEqRel(adapter.realAssets(), expectedValue, 2e6, "rate unchanged by synchronization");
     }
 
     function testNoSalesWithShortfallAllowsSaleAtAmortizedValue() public {
@@ -2863,7 +2888,9 @@ contract MidnightAdapterTest is Test {
         Offer memory offerC = buy(90 days, 3e18, discountTick);
         skip(100 days);
 
-        assertEq(adapter.realAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, "sum of net credits");
+        assertApproxEqRel(
+            adapter.realAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, 2e6, "sum of net credits"
+        );
         assertMarkets([_marketId(offerA.market), _marketId(offerB.market), _marketId(offerC.market)]);
     }
 
@@ -2881,7 +2908,9 @@ contract MidnightAdapterTest is Test {
             "proportional amortized value removed"
         );
         skip(duration / 2);
-        assertEq(adapter.realAssets(), offer.maxUnits - offer.maxUnits / 2, "remaining net credit unchanged");
+        assertApproxEqRel(
+            adapter.realAssets(), offer.maxUnits - offer.maxUnits / 2, 2e6, "remaining net credit unchanged"
+        );
     }
 
     function testSellAllBeforeMaturity() public {
@@ -2915,8 +2944,11 @@ contract MidnightAdapterTest is Test {
             address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector), "position read"
         );
         uint256 timeToMaturity = offer.market.maturity.zeroFloorSub(block.timestamp);
-        assertEq(
-            adapter.realAssets(), uint256(netCredit).mulDivDown(1e18, 1e18 + rate * timeToMaturity), "cached net credit"
+        assertApproxEqRel(
+            adapter.realAssets(),
+            uint256(netCredit).mulDivDown(1e18, 1e18 + rate * timeToMaturity),
+            2e6,
+            "cached net credit"
         );
 
         // A loss-factor change makes realAssets fall back to reading Midnight.
@@ -2962,7 +2994,7 @@ contract MidnightAdapterTest is Test {
         skip(elapsed);
         (uint128 expectedCredit, uint128 expectedPendingFee,) =
             midnight.updatePositionView(offer.market, marketId, address(adapter));
-        assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
+        assertApproxEqRel(adapter.realAssets(), expectedCredit - expectedPendingFee, 2e6, "same net credit as Midnight");
     }
 
     function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
@@ -3012,11 +3044,11 @@ contract MidnightAdapterTest is Test {
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
         uint256 expectedValue = uint256(credit - pendingFee).mulDivDown(1e18, 1e18 + rate * 15 days);
         assertLt(credit - pendingFee, oldNetCredit, "loss realized");
-        assertEq(adapter.realAssets(), expectedValue, "exact loss-adjusted amortized value");
+        assertApproxEqRel(adapter.realAssets(), expectedValue, 2e6, "exact loss-adjusted amortized value");
         assertEq(adapter.marketData(marketId).netCredit, oldNetCredit, "view does not update the cache");
 
         midnight.updatePosition(offer.market, address(adapter));
-        assertEq(adapter.realAssets(), expectedValue, "permissionless position update");
+        assertApproxEqRel(adapter.realAssets(), expectedValue, 2e6, "permissionless position update");
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 0, credit - pendingFee);
@@ -3024,7 +3056,7 @@ contract MidnightAdapterTest is Test {
         vm.mockCallRevert(
             address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector), "position read"
         );
-        assertEq(adapter.realAssets(), expectedValue, "cached after synchronization");
+        assertApproxEqRel(adapter.realAssets(), expectedValue, 2e6, "cached after synchronization");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -3042,10 +3074,10 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, address(adapter)), offer.maxUnits, "position not updated");
         assertEq(adapter.marketData(marketId).netCredit, offer.maxUnits, "cap accounting not updated");
         uint256 valueAfter = adapter.realAssets();
-        assertApproxEqAbs(valueAfter, valueBefore / 2, 2, "half the value is lost");
+        assertApproxEqRel(valueAfter, valueBefore / 2, 2e6, "half the value is lost");
         skip(duration / 2);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
-        assertEq(adapter.realAssets(), credit - pendingFee, "net credit at maturity");
+        assertApproxEqRel(adapter.realAssets(), credit - pendingFee, 2e6, "net credit at maturity");
         assertGt(adapter.realAssets(), valueAfter, "remaining discount accrued");
     }
 
@@ -3061,7 +3093,7 @@ contract MidnightAdapterTest is Test {
 
             assertEq(midnight.credit(marketId, address(adapter)), 1e18, "position not updated");
             assertEq(adapter.marketData(marketId).netCredit, 1e18, "cap accounting not updated");
-            assertApproxEqAbs(adapter.realAssets(), 3e18 - (i + 1) * 0.5e18, offers.length, "loss visible");
+            assertApproxEqRel(adapter.realAssets(), 3e18 - (i + 1) * 0.5e18, 2e6, "loss visible");
         }
     }
 
@@ -3108,7 +3140,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), valueBefore, "no loss booked");
 
         skip(duration / 2);
-        assertEq(adapter.realAssets(), netCredit, "net credit at maturity");
+        assertApproxEqRel(adapter.realAssets(), netCredit, 2e6, "net credit at maturity");
     }
 
     function testBuyAtLossReverts() public {
@@ -3203,7 +3235,7 @@ contract MidnightAdapterTest is Test {
         );
         vm.stopPrank();
 
-        assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
+        assertApproxEqRel(penaltyShares, expectedPenaltyShares, 2e6, "penalty shares");
         assertEq(realVault.balanceOf(address(this)), sharesBefore - penaltyShares, "penalty charged to onBehalf");
         assertEq(loanToken.balanceOf(taker), 0, "settlement fee charged to caller");
         assertEq(loanToken.balanceOf(address(this)), 0, "onBehalf token balance");
@@ -3211,7 +3243,7 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0.5e18, "netCredit");
         assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation");
-        assertEq(realVault.totalAssets(), 10e18 - 0.01e18, "only penalty reduces totalAssets");
+        assertApproxEqRel(realVault.totalAssets(), 10e18 - 0.01e18, 2e6, "only penalty reduces totalAssets");
     }
 
     /* CALLBACKS */
@@ -3580,7 +3612,7 @@ contract MidnightAdapterTest is Test {
         uint256 expectedPenaltyShares = realVault.previewWithdraw(0.01e18);
         uint256 penaltyShares = forceDeallocateOnRealVault(offer.market, 0.5e18);
 
-        assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
+        assertApproxEqRel(penaltyShares, expectedPenaltyShares, 2e6, "penalty shares");
         assertEq(realVault.balanceOf(address(this)), sharesBefore - penaltyShares, "penalty charged to onBehalf");
         assertGt(realVault.balanceOf(recipient), 0, "fee shares minted");
         uint128 marketNetCredit = adapter.marketData(_marketId(offer.market)).netCredit;
@@ -3641,7 +3673,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation after buy");
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault funded the buy");
-        assertEq(adapter.realAssets(), 1e18, "adapter realAssets after buy");
+        assertApproxEqRel(adapter.realAssets(), 1e18, 2e6, "adapter realAssets after buy");
 
         skip(1);
 
@@ -3680,7 +3712,8 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, isBuy ? taker : address(0), address(0), "");
 
-        assertEq(adapter.realAssets(), isBuy ? 2e18 : 0, "take succeeds without pre-accrual");
+        if (isBuy) assertApproxEqRel(adapter.realAssets(), 2e18, 2e6, "take succeeds without pre-accrual");
+        else assertEq(adapter.realAssets(), 0, "take succeeds without pre-accrual");
     }
 
     /// forge-config: default.isolate = true
@@ -3693,9 +3726,9 @@ contract MidnightAdapterTest is Test {
 
         this.takeWithAccrual(offer, ratify([offer], signerAllocator), taker, address(this));
 
-        assertEq(realVault.balanceOf(recipient), 1e18, "deposit at the pre-trade share price");
-        assertEq(realVault.totalSupply(), 11e18, "total shares");
-        assertEq(realVault.totalAssets(), 11e18, "settled vault assets");
+        assertApproxEqRel(realVault.balanceOf(recipient), 1e18, 2e6, "deposit at the pre-trade share price");
+        assertApproxEqRel(realVault.totalSupply(), 11e18, 2e6, "total shares");
+        assertApproxEqRel(realVault.totalAssets(), 11e18, 2e6, "settled vault assets");
         assertEq(adapter.realAssets(), 0, "position sold");
     }
 
@@ -3704,9 +3737,9 @@ contract MidnightAdapterTest is Test {
         returns (bytes32)
     {
         assertEq(msg.sender, address(midnight));
-        assertEq(adapter.realAssets(), 1e18, "valued as before the trade");
+        assertApproxEqRel(adapter.realAssets(), 1e18, 2e6, "valued as before the trade");
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "payment has not arrived");
-        assertEq(realVault.totalAssets(), 10e18, "vault valuation fixed before the trade");
+        assertApproxEqRel(realVault.totalAssets(), 10e18, 2e6, "vault valuation fixed before the trade");
         realVault.deposit(1e18, recipient);
         return CALLBACK_SUCCESS;
     }
@@ -3723,7 +3756,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "position not updated");
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "cap accounting not updated");
         assertApproxEqAbs(adapter.realAssets(), 0.5e18, 1, "adapter loss visible");
-        assertApproxEqAbs(realVault.totalAssets(), 9.5e18, 1, "vault loss visible");
+        assertApproxEqRel(realVault.totalAssets(), 9.5e18, 2e6, "vault loss visible");
         uint256 expectedShares = 1e18 * (realVault.totalSupply() + 1) / (realVault.totalAssets() + 1);
         deal(address(loanToken), address(this), 1e18);
 
@@ -3731,7 +3764,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(shares, expectedShares, "deposit uses post-loss assets");
         assertGt(shares, 1e18, "more shares than at the pre-loss price");
-        assertApproxEqAbs(realVault.totalAssets(), 10.5e18, 1, "assets after deposit");
+        assertApproxEqRel(realVault.totalAssets(), 10.5e18, 2e6, "assets after deposit");
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "no position ping needed");
     }
 
@@ -3748,7 +3781,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(bytes("dead oracle"));
         midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, true, address(this), address(0), "");
         assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
-        assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
+        assertApproxEqRel(realVault.totalAssets(), 10e18, 2e6, "market still fully valued");
         assertFalse(adapter.noSalesWithShortfall(), "sales with shortfall allowed by default");
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
@@ -3764,8 +3797,8 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "adapter credit unchanged");
         assertEq(midnight.credit(marketId, buyer), 0, "buyer received no credit");
         assertEq(adapter.marketIdsLength(), 1, "market retained");
-        assertEq(adapter.realAssets(), 1e18, "adapter realAssets");
-        assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
+        assertApproxEqRel(adapter.realAssets(), 1e18, 2e6, "adapter realAssets");
+        assertApproxEqRel(realVault.totalAssets(), 10e18, 2e6, "market still fully valued");
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation unchanged");
         }
@@ -3778,7 +3811,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 0, "market removed");
         assertEq(adapter.realAssets(), 0, "adapter realAssets cleared");
         assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
-        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        assertApproxEqRel(realVault.totalAssets(), 9e18, 2e6, "loss realized");
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
@@ -3806,7 +3839,7 @@ contract MidnightAdapterTest is Test {
 
         uint128 creditAfter = adapter.marketData(marketId).netCredit;
         assertEq(creditAfter, creditBefore - withdrawAmount, "netCredit");
-        assertEq(adapter.realAssets(), creditBefore - withdrawAmount, "realAssets");
+        assertApproxEqRel(adapter.realAssets(), creditBefore - withdrawAmount, 2e6, "realAssets");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount, "vault balance");
         assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
@@ -3854,7 +3887,7 @@ contract MidnightAdapterTest is Test {
         // 0.5e18 withdrawn, 0.3e18 lost.
         uint128 netCredit = adapter.marketData(marketId).netCredit;
         assertApproxEqAbs(netCredit, 0.2e18, 1, "netCredit");
-        assertApproxEqAbs(adapter.realAssets(), 0.2e18, 1, "realAssets");
+        assertApproxEqRel(adapter.realAssets(), 0.2e18, 2e6, "realAssets");
         assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.2e18, 1, "allocation");
     }
 
@@ -3915,7 +3948,7 @@ contract MidnightAdapterTest is Test {
         take(offer);
 
         assertEq(adapter.marketData(marketId).netCredit, expectedNetCredit, "market netCredit");
-        assertEq(adapter.realAssets(), expectedNetCredit, "realAssets");
+        assertApproxEqRel(adapter.realAssets(), expectedNetCredit, 2e6, "realAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), expectedNetCredit, "allocation");
     }
 
@@ -3999,7 +4032,8 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, 0, 0, 0, false, 0))
         );
     }
 
@@ -4046,14 +4080,18 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, sold, tick);
 
         if (interestExhausted) {
-            assertEq(adapter.realAssets(), assetsBefore);
+            assertApproxEqRel(adapter.realAssets(), assetsBefore, 2e6, "");
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore);
         } else {
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
             uint256 expected =
                 shortfall == 0 ? (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm) : assetsBefore - proceeds;
-            assertGe(adapter.realAssets(), expected);
-            assertLe(adapter.realAssets() - expected, shortfall == 0 ? 0 : (netCredit - sold) * ttm / 1e18 + 2);
+            uint256 roundingTolerance = netCredit.mulDivUp(2e6, 1e18);
+            assertGe(adapter.realAssets() + roundingTolerance, expected);
+            assertLe(
+                adapter.realAssets().zeroFloorSub(expected),
+                (shortfall == 0 ? 0 : (netCredit - sold) * ttm / 1e18 + 2) + roundingTolerance
+            );
         }
     }
 
@@ -4127,11 +4165,25 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
 
         vm.record();
-        assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit");
+        MarketData memory data = adapter.marketData(marketId);
+        assertEq(data.netCredit, 1e18, "netCredit");
+        assertEq(data.maturity, offer.market.maturity, "maturity");
+        assertEq(data.realAssetsNetCredit, FloatLib.toFloatDown(data.netCredit), "realAssets net credit");
+        assertEq(data.realAssetsNetRate, FloatLib.toFloatUp(data.netRate), "realAssets net rate");
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 2, "two cache slots");
-        uint256 packed = uint256(vm.load(address(adapter), reads[0]));
-        assertEq(uint128(packed), 1e18, "packed net credit");
+        assertEq(reads.length, 3, "three MarketData slots");
+    }
+
+    function testRealAssetsReadsOneMarketDataSlotPerMarket() public {
+        uint256 marketCount = 4;
+        for (uint256 i; i < marketCount; i++) {
+            buy(1 days + i, 1e18);
+        }
+
+        vm.record();
+        adapter.realAssets();
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        assertEq(reads.length, marketCount + 1 + marketCount, "market ids plus one MarketData slot per market");
     }
 
     /* HELPERS */
@@ -4495,9 +4547,10 @@ contract MidnightAdapterTest is Test {
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
         uint256 netCredit = credit - pendingFee;
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        assertEq(
+        assertApproxEqRel(
             adapter.realAssets(),
             netCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity),
+            2e6,
             "real maturity still determines the rate"
         );
     }
@@ -4652,8 +4705,8 @@ contract MidnightAdapterTest is Test {
         Offer memory initial = freshPosition(MAX_TICK);
         assertEq(realVault.firstTotalAssets(), 0);
         directTake(makeSellOffer(initial.market, 4e18, MAX_TICK));
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4663,9 +4716,9 @@ contract MidnightAdapterTest is Test {
         uint256 expected = realVault.totalAssets();
         assertApproxEqAbs(expected, 6e18, 1);
         directTake(makeSellOffer(initial.market, 2e18, MAX_TICK));
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), expected);
-        assertEq(backing(), expected);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(realVault.totalAssets(), expected, 2e6, "");
+        assertApproxEqRel(backing(), expected, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4677,8 +4730,8 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("second purchase");
         midnight.supplyCollateral(initial.market, 0, 2e18, taker);
         directTake(offer);
-        assertEq(realVault._totalAssets(), expected);
-        assertEq(backing(), expected);
+        assertApproxEqRel(realVault._totalAssets(), expected, 2e6, "");
+        assertApproxEqRel(backing(), expected, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4697,8 +4750,8 @@ contract MidnightAdapterTest is Test {
         skip(2 days);
         deal(address(loanToken), address(realVault), 10e18 - adapter.realAssets());
         directTake(makeSellOffer(initial.market, 0.08e18, MAX_TICK / 2));
-        assertEq(realVault._totalAssets(), 10e18);
-        assertGe(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertGe(backing() + uint256(10e18).mulDivUp(2e6, 1e18), 10e18);
     }
 
     /// forge-config: default.isolate = true
@@ -4721,9 +4774,9 @@ contract MidnightAdapterTest is Test {
             IMidnightAdapterBase.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), expected);
-        assertEq(backing(), expected);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(realVault.totalAssets(), expected, 2e6, "");
+        assertApproxEqRel(backing(), expected, 2e6, "");
         assertEq(realVault.balanceOf(recipient), 0);
     }
 
@@ -4735,9 +4788,9 @@ contract MidnightAdapterTest is Test {
         callback.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), bytes4(0));
         callback.push(address(realVault), abi.encodeCall(realVault.deposit, (1e18, recipient)), bytes4(0));
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 11e18);
-        assertEq(backing(), 11e18);
-        assertEq(realVault.balanceOf(recipient), 1e18);
+        assertApproxEqRel(realVault._totalAssets(), 11e18, 2e6, "");
+        assertApproxEqRel(backing(), 11e18, 2e6, "");
+        assertApproxEqRel(realVault.balanceOf(recipient), 1e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4746,9 +4799,9 @@ contract MidnightAdapterTest is Test {
         SaleCallback callback = newCallback();
         callback.push(address(realVault), abi.encodeCall(realVault.deposit, (1e18, recipient)), bytes4(0));
         this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 11e18);
-        assertEq(backing(), 11e18);
-        assertEq(realVault.balanceOf(recipient), 1e18);
+        assertApproxEqRel(realVault._totalAssets(), 11e18, 2e6, "");
+        assertApproxEqRel(backing(), 11e18, 2e6, "");
+        assertApproxEqRel(realVault.balanceOf(recipient), 1e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4759,8 +4812,8 @@ contract MidnightAdapterTest is Test {
             address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertApproxEqAbs(backing(), 8e18, 1);
-        assertEq(realVault._totalAssets(), 10e18);
+        assertApproxEqRel(backing(), 8e18, 2e6, "");
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
         assertEq(realVault.totalAssets(), backing());
     }
 
@@ -4783,8 +4836,8 @@ contract MidnightAdapterTest is Test {
         SaleCallback callback = newCallback();
         callback.push(address(this), abi.encodeCall(this.realizeDefault, (initial.market, 0)), bytes4(0));
         callbackSale(makeSellOffer(initial.market, 8e18, MAX_TICK), callback);
-        assertEq(backing(), 10e18);
-        assertEq(realVault._totalAssets(), 10e18);
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
         assertEq(adapter.marketIdsLength(), 0);
     }
 
@@ -4799,8 +4852,8 @@ contract MidnightAdapterTest is Test {
             address(midnight), abi.encodeCall(IMidnight.updatePosition, (initial.market, address(adapter))), bytes4(0)
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertApproxEqAbs(backing(), 8e18, 1);
-        assertEq(realVault._totalAssets(), 10e18);
+        assertApproxEqRel(backing(), 8e18, 2e6, "");
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
         assertEq(realVault.totalAssets(), backing());
     }
 
@@ -4863,8 +4916,8 @@ contract MidnightAdapterTest is Test {
             IMidnightAdapterBase.SellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4891,9 +4944,9 @@ contract MidnightAdapterTest is Test {
             IMidnightAdapterBase.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), expected);
-        assertEq(backing(), expected);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(realVault.totalAssets(), expected, 2e6, "");
+        assertApproxEqRel(backing(), expected, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -4923,8 +4976,8 @@ contract MidnightAdapterTest is Test {
         } else {
             callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         }
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 4e18);
         assertEq(adapter.marketData(_marketId(inner.market)).netCredit, 1e18);
     }
@@ -4950,8 +5003,8 @@ contract MidnightAdapterTest is Test {
         } else {
             callbackSale(makeSellOffer(initial.market, 8e18, MAX_TICK), callback);
         }
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0);
         assertEq(adapter.marketData(_marketId(second.market)).netCredit, 0);
@@ -4978,8 +5031,8 @@ contract MidnightAdapterTest is Test {
             IMidnightAdapterBase.OtherSellInProgress.selector
         );
         this.saleThenDeposit(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertApproxEqAbs(backing(), 9e18, 1);
-        assertEq(realVault._totalAssets(), backing());
+        assertApproxEqRel(backing(), 9e18, 2e6, "");
+        assertApproxEqRel(realVault._totalAssets(), backing(), 2e6, "");
     }
 
     function saleThenDeposit(Offer memory offer, SaleCallback callback) external {
@@ -5005,9 +5058,9 @@ contract MidnightAdapterTest is Test {
             IMidnightAdapterBase.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(realVault.totalAssets(), 6e18);
-        assertEq(backing(), 6e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(realVault.totalAssets(), 6e18, 2e6, "");
+        assertApproxEqRel(backing(), 6e18, 2e6, "");
         assertEq(adapter.marketIdsLength(), 0);
     }
 
@@ -5020,12 +5073,12 @@ contract MidnightAdapterTest is Test {
     function saleThenDefault(Offer memory offer) external {
         directTake(offer);
         assertEq(realVault.firstTotalAssets(), 0);
-        assertEq(adapter.realAssets(), 4e18);
+        assertApproxEqRel(adapter.realAssets(), 4e18, 2e6, "");
         this.realizeDefault(offer.market, 0);
         assertEq(adapter.realAssets(), 0, "temporary valuation cleared in the same transaction");
         realVault.accrueInterest();
         assertEq(realVault.firstTotalAssets(), 6e18);
-        assertEq(realVault.totalAssets(), 6e18);
+        assertApproxEqRel(realVault.totalAssets(), 6e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5035,7 +5088,7 @@ contract MidnightAdapterTest is Test {
             ? makeExternalOffer(initial.market, true, 4e18, MAX_TICK)
             : makeSellOffer(initial.market, 4e18, MAX_TICK);
         this.saleWithoutAccrual(offer, takerSale);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     function saleWithoutAccrual(Offer memory offer, bool takerSale) external {
@@ -5062,8 +5115,8 @@ contract MidnightAdapterTest is Test {
     function sequentialSales(Market memory market) external {
         directTake(makeSellOffer(market, 2e18, MAX_TICK));
         directTake(makeSellOffer(market, 2e18, MAX_TICK));
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     uint256 internal expectedSaleBaseline;
@@ -5111,8 +5164,9 @@ contract MidnightAdapterTest is Test {
         uint256 storedAssets = realVault._totalAssets();
         callbackSale(makeSellOffer(initial.market, sold, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), storedAssets, "sale does not accrue");
-        assertGe(realVault.totalAssets(), expectedSaleBaseline);
-        assertGe(backing(), expectedSaleBaseline);
+        uint256 roundingTolerance = expectedSaleBaseline.mulDivUp(2e6, 1e18);
+        assertGe(realVault.totalAssets() + roundingTolerance, expectedSaleBaseline);
+        assertGe(backing() + roundingTolerance, expectedSaleBaseline);
     }
 
     /// forge-config: default.isolate = true
@@ -5129,8 +5183,8 @@ contract MidnightAdapterTest is Test {
         uint256 storedAssets = realVault._totalAssets();
         directTake(makeSellOffer(initial.market, sold, MAX_TICK));
         assertEq(realVault._totalAssets(), storedAssets, "sale does not accrue");
-        assertGe(realVault.totalAssets(), expected, "pre-sale baseline preserved");
-        assertGe(backing(), expected, "covered sale");
+        assertGe(realVault.totalAssets() + expected.mulDivUp(2e6, 1e18), expected, "pre-sale baseline preserved");
+        assertGe(backing() + expected.mulDivUp(2e6, 1e18), expected, "covered sale");
     }
 
     /// forge-config: default.isolate = true
@@ -5146,8 +5200,8 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("purchase after default");
         midnight.supplyCollateral(initial.market, 0, offer.maxUnits * 2 + 1e18, taker);
         directTake(offer);
-        assertEq(realVault._totalAssets(), expected, "newly bought credit excluded");
-        assertGe(backing() + 1, expected, "rounding only");
+        assertApproxEqRel(realVault._totalAssets(), expected, 2e6, "newly bought credit excluded");
+        assertGe(backing() + expected.mulDivUp(2e6, 1e18), expected, "rounding only");
     }
 
     /// forge-config: default.isolate = true
@@ -5175,8 +5229,8 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 8e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
         assertEq(loanToken.balanceOf(address(adapter)), 0);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5203,8 +5257,8 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 8e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
         assertEq(loanToken.balanceOf(address(adapter)), 0);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5231,8 +5285,8 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.withdrawable(_marketId(initial.market)), 1e18);
         assertEq(realVault.allocation(adapter.adapterId()), expected - 2e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
-        assertEq(realVault._totalAssets(), expected);
-        assertEq(backing(), expected);
+        assertApproxEqRel(realVault._totalAssets(), expected, 2e6, "");
+        assertApproxEqRel(backing(), expected, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5249,8 +5303,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 7e18);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5267,7 +5321,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0);
         assertEq(realVault.allocation(adapter.adapterId()), 8e18);
         assertEq(loanToken.balanceOf(address(realVault)), 2e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /// forge-config: default.isolate = true
@@ -5314,8 +5368,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(inner.market)).netCredit, succeeds ? inner.maxUnits : 0);
         assertEq(midnight.withdrawable(_marketId(fundingMarket)), succeeds ? 0 : 3e18);
         assertEq(realVault.allocation(adapter.adapterId()), fundingLocked ? 4e18 : 6e18);
-        assertEq(realVault._totalAssets(), 10e18);
-        assertEq(backing(), 10e18);
+        assertApproxEqRel(realVault._totalAssets(), 10e18, 2e6, "");
+        assertApproxEqRel(backing(), 10e18, 2e6, "");
     }
 
     /* FORCE DEALLOCATE BUYER CALLBACK */
@@ -5431,8 +5485,8 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         // 10 initial + 1 pre-deposit + 1 callback deposit - 0.5 callback withdraw + 4 sold ... - 4 credit
-        assertEq(backing(), 11.5e18, "backing");
-        assertEq(realVault.totalAssets(), 11.5e18 - 0.08e18, "totalAssets net of the penalty");
+        assertApproxEqRel(backing(), 11.5e18, 2e6, "backing");
+        assertApproxEqRel(realVault.totalAssets(), 11.5e18 - 0.08e18, 2e6, "totalAssets net of the penalty");
         // The callback depositor got exactly what it paid for.
         assertApproxEqAbs(
             realVault.previewRedeem(realVault.balanceOf(address(buyer)) - sharesBefore), 0.5e18, 1, "no free shares"
@@ -5466,8 +5520,8 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), 1e18 + 1e18 + 1e18 + 4e18, "idle");
-        assertEq(backing(), 11e18, "backing");
-        assertEq(realVault.totalAssets(), 11e18 - 0.02e18 - 0.08e18, "totalAssets net of penalties");
+        assertApproxEqRel(backing(), 11e18, 2e6, "backing");
+        assertApproxEqRel(realVault.totalAssets(), 11e18 - 0.02e18 - 0.08e18, 2e6, "totalAssets net of penalties");
         adapter.withdrawToVault(initial.market, 0);
     }
 
@@ -5510,7 +5564,7 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), longBuy ? 6e18 : 5e18, "idle");
         assertEq(storedDurationAllocations(adapter)[1], 4e18, "completed sale releases capacity");
-        assertEq(backing(), 10e18, "backing");
+        assertApproxEqRel(backing(), 10e18, 2e6, "backing");
     }
 
     /// forge-config: default.isolate = true
@@ -5537,11 +5591,13 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(buyer)), buyerBalanceBefore - 1e15, "buyer paid for credit");
         assertEq(realVault.balanceOf(address(buyer)), buyerShares, "callback redemption reverted");
         uint256 penaltyAssets = uint256(1e15).mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18);
-        assertEq(realVault.totalAssets(), backing() - penaltyAssets, "loss and penalty visible after the tx");
+        assertApproxEqRel(
+            realVault.totalAssets(), backing() - penaltyAssets, 2e6, "loss and penalty visible after the tx"
+        );
         assertEq(
             realVault.allocation(adapter.adapterId()), adapter.marketData(_marketId(initial.market)).netCredit, "caps"
         );
-        assertApproxEqAbs(backing(), 12e18 - 4e18 + 1e15 / 2, 2, "half of the remaining credit is lost");
+        assertApproxEqRel(backing(), 12e18 - 4e18 + 1e15 / 2, 2e6, "half of the remaining credit is lost");
     }
 
     /// forge-config: default.isolate = true
@@ -5572,7 +5628,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), 11e18, "everything is idle");
-        assertEq(realVault.totalAssets(), 11e18 - 0.02e18 - 0.16e18, "totalAssets net of penalties");
+        assertApproxEqRel(realVault.totalAssets(), 11e18 - 0.02e18 - 0.16e18, 2e6, "totalAssets net of penalties");
     }
 
     /// forge-config: default.isolate = true
@@ -5597,7 +5653,7 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 2e18 + 1e18 + 2e18, "idle");
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 6e18, "netCredit");
         assertEq(realVault.allocation(adapter.adapterId()), 6e18, "adapter id");
-        assertEq(backing(), 11e18, "backing");
+        assertApproxEqRel(backing(), 11e18, 2e6, "backing");
     }
 
     /// forge-config: default.isolate = true

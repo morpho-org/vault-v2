@@ -8,17 +8,24 @@ import {IBuyCallback, ISellCallback} from "../../../lib/midnight/src/interfaces/
 import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
-    uint128 netCredit;
+    // slot 0: everything realAssets reads.
     /// @dev Midnight's loss factor of the market when netCredit was last updated.
     uint128 lossFactor;
+    uint32 maturity;
+    /// @dev netCredit as a FloatLib float rounded down, only used by realAssets.
+    uint48 realAssetsNetCredit;
+    /// @dev netRate as a FloatLib float rounded up, only used by realAssets.
+    uint48 realAssetsNetRate;
+    // slot 1
+    uint128 netCredit;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
     uint64 netRate;
-    uint48 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    // slot 2
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
     uint128 minForceSellPrice;
 }
@@ -146,10 +153,12 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         external
         view
         returns (
-            uint128 netCredit,
             uint128 lossFactor,
+            uint32 maturity,
+            uint48 realAssetsNetCredit,
+            uint48 realAssetsNetRate,
+            uint128 netCredit,
             uint64 netRate,
-            uint48 maturity,
             uint8 index,
             bool forceSellable,
             uint128 minForceSellPrice
