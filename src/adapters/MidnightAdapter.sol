@@ -76,8 +76,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* TRANSIENT STORAGE */
 
     /// @dev Purchase excluded from realAssets during pre-buy interest accrual.
-    bytes32 public transient overridenMarketId;
-    uint256 public transient overridenMarketBoughtNetCredit;
+    bytes32 public transient inProgressBuyMarketId;
+    uint256 public transient inProgressBuyBoughtNetCredit;
 
     /* TIMELOCKS STORAGE */
 
@@ -427,10 +427,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
-        (overridenMarketId, overridenMarketBoughtNetCredit) = (marketId, boughtNetCredit);
+        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
-        (overridenMarketId, overridenMarketBoughtNetCredit) = (bytes32(0), 0);
+        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
 
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -618,8 +618,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
-            if (marketId == overridenMarketId) {
-                netCredit = _marketData.netCredit - overridenMarketBoughtNetCredit;
+            if (marketId == inProgressBuyMarketId) {
+                netCredit = _marketData.netCredit - inProgressBuyBoughtNetCredit;
             } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
                 netCredit = _marketData.netCredit;
             } else {
