@@ -80,7 +80,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* TRANSIENT STORAGE */
 
     /// @dev Set to true so forceDeallocate offers are ratified.
-    bool transient forceSelling;
+    bool public transient forceSelling;
 
     /* TIMELOCKS STORAGE */
 
