@@ -15,12 +15,14 @@ struct MarketData {
     uint64 netRate;
     uint48 maturity;
     uint8 index;
+    /// @dev Bucket 0 is below all durations. Bucket n counts toward the first n durations.
+    uint8 durationBucket;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
-    uint128 minForceSellPrice;
+    uint64 minForceSellPrice;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -39,6 +41,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinNetBuyRate(uint256 newMinNetBuyRate);
     event SetDurations(uint256[] newDurations);
+    event RefreshDuration(bytes32 indexed marketId);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
@@ -71,7 +74,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
-    error InvalidLength();
     error LastDurationAbsoluteCapNotZero();
     error LoanAssetMismatch();
     error NotAuthorized();
@@ -130,7 +132,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function durationAllocations(uint256 length) external view returns (uint256[] memory);
+    function durationBuckets(uint256 index) external view returns (uint128);
+    function refreshDuration(bytes32 marketId) external;
+    function durationAllocations() external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
@@ -150,8 +154,9 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint64 netRate,
             uint48 maturity,
             uint8 index,
+            uint8 durationBucket,
             bool forceSellable,
-            uint128 minForceSellPrice
+            uint64 minForceSellPrice
         );
 }
 

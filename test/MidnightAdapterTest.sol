@@ -664,7 +664,7 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.marketData(marketId).forceSellable);
     }
 
-    function testForceSellablePreservesMarketData(bool newForceSellable, uint128 newMinForceSellPrice) public {
+    function testForceSellablePreservesMarketData(bool newForceSellable, uint64 newMinForceSellPrice) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
@@ -1368,7 +1368,7 @@ contract MidnightAdapterTest is Test {
         adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
-    function testSetMinForceSellPriceAuthorized(bytes32 marketId, uint128 newMinForceSellPrice) public {
+    function testSetMinForceSellPriceAuthorized(bytes32 marketId, uint64 newMinForceSellPrice) public {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetMinForceSellPrice(marketId, newMinForceSellPrice);
         vm.prank(curator);
@@ -1377,7 +1377,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMinForceSellPriceOverflows(bytes32 marketId, uint256 newMinForceSellPrice) public {
-        newMinForceSellPrice = bound(newMinForceSellPrice, uint256(type(uint128).max) + 1, type(uint256).max);
+        newMinForceSellPrice = bound(newMinForceSellPrice, uint256(type(uint64).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
         adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
@@ -1412,7 +1412,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(initial.market);
         deal(address(loanToken), taker, 1e18);
 
-        setMinForceSellPrice(marketId, type(uint128).max);
+        setMinForceSellPrice(marketId, type(uint64).max);
         sellUnits(initial.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(marketId).netCredit, 0, "net credit");
     }
@@ -1423,7 +1423,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 0.25e18);
 
         setForceSellable(marketId);
-        setMinForceSellPrice(marketId, type(uint128).max);
+        setMinForceSellPrice(marketId, type(uint64).max);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(marketId).netCredit, 0.75e18);
     }
@@ -1832,9 +1832,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(noDurations.marketData(_marketId(offer.market)).netCredit, 0, "buy rejected");
         assertEq(noDurations.durations(), new uint256[](0), "durations");
-        assertEq(noDurations.durationAllocations(0), new uint256[](0), "durationAllocations");
-        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
-        noDurations.durationAllocations(1);
+        assertEq(noDurations.durationAllocations(), new uint256[](0), "durationAllocations");
     }
 
     function testNoDurationsTakerBuy() public {
@@ -2233,18 +2231,84 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testDurationCapsReleaseCapacityWithTime() public {
+    function testDurationCapsReleaseCapacityOnBuy() public {
         setUpRealVault();
         decreaseDurationCap(1, 0.1e18);
-        buyOnRealVault(7 days, 1e18);
+        Offer memory initial = buyOnRealVault(7 days, 1e18);
         Offer memory next = fundedDurationOffer(8 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(next);
         skip(1);
         next.expiry = block.timestamp;
         take(next);
+        assertEq(adapter.marketData(_marketId(initial.market)).durationBucket, 1);
         assertEq(storedDurationAllocations(adapter)[1], 1e18);
         assertEq(storedDurationAllocations(adapter)[0], 2e18);
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationCapsRefreshAllMarketsOnlyWhenNeeded(bool absolute, bool exceedsCap) public {
+        setUpRealVault();
+        Offer memory first = buyOnRealVault(7 days, 1e18);
+        Offer memory second = buyOnRealVault(30 days, 1e18);
+        Offer memory third = buyOnRealVault(90 days, 1e18);
+        skip(31 days);
+        if (exceedsCap) {
+            if (absolute) decreaseDurationAbsoluteCap(2, 2e18);
+            else decreaseDurationCap(2, 0.2e18);
+        }
+
+        Offer memory next = fundedDurationOffer(31 days, 1e18);
+        take(next);
+
+        assertEq(adapter.marketData(_marketId(first.market)).durationBucket, exceedsCap ? 0 : 2);
+        assertEq(adapter.marketData(_marketId(second.market)).durationBucket, exceedsCap ? 0 : 3);
+        assertEq(adapter.marketData(_marketId(third.market)).durationBucket, exceedsCap ? 3 : 4);
+        assertEq(adapter.marketData(_marketId(next.market)).durationBucket, 3);
+        assertEq(adapter.marketData(_marketId(first.market)).netCredit, 1e18);
+        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 1e18);
+        assertEq(adapter.marketData(_marketId(third.market)).netCredit, 1e18);
+        uint256[] memory allocations = storedDurationAllocations(adapter);
+        assertEq(allocations[0], exceedsCap ? 2e18 : 4e18);
+        assertEq(allocations[1], exceedsCap ? 2e18 : 4e18);
+        assertEq(allocations[2], exceedsCap ? 2e18 : 3e18);
+        assertEq(allocations[3], exceedsCap ? 0 : 1e18);
+        assertEq(allocations[4], 0);
+        assertEq(realVault.allocation(adapter.adapterId()), 4e18);
+        assertEq(loanToken.balanceOf(address(realVault)), 6e18);
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationCapsRefreshRevertsIfStillExceeded(bool absolute, bool lowerCap) public {
+        setUpRealVault();
+        Offer memory first = buyOnRealVault(7 days, 1e18);
+        Offer memory second = buyOnRealVault(30 days, 1e18);
+        Offer memory third = buyOnRealVault(90 days, 1e18);
+        skip(31 days);
+        if (absolute) {
+            decreaseDurationAbsoluteCap(2, lowerCap ? 2e18 : 1e18);
+            if (lowerCap) decreaseDurationAbsoluteCap(1, 1e18);
+        } else {
+            decreaseDurationCap(2, lowerCap ? 0.2e18 : 0.1e18);
+            if (lowerCap) decreaseDurationCap(1, 0.1e18);
+        }
+        uint256[] memory allocations = storedDurationAllocations(adapter);
+        Offer memory next = fundedDurationOffer(31 days, 1e18);
+        vm.expectRevert(
+            absolute
+                ? IMidnightAdapterBase.DurationAbsoluteCapExceeded.selector
+                : IMidnightAdapterBase.DurationRelativeCapExceeded.selector
+        );
+        take(next);
+
+        assertEq(storedDurationAllocations(adapter), allocations);
+        assertEq(adapter.marketData(_marketId(first.market)).durationBucket, 2);
+        assertEq(adapter.marketData(_marketId(second.market)).durationBucket, 3);
+        assertEq(adapter.marketData(_marketId(third.market)).durationBucket, 4);
+        assertEq(adapter.marketData(_marketId(next.market)).netCredit, 0);
+        assertEq(adapter.marketIdsLength(), 3);
+        assertEq(realVault.allocation(adapter.adapterId()), 3e18);
+        assertEq(loanToken.balanceOf(address(realVault)), 7e18);
     }
 
     /// forge-config: default.isolate = true
@@ -2413,31 +2477,209 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 250);
     }
 
-    function testDurationAllocationsLengthTooHigh() public {
-        uint256 length = adapter.durationsLength() + 1;
-        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
-        adapter.durationAllocations(length);
+    function testRefreshDurationConservative(uint256 elapsed, address caller) public {
+        elapsed = bound(elapsed, 0, 365 days);
+        bytes32[] memory marketIds = new bytes32[](allDurations.length - 1);
+        for (uint256 i; i < marketIds.length; i++) {
+            marketIds[i] = _marketId(buy(allDurations[i], (i + 1) * 1e18).market);
+            assertEq(adapter.marketData(marketIds[i]).durationBucket, i + 1, "initial bucket");
+            assertEq(adapter.durationBuckets(i), (i + 1) * 1e18, "initial bucket credit");
+        }
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 allocationBefore = parentVault.allocation(adapter.adapterId());
+        uint256[] memory cached = storedDurationAllocations(adapter);
+        skip(elapsed);
+        assertEq(storedDurationAllocations(adapter), cached, "time alone does not change the cache");
+
+        uint256[] memory expected = new uint256[](allDurations.length);
+        for (uint256 i; i < marketIds.length; i++) {
+            MarketData memory data = adapter.marketData(marketIds[i]);
+            uint256 ttm = uint256(data.maturity).zeroFloorSub(block.timestamp);
+            for (uint256 j; j < allDurations.length; j++) {
+                if (allDurations[j] <= ttm) expected[j] += data.netCredit;
+            }
+            vm.expectEmit(address(adapter));
+            emit IMidnightAdapterBase.RefreshDuration(marketIds[i]);
+            vm.prank(caller);
+            adapter.refreshDuration(marketIds[i]);
+            assertEq(adapter.marketData(marketIds[i]).netCredit, data.netCredit, "stored credit unchanged");
+        }
+        for (uint256 i; i < allDurations.length; i++) {
+            assertGe(cached[i], expected[i], "stale allocation is conservative");
+        }
+        assertEq(storedDurationAllocations(adapter), expected, "refreshed allocations match the market scan");
+        adapter.refreshDuration(marketIds[0]);
+        assertEq(storedDurationAllocations(adapter), expected, "refresh is idempotent");
+        assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore, "no assets moved");
+        assertEq(parentVault.allocation(adapter.adapterId()), allocationBefore, "vault allocation unchanged");
     }
 
-    function testDurationAllocationsPrefix() public {
-        buy(1 days, 1e18);
-        buy(7 days, 2e18);
-        buy(30 days, 3e18);
-        buy(90 days, 4e18);
-        buy(180 days, 5e18);
-        uint256[] memory full = storedDurationAllocations(adapter);
-        for (uint256 length = 0; length <= adapter.durationsLength(); length++) {
-            uint256[] memory prefix = adapter.durationAllocations(length);
-            assertEq(prefix.length, length, "prefix length");
-            for (uint256 i = 0; i < length; i++) {
-                assertEq(prefix[i], full[i], "prefix allocation");
-            }
+    /// forge-config: default.isolate = true
+    function testDurationCacheUpdatesPosition(uint256 operation, bool full) public {
+        operation = bound(operation, 0, 3);
+        setUpRealVault();
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        Offer memory first = buyOnRealVault(30 days, 2e18);
+        Offer memory second = buyOnRealVault(90 days, 3e18);
+        bytes32 firstId = _marketId(first.market);
+        bytes32 secondId = _marketId(second.market);
+        skip(25 days);
+
+        uint256 amount = full ? 2e18 : 1e18;
+        if (operation == 0) {
+            buyAdditionalCredit(first.market, amount);
+        } else if (operation == 1) {
+            sellUnits(first.market, amount, MAX_TICK);
+        } else if (operation == 2) {
+            vm.prank(taker);
+            midnight.repay(first.market, amount, taker, address(0), "");
+            adapter.withdrawToVault(first.market, amount);
+        } else {
+            forceDeallocateOnRealVault(first.market, amount);
         }
+
+        uint256 netCredit = operation == 0 ? 2e18 + amount : 2e18 - amount;
+        assertEq(adapter.marketData(firstId).netCredit, netCredit, "updated credit");
+        uint256 firstBucket = adapter.marketData(firstId).durationBucket;
+        uint256 secondBucket = adapter.marketData(secondId).durationBucket;
+        uint256[] memory expectedBuckets = new uint256[](adapter.durationsLength());
+        assertEq(adapter.marketData(firstId).durationBucket, firstBucket, "updated bucket");
+        if (firstBucket > 0) expectedBuckets[firstBucket - 1] += netCredit;
+        if (secondBucket > 0) expectedBuckets[secondBucket - 1] += 3e18;
+        for (uint256 i; i < expectedBuckets.length; i++) {
+            assertEq(adapter.durationBuckets(i), expectedBuckets[i], "updated bucket credit");
+        }
+        assertEq(storedDurationAllocations(adapter)[0], 3e18 + netCredit, "total exposure");
+        assertEq(realVault.allocation(adapter.adapterId()), 3e18 + netCredit, "vault allocation");
+
+        adapter.refreshDuration(secondId);
+        secondBucket = currentDurationBucket(adapter, secondId);
+        expectedBuckets = new uint256[](adapter.durationsLength());
+        if (firstBucket > 0) expectedBuckets[firstBucket - 1] += netCredit;
+        if (secondBucket > 0) expectedBuckets[secondBucket - 1] += 3e18;
+        for (uint256 i; i < expectedBuckets.length; i++) {
+            assertEq(adapter.durationBuckets(i), expectedBuckets[i], "refreshed bucket credit");
+        }
+        if (netCredit == 0) {
+            buyAdditionalCredit(first.market, 1e18);
+            firstBucket = currentDurationBucket(adapter, firstId);
+            assertEq(adapter.marketData(firstId).durationBucket, firstBucket, "removed market reenters its current bucket");
+            assertEq(adapter.durationBuckets(firstBucket - 1), 1e18, "reentered credit");
+            assertEq(storedDurationAllocations(adapter)[0], 4e18, "no credit counted twice");
+        }
+    }
+
+    function testSetDurationsRebuildsCachedBuckets() public {
+        Offer memory first = buy(30 days, 2e18);
+        Offer memory second = buy(90 days, 3e18);
+        skip(25 days);
+        uint256[] memory newDurations = new uint256[](4);
+        newDurations[0] = 1 days;
+        newDurations[1] = 14 days;
+        newDurations[2] = 60 days;
+        newDurations[3] = 120 days;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+
+        assertEq(adapter.marketData(_marketId(first.market)).durationBucket, 1, "first market rebuilt");
+        assertEq(adapter.marketData(_marketId(second.market)).durationBucket, 3, "second market rebuilt");
+        uint256[] memory expected = new uint256[](4);
+        expected[0] = 5e18;
+        expected[1] = 3e18;
+        expected[2] = 3e18;
+        assertEq(storedDurationAllocations(adapter), expected, "rebuilt after time passed");
+        assertEq(adapter.durationBuckets(3), 0, "old bucket cleared");
+        assertEq(adapter.durationBuckets(4), 0, "removed bucket cleared");
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+        assertEq(storedDurationAllocations(adapter), expected, "rebuild does not count credit twice");
+
+        newDurations = new uint256[](0);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+        assertEq(adapter.marketData(_marketId(first.market)).durationBucket, 0, "first market uncapped");
+        assertEq(adapter.marketData(_marketId(second.market)).durationBucket, 0, "second market uncapped");
+        for (uint256 i; i < 8; i++) {
+            assertEq(adapter.durationBuckets(i), 0, "all buckets cleared");
+        }
+
+        newDurations = new uint256[](8);
+        for (uint256 i; i < newDurations.length; i++) {
+            newDurations[i] = (i + 1) * 1 days;
+        }
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations)));
+        adapter.setDurations(newDurations);
+        assertEq(adapter.marketData(_marketId(first.market)).durationBucket, 5, "first market recapped");
+        assertEq(adapter.marketData(_marketId(second.market)).durationBucket, 8, "second market recapped");
+        assertEq(adapter.durationBuckets(4), 2e18, "first market credit restored");
+        assertEq(adapter.durationBuckets(7), 3e18, "eighth bucket credit restored");
+        assertEq(adapter.durationAllocations()[0], 5e18, "first duration includes higher buckets");
+    }
+
+    /// forge-config: default.isolate = true
+    function testRefreshDurationKeepsUnsyncedLoss() public {
+        setUpRealVault();
+        Offer memory initial = buyOnRealVault(30 days, 2e18);
+        bytes32 marketId = _marketId(initial.market);
+        this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
+        skip(1 days);
+        adapter.refreshDuration(marketId);
+
+        assertEq(adapter.marketData(marketId).netCredit, 2e18, "refresh does not synchronize loss");
+        assertEq(adapter.marketData(marketId).durationBucket, 2, "time moved the market down");
+        assertEq(adapter.durationBuckets(1), 2e18, "stored credit remains counted");
+        assertEq(adapter.durationBuckets(2), 0, "old bucket cleared");
+        adapter.withdrawToVault(initial.market, 0);
+        uint256 netCredit = adapter.marketData(marketId).netCredit;
+        assertLt(netCredit, 2e18, "withdrawal synchronizes loss");
+        assertEq(adapter.durationBuckets(1), netCredit, "bucket credit synchronized");
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationCacheRebuildDuringSale() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        uint256[] memory newDurations = new uint256[](1);
+        newDurations[0] = 7 days;
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setDurations, (newDurations));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        SaleCallback callback = newCallback();
+        callback.push(
+            address(adapter),
+            abi.encodeCall(IMidnightAdapterBase.refreshDuration, (_marketId(initial.market))),
+            bytes4(0)
+        );
+        callback.push(address(this), abi.encodeCall(this.assertDurationAllocation, (1, 8e18)), bytes4(0));
+        callback.push(address(adapter), data, bytes4(0));
+        callback.push(address(this), abi.encodeCall(this.assertDurationAllocation, (0, 8e18)), bytes4(0));
+        this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
+
+        assertEq(adapter.durationBuckets(0), 4e18, "completed sale releases capacity in the new bucket");
+        assertEq(adapter.durationBuckets(1), 0, "old bucket remains empty");
+        assertEq(adapter.marketData(_marketId(initial.market)).durationBucket, 1, "new bucket retained");
     }
 
     /// @dev Returns stored exposure across all configured durations.
     function storedDurationAllocations(IMidnightAdapter target) internal view returns (uint256[] memory allocations) {
-        return target.durationAllocations(target.durationsLength());
+        return target.durationAllocations();
+    }
+
+    function currentDurationBucket(IMidnightAdapter target, bytes32 marketId)
+        internal
+        view
+        returns (uint256 bucket)
+    {
+        MarketData memory data = target.marketData(marketId);
+        uint256 ttm = uint256(data.maturity).zeroFloorSub(block.timestamp);
+        uint256[] memory durations = target.durations();
+        while (bucket < durations.length && durations[bucket] <= ttm) bucket++;
     }
 
     function fundedDurationOffer(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
@@ -2578,7 +2820,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2621,7 +2863,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2886,7 +3128,7 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0))
         );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
@@ -3792,6 +4034,7 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocateOnRealVault(offer.market, 0.5e18);
+        adapter.refreshDuration(_marketId(offer.market));
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0.5e18, "netCredit");
         assertEq(storedDurationAllocations(adapter)[0], 0.5e18, "1 day");
         assertEq(storedDurationAllocations(adapter)[1], 0, "7 days");
@@ -4172,7 +4415,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0))
         );
     }
 

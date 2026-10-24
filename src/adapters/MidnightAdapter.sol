@@ -12,7 +12,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
-import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {DurationsLib, MAX_DURATIONS} from "./libraries/DurationsLib.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -43,7 +43,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
-/// @dev A position counts toward every duration <= its current remaining time to maturity.
+/// @dev A position counts toward every duration <= its remaining time to maturity at its last duration update.
+/// @dev Time can make cached allocations too high. Anyone can refresh a market's durations without moving assets.
 /// @dev Buying requires at least one duration, and the last duration's absolute cap must be zero.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
@@ -103,6 +104,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Sorted in ascending order.
     bytes32 public packedDurations;
     uint256 public durationsLength;
+    /// @dev Entry i is the stored net credit in bucket i + 1.
+    uint128[MAX_DURATIONS] public durationBuckets;
 
     /* CONSTRUCTOR */
 
@@ -204,6 +207,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         packedDurations = DurationsLib.pack(newDurations);
         durationsLength = newDurations.length;
+        updateDurationBuckets();
         emit SetDurations(newDurations);
     }
 
@@ -251,7 +255,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        marketData[marketId].minForceSellPrice = newMinForceSellPrice.toUint128();
+        marketData[marketId].minForceSellPrice = newMinForceSellPrice.toUint64();
         emit SetMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
@@ -304,18 +308,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
+        uint128 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        decreaseDurationBucket(marketId, oldNetCredit, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(uint256(oldNetCredit))),
                 withdrawnAssets
             );
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+    }
+
+    /// @dev Updates time to maturity only. The market's stored net credit is unchanged.
+    function refreshDuration(bytes32 marketId) external {
+        updateDurationBucket(marketId, marketData[marketId].netCredit);
+        emit RefreshDuration(marketId);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -360,13 +371,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = marketData[marketId].netCredit;
+            uint128 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
             marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            decreaseDurationBucket(marketId, oldNetCredit, newNetCredit);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(uint256(oldNetCredit)));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -413,7 +425,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = _marketData.netCredit;
+        uint128 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
@@ -436,6 +448,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (newNetCredit == 0 && oldNetCredit > 0) {
             removeMarket(marketId);
         }
+        updateDurationBucket(marketId, oldNetCredit);
 
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
         if (fundingAdapter == address(this)) {
@@ -450,28 +463,41 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(IVaultV2(parentVault).absoluteCap(lastDurationId) == 0, LastDurationAbsoluteCapNotZero());
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256 affectedDurationCount;
-        while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
-            affectedDurationCount++;
-        }
-        uint256[] memory allocations = durationAllocations(affectedDurationCount);
-        uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-        for (uint256 i; i < affectedDurationCount; i++) {
-            bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
-            uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
-            require(absoluteCap > 0, DurationZeroAbsoluteCap());
-            require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());
-            uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
-            require(
-                relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
-                DurationRelativeCapExceeded()
-            );
+        bytes32 _packedDurations = packedDurations;
+        if (durationsLength > 0 && _packedDurations.get(0) <= ttm) {
+            uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
+            uint256 allocation;
+            bool refreshed;
+            for (uint256 i = durationsLength; i > 0;) {
+                i--;
+                allocation += durationBuckets[i];
+                uint256 duration = _packedDurations.get(i);
+                if (duration <= ttm) {
+                    bytes32 id = keccak256(abi.encode("this/duration", address(this), duration));
+                    uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
+                    require(absoluteCap > 0, DurationZeroAbsoluteCap());
+                    uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
+                    bool withinRelativeCap =
+                        relativeCap == WAD || allocation <= totalAssets.mulDivDown(relativeCap, WAD);
+                    if (!refreshed && (allocation > absoluteCap || !withinRelativeCap)) {
+                        updateDurationBuckets();
+                        refreshed = true;
+                        allocation = 0;
+                        i = durationsLength;
+                        continue;
+                    }
+                    require(allocation <= absoluteCap, DurationAbsoluteCapExceeded());
+                    require(withinRelativeCap, DurationRelativeCapExceeded());
+                }
+            }
         }
 
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .allocate(
-                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
+                address(this),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(uint256(oldNetCredit))),
+                paidAssets
             );
 
         SafeERC20Lib.forceApproveMax(asset, midnight);
@@ -510,15 +536,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
+        uint128 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         _marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        decreaseDurationBucket(marketId, oldNetCredit, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(uint256(oldNetCredit))),
                 sellerAssets
             );
 
@@ -527,6 +554,49 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function updateDurationBuckets() internal {
+        uint128[MAX_DURATIONS] memory buckets;
+        bytes32 _packedDurations = packedDurations;
+        uint256 _durationsLength = durationsLength;
+        uint256 marketsLength = marketIds.length;
+        for (uint256 i; i < marketsLength; i++) {
+            MarketData storage _marketData = marketData[marketIds[i]];
+            uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
+            uint256 bucket;
+            while (bucket < _durationsLength && _packedDurations.get(bucket) <= ttm) bucket++;
+            if (bucket > 0) buckets[bucket - 1] += _marketData.netCredit;
+            if (bucket != _marketData.durationBucket) {
+                // forge-lint: disable-next-item(unsafe-typecast) bucket <= MAX_DURATIONS.
+                _marketData.durationBucket = uint8(bucket);
+            }
+        }
+        durationBuckets = buckets;
+    }
+
+    /// @dev oldNetCredit is the market's contribution before its stored net credit changed.
+    function updateDurationBucket(bytes32 marketId, uint128 oldNetCredit) internal {
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldBucket = _marketData.durationBucket;
+        uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
+        uint256 bucket;
+        bytes32 _packedDurations = packedDurations;
+        while (bucket < durationsLength && _packedDurations.get(bucket) <= ttm) bucket++;
+
+        if (oldBucket > 0) durationBuckets[oldBucket - 1] -= oldNetCredit;
+        if (bucket > 0) durationBuckets[bucket - 1] += _marketData.netCredit;
+        // forge-lint: disable-next-item(unsafe-typecast) bucket <= MAX_DURATIONS.
+        _marketData.durationBucket = uint8(bucket);
+    }
+
+    function decreaseDurationBucket(bytes32 marketId, uint128 oldNetCredit, uint128 newNetCredit) internal {
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldBucket = _marketData.durationBucket;
+        if (oldBucket > 0) {
+            durationBuckets[oldBucket - 1] -= oldNetCredit - newNetCredit;
+            if (newNetCredit == 0) _marketData.durationBucket = 0;
+        }
+    }
 
     /// @dev Ends the external call, returning data without ABI encoding.
     function returnExactBytes(bytes memory data) internal pure {
@@ -588,20 +658,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return packedDurations.unpack(durationsLength);
     }
 
-    /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
-    function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
-        require(length <= durationsLength, InvalidLength());
-        allocations = new uint256[](length);
-        if (length == 0) return allocations;
-        for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
-            uint256 bucket;
-            while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
-            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
-        }
-        for (uint256 j = length - 1; j > 0; j--) {
-            allocations[j - 1] += allocations[j];
+    /// @dev Returns cached allocations for each duration. Unrefreshed markets can overstate exposure.
+    function durationAllocations() external view returns (uint256[] memory allocations) {
+        allocations = new uint256[](durationsLength);
+        uint256 allocation;
+        for (uint256 i = durationsLength; i > 0; i--) {
+            allocation += durationBuckets[i - 1];
+            allocations[i - 1] = allocation;
         }
     }
 
