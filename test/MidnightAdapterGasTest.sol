@@ -151,8 +151,9 @@ contract MidnightAdapterGasTest is BaseTest {
         oracle.setPrice(ORACLE_PRICE_SCALE * oneToken / 1e18);
         collateralParams = CollateralParams(address(collateralToken), 1e18, 0.25e18, address(oracle));
 
-        uint256[] memory durations = new uint256[](1);
+        uint256[] memory durations = new uint256[](2);
         durations[0] = 7 days;
+        durations[1] = type(uint32).max;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
