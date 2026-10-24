@@ -58,18 +58,19 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         oracle.setPrice(ORACLE_PRICE_SCALE * oneToken / 1e18);
         collateralParams = CollateralParams(address(collateralToken), 1e18, 0.25e18, address(oracle));
 
-        uint256[] memory durations = new uint256[](1);
+        uint256[] memory durations = new uint256[](2);
         durations[0] = 7 days;
+        durations[1] = 90 days + 1;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );
         setterRatifier = ISetterRatifier(deployCode("SetterRatifier.sol:SetterRatifier", abi.encode(address(midnight))));
 
-        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
+        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setDurations, (durations)));
 
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));

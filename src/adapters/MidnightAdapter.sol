@@ -44,6 +44,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
+/// @dev Buying requires at least one duration, and the last duration's absolute cap must be zero.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
 /// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
@@ -69,9 +70,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Sorted in ascending order.
-    bytes32 public immutable packedDurations;
-    uint256 public immutable durationsLength;
 
     /* TRANSIENT STORAGE */
 
@@ -94,7 +92,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
@@ -103,18 +100,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
 
+    /// @dev Sorted in ascending order.
+    bytes32 public packedDurations;
+    uint256 public durationsLength;
+
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         adapterId = keccak256(abi.encode("this", address(this)));
-
-        packedDurations = DurationsLib.pack(_durations);
-        durationsLength = _durations.length;
-        emit Constructor(_parentVault, _midnight, _durations);
+        emit Constructor(_parentVault, _midnight);
     }
 
     /* MULTICALL */
@@ -201,21 +199,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TIMELOCKED CURATOR SETTINGS */
 
-    function increaseMaxTtm(uint256 newMaxTtm) external {
+    /// @dev Removing a duration stops enforcing its caps.
+    function setDurations(uint256[] memory newDurations) external {
         timelocked();
-        require(newMaxTtm >= maxTtm, MaxTtmTooLow());
-        maxTtm = newMaxTtm.toUint32();
-        emit IncreaseMaxTtm(newMaxTtm);
-    }
-
-    function decreaseMaxTtm(uint256 newMaxTtm) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        maxTtm = newMaxTtm.toUint32();
-        emit DecreaseMaxTtm(msg.sender, newMaxTtm);
+        packedDurations = DurationsLib.pack(newDurations);
+        durationsLength = newDurations.length;
+        emit SetDurations(newDurations);
     }
 
     /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
@@ -417,7 +406,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(buyer == address(this), NotSelf());
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
-        require(ttm <= maxTtm, BuyTtmTooHigh());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceSellable, UnauthorizedBuy());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
@@ -455,6 +443,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else if (fundingAdapter != address(0)) {
             IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
         }
+
+        require(durationsLength > 0, NoDurations());
+        bytes32 lastDurationId =
+            keccak256(abi.encode("this/duration", address(this), packedDurations.get(durationsLength - 1)));
+        require(IVaultV2(parentVault).absoluteCap(lastDurationId) == 0, LastDurationAbsoluteCapNotZero());
 
         // Only durations up to the bought market's time to maturity can have their allocation increased.
         uint256 affectedDurationCount;

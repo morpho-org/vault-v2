@@ -565,15 +565,15 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         OracleMock oracle = new OracleMock();
         oracle.setPrice(1e36);
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), address(this), address(this), address(this), address(0));
-        uint256[] memory durations = new uint256[](1);
+        uint256[] memory durations = new uint256[](2);
         durations[0] = 1 days;
-        IMidnightAdapter adapter =
-            IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight), durations)));
+        durations[1] = 30 days + 1;
+        IMidnightAdapter adapter = IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight))));
         bytes32 durationId = keccak256(abi.encode("this/duration", address(adapter), durations[0]));
         vault.setRelativeCap(durationId, 1e18);
         vault.setAbsoluteCap(durationId, type(uint128).max);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (30 days)));
-        adapter.increaseMaxTtm(30 days);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setDurations, (durations)));
+        adapter.setDurations(durations);
         MidnightAdapterRateRatifierV1 ratifier = new MidnightAdapterRateRatifierV1();
         adapter.setIsSubRatifier(address(ratifier), true);
         deal(address(loanToken), address(vault), 1e24);
