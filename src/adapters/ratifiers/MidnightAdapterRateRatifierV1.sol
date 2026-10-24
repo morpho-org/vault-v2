@@ -8,7 +8,7 @@ import {
     EIP712_DOMAIN_TYPEHASH
 } from "./interfaces/IMidnightAdapterRateRatifierV1.sol";
 import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
-import {Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnight, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {CALLBACK_SUCCESS, WAD} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TickLib} from "../../../lib/midnight/src/libraries/TickLib.sol";
 import {UtilsLib} from "../../../lib/midnight/src/libraries/UtilsLib.sol";
@@ -19,6 +19,7 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
 /// @dev See comments in lib/midnight/src/ratifiers/RateRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
+/// @dev Allocators and sentinels can authorize other addresses through the adapter's Midnight instance to act on their behalf.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
     using UtilsLib for uint256;
@@ -33,19 +34,25 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         return ratification[maker][root].rootNonce;
     }
 
-    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified) external returns (bytes32) {
+    function setIsRootRatified(address maker, bytes32 root, bool newIsRootRatified, address onBehalf)
+        external
+        returns (bytes32)
+    {
         address parentVault = IMidnightAdapter(maker).parentVault();
         require(
-            IVaultV2(parentVault).isAllocator(msg.sender)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(msg.sender)),
+            (IVaultV2(parentVault).isAllocator(onBehalf)
+                    || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(onBehalf)))
+                && (msg.sender == onBehalf
+                    || IMidnight(IMidnightAdapter(maker).midnight()).isAuthorized(onBehalf, msg.sender)),
             Unauthorized()
         );
         ratification[maker][root].isRootRatified = newIsRootRatified;
-        emit SetIsRootRatified(msg.sender, maker, root, newIsRootRatified);
+        emit SetIsRootRatified(msg.sender, onBehalf, maker, root, newIsRootRatified);
         return SET_IS_ROOT_RATIFIED_SUCCESS;
     }
 
-    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though the batch reverted. Both the caller and the signer are subject to the same authorization as setIsRootRatified.
+    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though the batch reverted.
+    /// @dev The signer must be an allocator, or a sentinel when unratifying. The caller must be the signer or be authorized by the signer on Midnight.
     function setIsRootRatifiedWithSig(
         address maker,
         bytes32 root,
@@ -58,11 +65,6 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         bytes32 s
     ) external returns (bytes32) {
         address parentVault = IMidnightAdapter(maker).parentVault();
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(msg.sender)),
-            Unauthorized()
-        );
         require(deadline >= block.timestamp, DeadlineExpired());
         bytes32 hashStruct = keccak256(
             abi.encode(HashLib.rateRatifierV1OfferTreeTypeHash(height), maker, root, newIsRootRatified, nonce, deadline)
@@ -72,8 +74,10 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         address _signer = ecrecover(digest, v, r, s);
         require(_signer != address(0), InvalidSignature());
         require(
-            IVaultV2(parentVault).isAllocator(_signer)
-                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(_signer)),
+            (IVaultV2(parentVault).isAllocator(_signer)
+                    || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(_signer)))
+                && (msg.sender == _signer
+                    || IMidnight(IMidnightAdapter(maker).midnight()).isAuthorized(_signer, msg.sender)),
             Unauthorized()
         );
         Ratification memory _ratification = ratification[maker][root];

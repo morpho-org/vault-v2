@@ -54,6 +54,9 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
+- [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
+  It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
+  These hold whatever the adapter's net credit in Midnight is.
 
 ## Caps and configuration delays
 
@@ -107,6 +110,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
   It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
+- [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault makes external calls only when it has applied all allocation changes returned by adapters, so allocations are up to date whenever another contract runs.
 
 # Verification setup
 
@@ -124,7 +128,7 @@ Verification is performed according to the following modeling conventions:
 Install the `certora-cli` package with `pip install certora-cli`.
 To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`.
 This requires a valid Certora key in the `CERTORAKEY` environment variable.
-The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, and `solc-0.8.28`; the compiler versions required by a particular job are listed in its configuration.
+The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, `solc-0.8.28`, and `solc-0.8.37`; the compiler versions required by a particular job are listed in its configuration.
 
 Additional arguments can select a specific rule. For example, from the repository root:
 
