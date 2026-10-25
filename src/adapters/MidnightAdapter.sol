@@ -326,7 +326,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter to fund a buy callback or in a sell callback. Allocators and sentinels can call deallocate with data abi.encode(true, market) to withdraw from a market.
-    /// @dev The sell callback reports the market's IDs and net-credit change with data abi.encode(false, ids, change).
+    /// @dev The sell callback reports the market's IDs and net-credit change with a zero word followed by abi.encode(ids, change).
     /// @dev Called by anyone through forceDeallocate. Data abi.encode(false, offer, ratifierData) sells to the offer; abi.encode(true, market) withdraws from the market. For a sale, the caller is the receiver and pays the full credit value.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -369,8 +369,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            (, bytes32[] memory _ids, int256 change) = abi.decode(data, (bool, bytes32[], int256));
-            return (_ids, change);
+            // The data is a zero word (decoded as false) followed by ABI-encoded return values, which are returned as-is.
+            returnExactBytesAfterFirstWord(data);
         }
     }
 
@@ -516,7 +516,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
-                abi.encode(false, ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                bytes.concat(bytes32(0), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit))),
                 sellerAssets
             );
 
@@ -530,6 +530,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function returnExactBytes(bytes memory data) internal pure {
         assembly ("memory-safe") {
             return(add(data, 32), mload(data))
+        }
+    }
+
+    function returnExactBytesAfterFirstWord(bytes memory data) internal pure {
+        assembly ("memory-safe") {
+            return(add(data, 64), sub(mload(data), 32))
         }
     }
 

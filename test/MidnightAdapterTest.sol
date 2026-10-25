@@ -3416,7 +3416,7 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
-        bytes memory data = abi.encode(false, marketIds, int256(-1));
+        bytes memory data = bytes.concat(bytes32(0), abi.encode(marketIds, int256(-1)));
 
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
         vm.prank(signerAllocator);
@@ -5301,7 +5301,8 @@ contract MidnightAdapterTest is Test {
         midnight.repay(initial.market, 8e18, taker, address(0), "");
 
         Offer memory offer = makeBuyOffer(6 days, 1e18, MAX_TICK);
-        offer.callbackData = abi.encode(address(adapter), abi.encode(false, adapter.ids(initial.market), int256(-1)));
+        offer.callbackData =
+            abi.encode(address(adapter), bytes.concat(bytes32(0), abi.encode(adapter.ids(initial.market), int256(-1))));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
         vm.expectRevert();
