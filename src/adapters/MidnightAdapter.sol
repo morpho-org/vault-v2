@@ -328,7 +328,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by this adapter to fund a buy callback or in a sell callback. Allocators and sentinels can call deallocate with data abi.encode(true, market) to withdraw from a market.
     /// @dev The sell callback reports the market's IDs and net-credit change with a zero word followed by abi.encode(ids, change).
     /// @dev Called by anyone through forceDeallocate. Data abi.encode(false, offer, ratifierData) sells to the offer; abi.encode(true, market) withdraws from the market. For a sale, the caller is the receiver and pays the full credit value.
-    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
+    function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
@@ -533,9 +533,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    function returnExactBytesAfterFirstWord(bytes memory data) internal pure {
+    function returnExactBytesAfterFirstWord(bytes calldata data) internal pure {
         assembly ("memory-safe") {
-            return(add(data, 64), sub(mload(data), 32))
+            let ptr := mload(0x40)
+            let len := sub(data.length, 32)
+            calldatacopy(ptr, add(data.offset, 32), len)
+            return(ptr, len)
         }
     }
 
