@@ -5305,7 +5305,7 @@ contract MidnightAdapterTest is Test {
             abi.encode(address(adapter), bytes.concat(bytes32(0), abi.encode(adapter.ids(initial.market), int256(-1))));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         directTake(offer);
     }
 

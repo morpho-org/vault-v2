@@ -21,7 +21,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev The adapter must have the allocator or sentinel role to sell, except through forceDeallocate.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
@@ -335,7 +335,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (abi.decode(data, (bool))) {
-            // Permissionless: vault.deallocate restricts callers to allocators and sentinels; forceDeallocate is open to anyone and charges the vault's penalty.
+            // No caller check: the vault restricts deallocate to allocators and sentinels, and charges a penalty on forceDeallocate.
             (, Market memory market) = abi.decode(data, (bool, Market));
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
