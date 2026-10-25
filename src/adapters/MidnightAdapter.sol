@@ -608,7 +608,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
-            while (bucket < length && uncheckedAt(_durations, bucket) <= ttm) bucket++;
+            while (bucket < length && getUnchecked(_durations, bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         for (uint256 j = length - 1; j > 0; j--) {
@@ -637,7 +637,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Assumes index < array.length.
-    function uncheckedAt(uint256[] memory array, uint256 index) internal pure returns (uint256 value) {
+    function getUnchecked(uint256[] memory array, uint256 index) internal pure returns (uint256 value) {
         assembly ("memory-safe") {
             value := mload(add(add(array, 0x20), shl(5, index)))
         }
