@@ -3442,12 +3442,14 @@ contract MidnightAdapterTest is Test {
 
     /* FORCE DEALLOCATE */
 
-    /// @dev The adapter never borrows during forceDeallocate.
-    function testForceDeallocateMoreThanPositionReverts() public {
+    function testForceDeallocateMoreThanPositionReverts(bool afterMaturity) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         deal(address(loanToken), address(this), 2e18);
+        if (afterMaturity) skip(8 days);
 
-        vm.expectRevert(IMidnightAdapterBase.InsufficientCredit.selector);
+        vm.expectRevert(
+            afterMaturity ? IMidnight.CannotIncreaseDebtPostMaturity.selector : IMidnight.SellerIsLiquidatable.selector
+        );
         forceDeallocate(boughtOffer.market, 2e18);
     }
 

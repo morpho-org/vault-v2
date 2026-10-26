@@ -376,9 +376,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            Market memory dummyMarket;
-            (uint128 credit,,) = IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
-            require(assets <= credit, InsufficientCredit());
             Offer memory offer = Offer({
                 market: market,
                 buy: true,
@@ -396,6 +393,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 maxAssets: type(uint128).max,
                 continuousFeeCap: type(uint256).max
             });
+            // midnight reverts if the adapter would go into debt, since it has no collateral.
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
             (, uint256 sellerAssets) =

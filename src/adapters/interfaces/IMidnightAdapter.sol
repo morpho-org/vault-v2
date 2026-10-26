@@ -73,7 +73,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error IncorrectCallbackAddress();
     error IncorrectMaker();
     error IncorrectReceiver();
-    error InsufficientCredit();
     error InvalidLength();
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
