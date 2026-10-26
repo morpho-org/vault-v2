@@ -2,10 +2,8 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-uint256 constant MAX_DURATIONS = 8;
-
 library DurationsLib {
-    /// @dev Assumes index < MAX_DURATIONS. Otherwise the return value is unspecified.
+    /// @dev Assumes index < 8. Otherwise the return value is unspecified.
     function get(bytes32 durations, uint256 index) internal pure returns (uint256) {
         unchecked {
             // forge-lint: disable-next-item(unsafe-typecast) durations fit in 32 bits.
@@ -13,7 +11,7 @@ library DurationsLib {
         }
     }
 
-    /// @dev Assumes length <= MAX_DURATIONS.
+    /// @dev Assumes length <= 8.
     function unpack(bytes32 packedDurations, uint256 length) internal pure returns (uint256[] memory) {
         uint256[] memory durations = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
@@ -22,7 +20,7 @@ library DurationsLib {
         return durations;
     }
 
-    /// @dev Assumes durations.length <= MAX_DURATIONS and that each duration fits in 32 bits.
+    /// @dev Assumes durations.length <= 8 and that each duration fits in 32 bits.
     function pack(uint256[] memory durations) internal pure returns (bytes32) {
         bytes32 packedDurations;
         for (uint256 i = 0; i < durations.length; i++) {

@@ -307,6 +307,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
+        assertEq(adapter.MAX_DURATIONS(), 8, "MAX_DURATIONS");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
     }

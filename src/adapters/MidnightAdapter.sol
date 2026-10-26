@@ -12,7 +12,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
-import {DurationsLib, MAX_DURATIONS} from "./libraries/DurationsLib.sol";
+import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -62,6 +62,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
+    uint256 public constant MAX_DURATIONS = 8;
 
     /* IMMUTABLES */
 
