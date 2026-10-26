@@ -550,8 +550,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         inProgressSellMarketId = marketId;
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
