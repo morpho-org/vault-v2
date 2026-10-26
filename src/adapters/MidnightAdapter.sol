@@ -28,6 +28,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// BUYING
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
+/// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
