@@ -65,6 +65,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();
+    error TooManyDurations();
+    error DurationsNotIncreasing();
+    error DurationTooHigh();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();

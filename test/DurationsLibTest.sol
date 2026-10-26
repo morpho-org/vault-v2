@@ -9,44 +9,6 @@ contract DurationsLibTest is Test {
     using DurationsLib for bytes32;
     using DurationsLib for uint256[];
 
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testPackInvalidLength() public {
-        uint256[] memory durations = new uint256[](MAX_DURATIONS + 1);
-        vm.expectRevert(DurationsLib.TooManyDurations.selector);
-        durations.pack();
-    }
-
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testPackInvalidValue(uint256 value) public {
-        value = bound(value, uint256(type(uint32).max) + 1, type(uint256).max);
-        uint256[] memory durations = new uint256[](1);
-        durations[0] = value;
-
-        vm.expectRevert(DurationsLib.DurationTooHigh.selector);
-        durations.pack();
-    }
-
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testPackZeroDuration() public {
-        uint256[] memory durations = new uint256[](1);
-
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
-        durations.pack();
-    }
-
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testPackNonIncreasing(uint32 first, uint32 second) public {
-        first = uint32(bound(first, 1, type(uint32).max));
-        second = uint32(bound(second, 0, first));
-
-        uint256[] memory durations = new uint256[](2);
-        durations[0] = first;
-        durations[1] = second;
-
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
-        durations.pack();
-    }
-
     function testPackAndGet(uint256 length) public pure {
         length = bound(length, 0, MAX_DURATIONS);
         uint256[] memory durations = new uint256[](length);
