@@ -3025,36 +3025,6 @@ contract MidnightAdapterTest is Test {
         assertEq(marketDataReads, 2, "two MarketData slots after loss");
     }
 
-    function testLossFactorSlotNotWrittenWithoutLoss() public {
-        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
-        bytes32 marketId = _marketId(offer.market);
-        bytes32 netCreditSlot = keccak256(abi.encode(marketId, uint256(6)));
-        bytes32 lossFactorSlot = bytes32(uint256(netCreditSlot) + 1);
-
-        vm.record();
-        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
-        take(offer);
-
-        (, bytes32[] memory writes) = vm.accesses(address(adapter));
-        bool netCreditWritten;
-        bool lossFactorWritten;
-        for (uint256 i; i < writes.length; i++) {
-            if (writes[i] == netCreditSlot) netCreditWritten = true;
-            if (writes[i] == lossFactorSlot) lossFactorWritten = true;
-        }
-        assertTrue(netCreditWritten, "onBuy writes net credit slot");
-        assertFalse(lossFactorWritten, "onBuy skips zero loss factor slot");
-        assertEq(midnight.lossFactor(marketId), 0, "zero loss");
-
-        vm.record();
-        adapter.withdrawToVault(offer.market, 0);
-        (, writes) = vm.accesses(address(adapter));
-        for (uint256 i; i < writes.length; i++) {
-            assertNotEq(writes[i], lossFactorSlot, "sync skips zero loss factor slot");
-        }
-    }
-
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
         uint256 duration = 30 days;
         Offer memory offer = buy(duration, 1e18, discountTick);
