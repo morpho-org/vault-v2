@@ -28,6 +28,7 @@ struct MarketData {
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
+    event Constructor(address indexed parentVault, address indexed midnight, uint256[] durations);
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Accept(bytes4 indexed selector, bytes data);
@@ -69,7 +70,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
-    error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
@@ -89,6 +89,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
+    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -107,6 +108,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
+    function inProgressBuyMarketId() external view returns (bytes32);
+    function inProgressBuyBoughtNetCredit() external view returns (uint256);
     function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);

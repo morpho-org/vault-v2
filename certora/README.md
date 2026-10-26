@@ -57,6 +57,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
 - [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
   It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
   These hold whatever the adapter's net credit in Midnight is.
+- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
 
