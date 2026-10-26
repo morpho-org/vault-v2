@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-library PackingLib {
+library PackedDurationsLib {
     /// @dev Assumes index < 8. Otherwise the return value is unspecified.
     function get(bytes32 durations, uint256 index) internal pure returns (uint256) {
         unchecked {
