@@ -22,6 +22,7 @@ contract VaultV2Mock {
     uint256 public adaptersLength;
     address[] public adapters;
     uint256 public _timelock;
+    bool public readAdapterAssetsOnDeallocate;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -33,6 +34,10 @@ contract VaultV2Mock {
     }
 
     function accrueInterest() public {}
+
+    function setReadAdapterAssetsOnDeallocate(bool value) external {
+        readAdapterAssetsOnDeallocate = value;
+    }
 
     function allocate(address adapter, bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
@@ -47,6 +52,7 @@ contract VaultV2Mock {
         external
         returns (bytes32[] memory, int256)
     {
+        if (readAdapterAssetsOnDeallocate) IAdapter(adapter).realAssets();
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);

@@ -267,7 +267,7 @@ contract MidnightAdapterTest is Test {
         assertEq(marketData.netRate, 0, "rate");
         assertEq(marketData.maturity, 0, "maturity");
         assertEq(marketData.index, 0, "index");
-        assertEq(marketData.lossFactor, 0, "lossFactor");
+        assertEq(midnight.lossFactor(marketId), 0, "no bad debt");
         assertFalse(marketData.forceSellable, "forceSellable");
     }
 
@@ -2361,7 +2361,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2404,7 +2404,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2668,9 +2668,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
-        );
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -2921,6 +2919,27 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
     }
 
+    function testRealAssetsDuringOwnSaleAfterBadDebt() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        this.realizeDefault(boughtOffer.market, ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        assertGt(midnight.lossFactor(marketId), 0, "bad debt");
+
+        parentVault.setReadAdapterAssetsOnDeallocate(true);
+        sellUnits(boughtOffer.market, 0.1e18, MAX_TICK);
+
+        MarketData memory marketData = adapter.marketData(marketId);
+        (uint128 credit, uint128 pendingFee,) =
+            midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
+        uint256 currentNetCredit = credit - pendingFee;
+        assertEq(marketData.netCredit, currentNetCredit, "stored current netCredit after sale");
+        uint256 ttm = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
+        uint256 expectedRealAssets = currentNetCredit.mulDivDown(1e18, 1e18 + marketData.netRate * ttm);
+        assertEq(adapter.realAssets(), expectedRealAssets, "discounted Midnight netCredit");
+    }
+
     function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
         public
     {
@@ -2980,7 +2999,9 @@ contract MidnightAdapterTest is Test {
         vm.mockCallRevert(
             address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector), "position read"
         );
-        assertEq(adapter.realAssets(), expectedValue, "cached after synchronization");
+        assertGt(midnight.lossFactor(marketId), 0, "bad debt keeps fallback active");
+        vm.expectRevert("position read");
+        adapter.realAssets();
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -3461,8 +3482,8 @@ contract MidnightAdapterTest is Test {
             midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
         uint256 netCredit = credit - pendingFee;
         assertEq(adapter.marketData(marketId).netCredit, netCredit, "netCredit");
-        assertEq(adapter.marketData(marketId).lossFactor, midnight.lossFactor(marketId), "lossFactor");
         assertEq(parentVault.allocation(adapter.adapterId()), netCredit, "allocation dropped by sold credit + loss");
+        assertGt(midnight.lossFactor(marketId), 0, "fallback remains active");
     }
 
     function testForceDeallocateRevertsOnWrongLoanToken() public {
@@ -3986,9 +4007,7 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
-        );
+        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
     }
 
     function testShortfallUsesAmortizedValue() public {
@@ -4120,6 +4139,32 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 2, "two cache slots");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), 1e18, "packed net credit");
+    }
+
+    function testRealAssetsReadsOneMarketDataSlotPerMarket() public {
+        uint256 marketCount = 4;
+        for (uint256 i; i < marketCount; i++) {
+            buy(1 days + i, 1e18);
+        }
+
+        vm.record();
+        adapter.realAssets();
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        bytes32 marketIdsLengthSlot = bytes32(uint256(5));
+        uint256 marketIdsDataSlot = uint256(keccak256(abi.encode(uint256(5))));
+        uint256 marketDataReads;
+        for (uint256 i; i < reads.length; i++) {
+            if (reads[i] == marketIdsLengthSlot) continue;
+            bool isMarketId;
+            for (uint256 j; j < marketCount; j++) {
+                if (reads[i] == bytes32(marketIdsDataSlot + j)) {
+                    isMarketId = true;
+                    break;
+                }
+            }
+            if (!isMarketId) marketDataReads++;
+        }
+        assertEq(marketDataReads, marketCount, "one MarketData slot per market");
     }
 
     /* HELPERS */
@@ -4607,13 +4652,19 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testBackingDirectSaleAfterDefault() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
+        assertGt(midnight.lossFactor(marketId), 0, "bad debt");
         uint256 expected = realVault.totalAssets();
         assertApproxEqAbs(expected, 6e18, 1);
         directTake(makeSellOffer(initial.market, 2e18, MAX_TICK));
         assertEq(realVault._totalAssets(), 10e18);
         assertEq(realVault.totalAssets(), expected);
         assertEq(backing(), expected);
+        MarketData memory marketData = adapter.marketData(marketId);
+        uint256 ttm = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
+        uint256 expectedRealAssets = uint256(marketData.netCredit).mulDivDown(1e18, 1e18 + marketData.netRate * ttm);
+        assertEq(adapter.realAssets(), expectedRealAssets, "discounted stored netCredit");
     }
 
     /// forge-config: default.isolate = true

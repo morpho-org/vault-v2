@@ -9,8 +9,6 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev Midnight's loss factor of the market when netCredit was last updated.
-    uint128 lossFactor;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
     uint64 netRate;
     uint48 maturity;
@@ -110,6 +108,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function noSalesWithShortfall() external view returns (bool);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyBoughtNetCredit() external view returns (uint256);
+    function inProgressSellMarketId() external view returns (bytes32);
     function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -150,7 +149,6 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint128 lossFactor,
             uint64 netRate,
             uint48 maturity,
             uint8 index,
