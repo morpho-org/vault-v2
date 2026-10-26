@@ -65,12 +65,14 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();
+    error TooManyDurations();
+    error DurationsNotIncreasing();
+    error DurationTooHigh();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
-    error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
@@ -90,6 +92,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
+    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -101,6 +104,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
+    function MAX_DURATIONS() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
