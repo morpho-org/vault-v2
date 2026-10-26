@@ -236,8 +236,9 @@ contract MidnightAdapterTest is Test {
         deal(storedCollaterals[0].token, address(this), 1_000_000e18);
         deal(storedCollaterals[1].token, address(this), 1_000_000e18);
 
-        // The test contract is the forceDeallocate caller: the adapter takes on its behalf and pulls the payment from it.
+        // The test contract is the buyer and forceDeallocate caller: Midnight pulls face value and the adapter pulls the fee.
         midnight.setIsAuthorized(address(adapter), true, address(this));
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
         parentVault.setBalanceOf(address(this), 1);
 
@@ -3105,17 +3106,25 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
-        uint256 settlementFee = assets.mulDivUp(
-            midnight.settlementFee(marketId, offer.market.maturity.zeroFloorSub(block.timestamp)), 1e18
-        );
-        deal(address(loanToken), address(this), assets + settlementFee);
+        uint256 feeRate = midnight.settlementFee(marketId, offer.market.maturity.zeroFloorSub(block.timestamp));
+        uint256 sellerAssets = assets.mulDivDown(1e18 - feeRate, 1e18);
+        uint256 settlementFee = assets - sellerAssets;
+        assertEq(settlementFee, assets.mulDivUp(feeRate, 1e18), "fee is the rounded-up settlement fee");
+        address buyer = makeAddr("buyer");
+        _prepareForceDeallocateBuyer(buyer, address(this), assets, true);
+        deal(address(loanToken), address(this), settlementFee);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), settlementFee);
+        uint256 buyerBalanceBefore = loanToken.balanceOf(buyer);
+        uint256 callerBalanceBefore = loanToken.balanceOf(address(this));
 
-        forceDeallocate(offer.market, assets);
+        forceDeallocate(offer.market, assets, buyer);
 
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault balance");
         assertEq(adapter.marketData(marketId).netCredit, 1e18 - assets, "netCredit");
-        assertEq(midnight.credit(marketId, address(this)), assets, "caller got the credit");
-        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid the credit value and the settlement fee");
+        assertEq(midnight.credit(marketId, buyer), assets, "buyer got the credit");
+        assertEq(loanToken.balanceOf(buyer), buyerBalanceBefore - assets, "buyer paid face value");
+        assertEq(loanToken.balanceOf(address(this)), callerBalanceBefore - settlementFee, "caller paid the fee");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
         assertEq(
             midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + settlementFee, "settlement fee"
@@ -3124,37 +3133,49 @@ contract MidnightAdapterTest is Test {
 
     /// @dev Funded: no allowance. Not funded: the allowance from setUp, no balance.
     function testForceDeallocateCallerMustPay(bool funded) public {
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        skip(1);
+        address buyer = makeAddr("buyer");
+        _prepareForceDeallocateBuyer(buyer, address(this), 0.5e18, true);
+        uint256 fee = uint256(0.5e18)
+            .mulDivUp(midnight.settlementFee(marketId, boughtOffer.market.maturity.zeroFloorSub(block.timestamp)), 1e18);
         if (funded) {
-            deal(address(loanToken), address(this), 0.5e18);
+            deal(address(loanToken), address(this), fee);
             SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0);
+        } else {
+            deal(address(loanToken), address(this), 0);
         }
 
         vm.expectRevert(
             loanTokenType == 1 ? ErrorsLib.TransferFromReturnedFalse.selector : ErrorsLib.TransferFromReverted.selector
         );
-        forceDeallocate(boughtOffer.market, 0.5e18);
+        forceDeallocate(boughtOffer.market, 0.5e18, buyer);
 
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit unchanged");
         assertEq(midnight.credit(marketId, address(adapter)), 1e18, "sale reverted");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
     }
 
-    /// @dev The settlement fee is pulled from the caller with the credit value, before the take.
+    /// @dev The caller must have enough balance to pay the settlement fee after Midnight takes the buyer's payment.
     function testForceDeallocateCallerMustPaySettlementFee() public {
         for (uint256 i = 0; i <= 6; i++) {
             midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
         }
         Offer memory boughtOffer = buy(7 days, 1e18);
         skip(1);
-        deal(address(loanToken), address(this), 0.5e18);
+        address buyer = makeAddr("buyer");
+        _prepareForceDeallocateBuyer(buyer, address(this), 0.5e18, true);
+        deal(address(loanToken), address(this), 0);
 
         vm.expectRevert(
             loanTokenType == 1 ? ErrorsLib.TransferFromReturnedFalse.selector : ErrorsLib.TransferFromReverted.selector
         );
-        forceDeallocate(boughtOffer.market, 0.5e18);
+        forceDeallocate(boughtOffer.market, 0.5e18, buyer);
     }
 
     /// forge-config: default.isolate = true
@@ -3167,23 +3188,25 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(boughtOffer.market);
         skip(1);
         uint256 settlementFee = uint256(0.5e18).mulDivUp(10 * CBP, 1e18);
-        realVault.transfer(taker, 1);
+        address buyer = taker;
+        realVault.transfer(buyer, 1);
         uint256 sharesBefore = realVault.balanceOf(address(this));
         uint256 expectedPenaltyShares = realVault.previewWithdraw(0.01e18);
-        realVault.approve(taker, expectedPenaltyShares);
-        deal(address(loanToken), taker, 0.5e18 + settlementFee);
-        vm.startPrank(taker);
-        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0.5e18 + settlementFee);
-        midnight.setIsAuthorized(address(adapter), true, taker);
+        realVault.approve(buyer, expectedPenaltyShares);
+        deal(address(loanToken), buyer, 0.5e18 + settlementFee);
+        vm.startPrank(buyer);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0.5e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), settlementFee);
+        midnight.setIsAuthorized(address(adapter), true, buyer);
 
         uint256 penaltyShares =
-            realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, taker), 0.5e18, address(this));
+            realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
         vm.stopPrank();
 
         assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
         assertEq(realVault.balanceOf(address(this)), sharesBefore - penaltyShares, "penalty charged to onBehalf");
-        assertEq(loanToken.balanceOf(taker), 0, "credit value and settlement fee charged to caller");
-        assertEq(midnight.debt(marketId, taker), 0.5e18, "bought credit repaid the caller's debt");
+        assertEq(loanToken.balanceOf(buyer), 0, "buyer paid face value and caller paid settlement fee");
+        assertEq(midnight.debt(marketId, buyer), 0.5e18, "bought credit repaid the buyer's debt");
         assertEq(loanToken.balanceOf(address(this)), 0, "onBehalf token balance");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
@@ -3419,12 +3442,12 @@ contract MidnightAdapterTest is Test {
 
     /* FORCE DEALLOCATE */
 
-    /// @dev The forced sell offer is reduce-only: the adapter never borrows.
+    /// @dev The adapter never borrows during forceDeallocate.
     function testForceDeallocateMoreThanPositionReverts() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         deal(address(loanToken), address(this), 2e18);
 
-        vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
+        vm.expectRevert(IMidnightAdapterBase.InsufficientCredit.selector);
         forceDeallocate(boughtOffer.market, 2e18);
     }
 
@@ -3439,8 +3462,8 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit");
         assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "adapter credit");
-        assertEq(midnight.credit(marketId, address(this)), 0.5e18, "caller credit");
-        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid the credit value");
+        assertEq(midnight.credit(marketId, address(this)), 0.5e18, "buyer credit");
+        assertEq(loanToken.balanceOf(address(this)), 0, "buyer paid face value");
         assertEq(midnight.consumed(address(adapter), bytes32(0)), 0, "consumed");
         assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
@@ -3473,85 +3496,118 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(market, 0.5e18);
     }
 
-    function testForceDeallocateTakerMustAuthorizeAdapter() public {
+    function testForceDeallocateBuyerMustAuthorizeAdapter() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         deal(address(loanToken), address(this), 0.5e18);
         midnight.setIsAuthorized(address(adapter), false, address(this));
 
-        vm.expectRevert(IMidnight.TakerUnauthorized.selector);
+        vm.expectRevert(IMidnight.RatifierUnauthorized.selector);
         forceDeallocate(boughtOffer.market, 0.5e18);
     }
 
-    function testForceDeallocateTakerMustHaveShares(bool hasShares) public {
+    function testForceDeallocateBuyerMustHaveShares(bool hasShares) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         deal(address(loanToken), address(this), 0.5e18);
         parentVault.setBalanceOf(address(this), hasShares ? 1 : 0);
 
-        if (!hasShares) vm.expectRevert(IMidnightAdapterBase.TakerHasNoShares.selector);
+        if (!hasShares) vm.expectRevert(IMidnightAdapterBase.BuyerHasNoShares.selector);
         forceDeallocate(boughtOffer.market, 0.5e18);
 
-        assertEq(midnight.credit(_marketId(boughtOffer.market), address(this)), hasShares ? 0.5e18 : 0, "taker credit");
+        assertEq(midnight.credit(_marketId(boughtOffer.market), address(this)), hasShares ? 0.5e18 : 0, "buyer credit");
     }
 
-    /// @dev The caller can take for another account only with that account's Midnight authorization.
-    function testForceDeallocateCallerMustBeAuthorizedByTaker(bool authorized) public {
+    /// @dev The caller can force-deallocate for another account only with that account's Midnight authorization.
+    function testForceDeallocateCallerMustBeAuthorizedByBuyer(bool authorized) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         address buyer = makeAddr("buyer");
-        parentVault.setBalanceOf(buyer, 1);
-        deal(address(loanToken), address(this), 0.5e18);
+        _prepareForceDeallocateBuyer(buyer, address(this), 0.5e18, true);
         vm.startPrank(buyer);
-        midnight.setIsAuthorized(address(adapter), true, buyer);
         midnight.setIsAuthorized(address(this), authorized, buyer);
         vm.stopPrank();
 
         if (!authorized) vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         parentVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
 
-        assertEq(midnight.credit(marketId, buyer), authorized ? 0.5e18 : 0, "taker credit");
-        assertEq(loanToken.balanceOf(address(this)), authorized ? 0 : 0.5e18, "caller paid");
+        assertEq(midnight.credit(marketId, buyer), authorized ? 0.5e18 : 0, "buyer credit");
     }
 
-    /// @dev The forced sale is at price zero, which adds nothing to consumed: setConsumed cannot block it.
+    /// @dev A pre-existing consumed amount in group 0 does not affect the dedicated force-deallocate offer group.
     function testForceDeallocateIgnoresConsumed() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         deal(address(loanToken), address(this), 0.5e18);
-        vm.prank(signerAllocator);
-        adapter.setConsumed(bytes32(0), type(uint128).max);
+        bytes32 forceDeallocateGroup = bytes32(uint256(uint160(address(adapter))));
+        midnight.setConsumed(bytes32(0), type(uint128).max, address(this));
 
         forceDeallocate(boughtOffer.market, 0.5e18);
 
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit");
-        assertEq(midnight.credit(marketId, address(this)), 0.5e18, "caller credit");
-        assertEq(midnight.consumed(address(adapter), bytes32(0)), type(uint128).max, "consumed unchanged");
+        assertEq(midnight.credit(marketId, address(this)), 0.5e18, "buyer credit");
+        assertEq(midnight.consumed(address(this), bytes32(0)), type(uint128).max, "group 0 consumed unchanged");
+        assertEq(midnight.consumed(address(this), forceDeallocateGroup), 0.5e18, "dedicated group consumed");
     }
 
-    /// forge-config: default.isolate = false
-    /// @dev The forced sell offer is ratified only while the adapter takes it, also later in the same transaction.
-    function testForceDeallocateOfferNotTakeableDirectly(bool afterForceDeallocate) public {
+    function testForceDeallocateBuyerMustPay(bool approved) public {
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
         Offer memory boughtOffer = buy(7 days, 1e18);
-        deal(address(loanToken), address(this), 0.5e18);
-        if (afterForceDeallocate) forceDeallocate(boughtOffer.market, 0.5e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        skip(1);
+        uint256 assets = 0.5e18;
+        uint256 fee = assets.mulDivUp(
+            midnight.settlementFee(marketId, boughtOffer.market.maturity.zeroFloorSub(block.timestamp)), 1e18
+        );
+        address buyer = makeAddr("buyer");
+        _prepareForceDeallocateBuyer(buyer, address(this), assets, approved);
+        deal(address(loanToken), address(this), fee);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), 0);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), fee);
+        uint256 buyerBalanceBefore = loanToken.balanceOf(buyer);
+        uint256 callerBalanceBefore = loanToken.balanceOf(address(this));
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+
+        if (!approved) vm.expectRevert();
+        forceDeallocate(boughtOffer.market, assets, buyer);
+
+        assertEq(loanToken.balanceOf(buyer), approved ? buyerBalanceBefore - assets : buyerBalanceBefore, "buyer paid");
+        assertEq(
+            loanToken.balanceOf(address(this)),
+            approved ? callerBalanceBefore - fee : callerBalanceBefore,
+            "caller paid settlement fee"
+        );
+        assertEq(
+            loanToken.balanceOf(address(parentVault)),
+            approved ? vaultBalanceBefore + assets : vaultBalanceBefore,
+            "vault received face value"
+        );
+        assertEq(midnight.credit(marketId, buyer), approved ? assets : 0, "buyer credit");
+    }
+
+    function testForceDeallocateOfferNotTakeableDirectly() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        address buyer = makeAddr("buyer");
+        _prepareForceDeallocateBuyer(buyer, address(this), 0, false);
         Offer memory offer = Offer({
             market: boughtOffer.market,
-            buy: false,
-            maker: address(adapter),
+            buy: true,
+            maker: buyer,
             start: 0,
             expiry: type(uint256).max,
-            tick: 0,
-            group: bytes32(0),
+            tick: MAX_TICK,
+            group: bytes32(uint256(uint160(address(adapter)))),
             callback: address(0),
             callbackData: hex"",
-            receiverIfMakerIsSeller: address(adapter),
+            receiverIfMakerIsSeller: address(0),
             ratifier: address(adapter),
-            reduceOnly: true,
+            reduceOnly: false,
             maxUnits: 0,
             maxAssets: type(uint128).max,
             continuousFeeCap: type(uint256).max
         });
 
-        vm.expectRevert(IMidnightAdapterBase.IncorrectCallbackAddress.selector);
+        vm.expectRevert(IMidnightAdapterBase.IncorrectMaker.selector);
         midnight.take(offer, hex"", 0.1e18, address(this), address(0), address(0), hex"");
     }
 
@@ -4361,7 +4417,23 @@ contract MidnightAdapterTest is Test {
     }
 
     function forceDeallocate(Market memory market, uint256 assets) internal {
-        parentVault.forceDeallocate(address(adapter), abi.encode(market, address(this)), assets, address(this));
+        forceDeallocate(market, assets, address(this));
+    }
+
+    function forceDeallocate(Market memory market, uint256 assets, address buyer) internal {
+        parentVault.forceDeallocate(address(adapter), abi.encode(market, buyer), assets, address(this));
+    }
+
+    function _prepareForceDeallocateBuyer(address buyer, address caller, uint256 assets, bool approveMidnight)
+        internal
+    {
+        parentVault.setBalanceOf(buyer, 1);
+        deal(address(loanToken), buyer, assets);
+        vm.startPrank(buyer);
+        if (approveMidnight) SafeERC20Lib.safeApprove(address(loanToken), address(midnight), assets);
+        midnight.setIsAuthorized(address(adapter), true, buyer);
+        if (buyer != caller) midnight.setIsAuthorized(caller, true, buyer);
+        vm.stopPrank();
     }
 
     function setUpRealVault() internal {

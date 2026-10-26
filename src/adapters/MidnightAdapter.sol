@@ -6,6 +6,7 @@ import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidni
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -36,8 +37,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
 /// FORCE DEALLOCATE
-/// @dev The caller must be the taker, or be authorized by the taker on Midnight.
-/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+/// @dev The caller must be the buyer, or be authorized by the buyer on Midnight.
+/// @dev The buyer must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+/// @dev The buyer makes a price-1 buy offer that the adapter takes. The buyer pays face value through Midnight (and must approve Midnight), while the caller pays the settlement fee to the adapter.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
@@ -359,7 +361,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the caller.
+    /// @dev Called by anyone through forceDeallocate. The buyer makes a price-1 buy offer that the adapter takes; the buyer pays face value through Midnight and the caller pays the settlement fee to the adapter.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -368,37 +370,38 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Market memory market, address taker) = abi.decode(data, (Market, address));
-            require(taker == caller || IMidnight(midnight).isAuthorized(taker, caller), NotAuthorized());
-            require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
+            (Market memory market, address buyer) = abi.decode(data, (Market, address));
+            require(buyer == caller || IMidnight(midnight).isAuthorized(buyer, caller), NotAuthorized());
+            require(IVaultV2(parentVault).balanceOf(buyer) > 0, BuyerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            Market memory dummyMarket;
+            (uint128 credit,,) = IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+            require(assets <= credit, InsufficientCredit());
             Offer memory offer = Offer({
                 market: market,
-                buy: false,
-                maker: address(this),
+                buy: true,
+                maker: buyer,
                 start: 0,
                 expiry: type(uint256).max,
-                tick: 0,
-                group: bytes32(0),
+                tick: MAX_TICK,
+                group: bytes32(uint256(uint160(address(this)))),
                 callback: address(0),
                 callbackData: hex"",
-                receiverIfMakerIsSeller: address(this),
+                receiverIfMakerIsSeller: address(0),
                 ratifier: address(this),
-                reduceOnly: true,
+                reduceOnly: false,
                 maxUnits: 0,
                 maxAssets: type(uint128).max,
                 continuousFeeCap: type(uint256).max
             });
-            uint256 settlementFeeAssets = assets.mulDivUp(
-                IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
-            );
-            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
-            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
+            (, uint256 sellerAssets) =
+                IMidnight(midnight).take(offer, hex"", assets, address(this), address(this), address(0), hex"");
             forceSelling = false;
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets - sellerAssets);
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -416,7 +419,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Returns the result of the sub-ratifier selected in data, except while the adapter takes its own offer through forceDeallocate.
+    /// @dev Returns CALLBACK_SUCCESS while the adapter takes the buyer's price-1 buy offer through forceDeallocate. The buyer must authorize the adapter as ratifier.
+    /// @dev The buyer pays face value through Midnight (and must approve Midnight), while the caller pays the settlement fee to the adapter.
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         if (forceSelling) return CALLBACK_SUCCESS;
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());

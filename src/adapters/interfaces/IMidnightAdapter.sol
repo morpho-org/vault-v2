@@ -66,12 +66,14 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();
     error BuyAtLoss();
+    error BuyerHasNoShares();
     error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
     error IncorrectMaker();
     error IncorrectReceiver();
+    error InsufficientCredit();
     error InvalidLength();
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
@@ -89,7 +91,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
-    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();

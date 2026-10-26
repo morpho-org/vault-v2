@@ -303,6 +303,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         uint256 units = 1000 * oneToken;
         deal(address(underlyingToken), depositor, units);
         vm.startPrank(depositor);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         midnight.setIsAuthorized(address(adapter), true, depositor);
         vault.forceDeallocate(address(adapter), abi.encode(market, depositor), units, depositor);

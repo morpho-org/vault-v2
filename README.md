@@ -57,7 +57,7 @@ Also, a configuration can be _abdicated_, meaning that it won't be able to be se
 In-kind redemption is a mechanism that reduces the position of the user in the vault and increases their position in an underlying market.
 Exits through in-kind redemptions allow to exit the vault with the underlying position at any time, even when no underlying markets are liquid.
 Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
-With the Midnight adapter, the user instead buys the adapter's credit through `forceDeallocate`, at face value plus Midnight's settlement fee, then withdraws from the vault and repays the flashloan.
+With the Midnight adapter, the user makes a price-1 buy offer that the adapter takes through `forceDeallocate`; the user pays face value through Midnight (and must approve Midnight), while the caller pays the settlement fee to the adapter, then withdraws from the vault and repays the flashloan.
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.

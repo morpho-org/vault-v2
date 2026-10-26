@@ -59,6 +59,7 @@ contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
     {
         address asset = vault.asset();
         SafeERC20Lib.safeApprove(asset, adapter, type(uint256).max);
+        SafeERC20Lib.safeApprove(asset, IMidnightAdapter(adapter).midnight(), type(uint256).max);
         SafeERC20Lib.safeApprove(asset, address(morpho), type(uint256).max);
 
         morpho.flashLoan(asset, assets, abi.encode(vault, adapter, data, onBehalf, msg.sender));
