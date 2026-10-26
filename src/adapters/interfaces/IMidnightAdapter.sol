@@ -17,7 +17,7 @@ struct MarketData {
     /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
-    /// @dev Midnight's loss factor of the market when netCredit was last updated.
+    /// @dev Midnight's loss factor of the market when netCredit was last updated. Not written while Midnight's loss factor is zero, since it is then zero too.
     uint128 lossFactor;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
     uint128 minForceSellPrice;
