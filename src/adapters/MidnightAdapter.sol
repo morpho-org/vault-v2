@@ -12,7 +12,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
-import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {PackingLib} from "./libraries/PackingLib.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -56,7 +56,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
     using MathLib for uint48;
-    using DurationsLib for bytes32;
+    using PackingLib for bytes32;
 
     /* CONSTANTS */
 
@@ -120,7 +120,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(_durations[i] <= type(uint32).max, DurationTooHigh());
             previousDuration = _durations[i];
         }
-        packedDurations = DurationsLib.pack(_durations);
+        packedDurations = PackingLib.pack(_durations);
         durationsLength = _durations.length;
         emit Constructor(_parentVault, _midnight, _durations);
     }

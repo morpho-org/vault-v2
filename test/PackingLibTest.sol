@@ -3,13 +3,13 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
+import {PackingLib} from "../src/adapters/libraries/PackingLib.sol";
 
-contract DurationsLibTest is Test {
+contract PackingLibTest is Test {
     uint256 internal constant MAX_LENGTH = 8;
 
-    using DurationsLib for bytes32;
-    using DurationsLib for uint256[];
+    using PackingLib for bytes32;
+    using PackingLib for uint256[];
 
     function testPackAndGet(uint256 length) public pure {
         length = bound(length, 0, MAX_LENGTH);
