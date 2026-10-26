@@ -94,7 +94,6 @@ contract MidnightAdapterGasTest is BaseTest {
     uint256 internal constant MAX_SETTLEMENT_FEE_360_DAYS = 0.005e18;
 
     address internal borrower = makeAddr("borrower");
-    address internal lender = makeAddr("lender");
     address internal badDebtLender = makeAddr("bad-debt-lender");
     address internal forceCaller = makeAddr("force-caller");
 
@@ -232,8 +231,10 @@ contract MidnightAdapterGasTest is BaseTest {
 
         onBehalf = depositor;
         delegatedAllowance = type(uint128).max;
-        vm.prank(depositor);
+        vm.startPrank(depositor);
         vault.approve(address(exiter), delegatedAllowance);
+        vault.transfer(address(exiter), 1);
+        vm.stopPrank();
         onBehalfSharesBefore = vault.balanceOf(onBehalf);
 
         performanceFeeRecipient = makeAddr("performance-fee-recipient");
@@ -259,34 +260,14 @@ contract MidnightAdapterGasTest is BaseTest {
         assertGt(soldUnits, 0, "sold units");
         deal(address(underlyingToken), address(morpho), soldUnits);
 
-        Offer memory offer = Offer({
-            market: soldMarket,
-            buy: true,
-            maker: lender,
-            start: block.timestamp,
-            expiry: soldMarket.maturity,
-            tick: TICK,
-            group: keccak256("force deallocation"),
-            callback: address(0),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(setterRatifier),
-            reduceOnly: false,
-            maxUnits: uint128(soldUnits),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        bytes32 root = HashLib.hashOffer(offer);
-        deal(address(underlyingToken), lender, 2 * soldUnits);
-        vm.startPrank(lender);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(address(setterRatifier), true, lender);
-        setterRatifier.setIsRootRatified(lender, root, true);
-        vm.stopPrank();
+        // The exiter takes the credit and pays the settlement fee out of its own balance.
+        deal(address(underlyingToken), address(exiter), soldUnits);
+        vm.prank(address(exiter));
+        midnight.setIsAuthorized(address(adapter), true, address(exiter));
 
         claimableSettlementFeeBefore = midnight.claimableSettlementFee(address(underlyingToken));
         continuousFeeCreditBefore = midnight.continuousFeeCredit(soldMarketId);
-        forceDeallocateData = abi.encode(offer, abi.encode(root, uint256(0), new bytes32[](0)));
+        forceDeallocateData = abi.encode(soldMarket, address(exiter));
 
         assertEq(vault.forceDeallocatePenalty(address(adapter)), MAX_FORCE_DEALLOCATE_PENALTY);
         assertNotEq(performanceFeeRecipient, managementFeeRecipient, "fee recipients");
@@ -331,6 +312,7 @@ contract MidnightAdapterGasTest is BaseTest {
         assertEq(vault.allowance(onBehalf, address(exiter)), delegatedAllowance - sharesSpent, "allowance spent");
         assertEq(underlyingToken.balanceOf(address(morpho)), soldUnits, "Morpho Blue repaid");
         assertEq(underlyingToken.balanceOf(address(exiter)), 0, "exiter balance");
+        assertGt(midnight.credit(soldMarketId, address(exiter)), 0, "exiter credit");
         assertGt(underlyingToken.balanceOf(forceCaller), 0, "force caller received assets");
     }
 
