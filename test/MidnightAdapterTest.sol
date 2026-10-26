@@ -236,9 +236,7 @@ contract MidnightAdapterTest is Test {
         deal(storedCollaterals[0].token, address(this), 1_000_000e18);
         deal(storedCollaterals[1].token, address(this), 1_000_000e18);
 
-        // The test contract is the buyer and forceDeallocate caller: Midnight pulls face value and the adapter pulls the fee.
         midnight.setIsAuthorized(address(adapter), true, address(this));
-        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
         parentVault.setBalanceOf(address(this), 1);
 
@@ -1219,6 +1217,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 0.25e18);
 
         setMaxNetSellRate(0);
+        _approveSelfAsBuyer(0.25e18);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 0.75e18);
     }
@@ -1369,6 +1368,7 @@ contract MidnightAdapterTest is Test {
 
         setForceSellable(marketId);
         setMinForceSellPrice(marketId, type(uint128).max);
+        _approveSelfAsBuyer(0.25e18);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(marketId).netCredit, 0.75e18);
     }
@@ -3195,6 +3195,7 @@ contract MidnightAdapterTest is Test {
         realVault.approve(buyer, expectedPenaltyShares);
         deal(address(loanToken), buyer, 0.5e18 + settlementFee);
         vm.startPrank(buyer);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0.5e18);
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), settlementFee);
         midnight.setIsAuthorized(address(adapter), true, buyer);
@@ -3447,6 +3448,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 2e18);
         if (afterMaturity) skip(8 days);
 
+        _approveSelfAsBuyer(2e18);
         vm.expectRevert(
             afterMaturity ? IMidnight.CannotIncreaseDebtPostMaturity.selector : IMidnight.SellerIsLiquidatable.selector
         );
@@ -3458,6 +3460,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(boughtOffer.market);
         deal(address(loanToken), address(this), 0.5e18);
 
+        _approveSelfAsBuyer(0.5e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, 0.5e18, 0.5e18);
         forceDeallocate(boughtOffer.market, 0.5e18);
@@ -3480,6 +3483,7 @@ contract MidnightAdapterTest is Test {
         assertGt(midnight.lossFactor(marketId), 0, "loss realized");
         deal(address(loanToken), address(this), 0.25e18);
 
+        _approveSelfAsBuyer(0.25e18);
         forceDeallocate(boughtOffer.market, 0.25e18);
 
         (uint128 credit, uint128 pendingFee,) =
@@ -3512,6 +3516,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 0.5e18);
         parentVault.setBalanceOf(address(this), hasShares ? 1 : 0);
 
+        _approveSelfAsBuyer(0.5e18);
         if (!hasShares) vm.expectRevert(IMidnightAdapterBase.BuyerHasNoShares.selector);
         forceDeallocate(boughtOffer.market, 0.5e18);
 
@@ -3542,6 +3547,7 @@ contract MidnightAdapterTest is Test {
         bytes32 forceDeallocateGroup = bytes32(uint256(uint160(address(adapter))));
         midnight.setConsumed(bytes32(0), type(uint128).max, address(this));
 
+        _approveSelfAsBuyer(0.5e18);
         forceDeallocate(boughtOffer.market, 0.5e18);
 
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit");
@@ -3987,6 +3993,7 @@ contract MidnightAdapterTest is Test {
         uint256 assets = uint256(type(uint128).max) - 1;
         deal(address(loanToken), address(this), assets);
 
+        _approveSelfAsBuyer(assets);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
         (, int256 change) = parentVault.forceDeallocate(
@@ -4426,6 +4433,11 @@ contract MidnightAdapterTest is Test {
         parentVault.forceDeallocate(address(adapter), abi.encode(market, buyer), assets, address(this));
     }
 
+    function _approveSelfAsBuyer(uint256 assets) internal {
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), assets);
+    }
+
     function _prepareForceDeallocateBuyer(address buyer, address caller, uint256 assets, bool approveMidnight)
         internal
     {
@@ -4490,6 +4502,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
+        _approveSelfAsBuyer(assets);
         return realVault.forceDeallocate(address(adapter), abi.encode(market, address(this)), assets, address(this));
     }
 
