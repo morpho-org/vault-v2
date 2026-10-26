@@ -608,7 +608,7 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.marketData(marketId).forceSellable);
     }
 
-    function testForceSellablePreservesMarketData(bool newForceSellable, uint128 newMinForceSellPrice) public {
+    function testForceSellablePreservesMarketData(bool newForceSellable, uint256 newMinForceSellPrice) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
@@ -1312,19 +1312,12 @@ contract MidnightAdapterTest is Test {
         adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
-    function testSetMinForceSellPriceAuthorized(bytes32 marketId, uint128 newMinForceSellPrice) public {
+    function testSetMinForceSellPriceAuthorized(bytes32 marketId, uint256 newMinForceSellPrice) public {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetMinForceSellPrice(marketId, newMinForceSellPrice);
         vm.prank(curator);
         adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
         assertEq(adapter.marketData(marketId).minForceSellPrice, newMinForceSellPrice, "minForceSellPrice");
-    }
-
-    function testSetMinForceSellPriceOverflows(bytes32 marketId, uint256 newMinForceSellPrice) public {
-        newMinForceSellPrice = bound(newMinForceSellPrice, uint256(type(uint128).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        vm.prank(curator);
-        adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
     function testMinForceSellPriceDefault(bytes32 marketId) public view {

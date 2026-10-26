@@ -18,7 +18,7 @@ struct MarketData {
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
-    uint128 minForceSellPrice;
+    uint256 minForceSellPrice;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -156,7 +156,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint48 maturity,
             uint8 index,
             bool forceSellable,
-            uint128 minForceSellPrice
+            uint256 minForceSellPrice
         );
 }
 
