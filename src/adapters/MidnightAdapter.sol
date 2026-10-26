@@ -379,7 +379,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
                 && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate)
                 && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory);
+            if (shouldAdmit) {
+                IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory, midnight, marketId);
+            }
 
             // Skip onSell since we are already in a deallocate call.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");

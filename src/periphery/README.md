@@ -41,6 +41,7 @@ Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` f
 One gate can be the `enterGate` of any number of markets, on any Midnight.
 For ordinary permission checks, the gate calls its `subGate` with the account.
 During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The buy offer taken through `forceDeallocate` has no callback, and the adapter clears the admission as soon as its sale returns.
+Admission records the selling adapter, Midnight address and market ID. While that adapter is liquidation-locked in that market, the gate uses only the subgate's permissions. This prevents buyer callbacks from reusing admission, including in other markets or on other Midnight contracts that use the same gate.
 
 ### `VaultV2CompatibleEnterGateFactory`
 
