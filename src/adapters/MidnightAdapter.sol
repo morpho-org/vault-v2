@@ -517,8 +517,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* INTERNAL FUNCTIONS */
 
-    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored
-    /// market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
+    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
     function withdrawToVault(Market memory market, uint256 withdrawnAssets)
         internal
