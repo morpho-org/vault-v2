@@ -18,6 +18,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev realAssets uses the stored net credit of markets whose loss factor is zero or unchanged since the last update; otherwise it reads it from Midnight.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
@@ -659,18 +660,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
+            uint128 storedNetCredit = _marketData.netCredit;
+            uint64 netRate = _marketData.netRate;
+            uint48 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
-                netCredit = _marketData.netCredit - inProgressBuyBoughtNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == _marketData.lossFactor) {
-                netCredit = _marketData.netCredit;
+                netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
             } else {
-                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                netCredit = currentNetCredit(marketId);
+                uint128 lossFactor = IMidnight(midnight).lossFactor(marketId);
+                if (lossFactor == 0 || lossFactor == _marketData.lossFactor) {
+                    netCredit = storedNetCredit;
+                } else {
+                    require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                    netCredit = currentNetCredit(marketId);
+                }
             }
-            assets += netCredit.mulDivDown(
-                WAD, WAD + _marketData.netRate * _marketData.maturity.zeroFloorSub(block.timestamp)
-            );
+            assets += netCredit.mulDivDown(WAD, WAD + netRate * maturity.zeroFloorSub(block.timestamp));
         }
         return assets;
     }

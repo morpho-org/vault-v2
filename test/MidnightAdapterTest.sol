@@ -2376,7 +2376,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2419,7 +2419,7 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -2684,7 +2684,7 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
@@ -2996,6 +2996,33 @@ contract MidnightAdapterTest is Test {
             address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector), "position read"
         );
         assertEq(adapter.realAssets(), expectedValue, "cached after synchronization");
+    }
+
+    function testRealAssetsReadsLossFactorSlotOnlyAfterLoss() public {
+        Offer memory offer = buy(30 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        this.realizeDefault(offer.market, ORACLE_PRICE_SCALE / 4);
+        assertGt(midnight.lossFactor(marketId), 0, "loss realized");
+
+        adapter.withdrawToVault(offer.market, 0);
+        MarketData memory cached = adapter.marketData(marketId);
+        assertEq(cached.lossFactor, midnight.lossFactor(marketId), "loss factor synchronized");
+        assertEq(cached.netRate, 0, "par purchase");
+        vm.mockCallRevert(
+            address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector), "position read"
+        );
+
+        vm.record();
+        assertEq(adapter.realAssets(), cached.netCredit, "stored net credit");
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        bytes32 marketDataSlot = keccak256(abi.encode(marketId, uint256(6)));
+        uint256 marketDataReads;
+        for (uint256 i; i < reads.length; i++) {
+            if (reads[i] == marketDataSlot || reads[i] == bytes32(uint256(marketDataSlot) + 1)) {
+                marketDataReads++;
+            }
+        }
+        assertEq(marketDataReads, 2, "two MarketData slots after loss");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -4002,7 +4029,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0, 0))
         );
     }
 
@@ -4135,6 +4162,32 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 2, "two cache slots");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), 1e18, "packed net credit");
+    }
+
+    function testRealAssetsReadsOneMarketDataSlotPerMarket() public {
+        uint256 marketCount = 4;
+        for (uint256 i; i < marketCount; i++) {
+            buy(1 days + i, 1e18);
+        }
+
+        vm.record();
+        adapter.realAssets();
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        bytes32 marketIdsLengthSlot = bytes32(uint256(5));
+        uint256 marketIdsDataSlot = uint256(keccak256(abi.encode(uint256(5))));
+        uint256 marketDataReads;
+        for (uint256 i; i < reads.length; i++) {
+            if (reads[i] == marketIdsLengthSlot) continue;
+            bool isMarketId;
+            for (uint256 j; j < marketCount; j++) {
+                if (reads[i] == bytes32(marketIdsDataSlot + j)) {
+                    isMarketId = true;
+                    break;
+                }
+            }
+            if (!isMarketId) marketDataReads++;
+        }
+        assertEq(marketDataReads, marketCount, "one MarketData slot per market");
     }
 
     /* HELPERS */
