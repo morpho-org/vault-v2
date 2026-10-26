@@ -24,7 +24,6 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {DurationsLib} from "../src/adapters/libraries/DurationsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -255,6 +254,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
+        assertEq(adapter.MAX_DURATIONS(), 8, "MAX_DURATIONS");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
     }
@@ -1781,30 +1781,45 @@ contract MidnightAdapterTest is Test {
         assertEq(newFactory.midnight(), address(midnight), "midnight");
     }
 
-    function testFactoryInvalidDurations() public {
+    function testConstructorTooManyDurations() public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        uint256[] memory tooMany = new uint256[](9);
-        for (uint256 i; i < tooMany.length; i++) {
-            tooMany[i] = i + 1;
+        uint256[] memory durations = new uint256[](adapter.MAX_DURATIONS() + 1);
+        for (uint256 i; i < durations.length; i++) {
+            durations[i] = i + 1;
         }
-        vm.expectRevert(DurationsLib.TooManyDurations.selector);
-        factory.createMidnightAdapter(address(newVault), tooMany, bytes32(0));
+        vm.expectRevert(IMidnightAdapterBase.TooManyDurations.selector);
+        factory.createMidnightAdapter(address(newVault), durations, bytes32(0));
+    }
 
-        uint256[] memory notIncreasing = new uint256[](2);
-        notIncreasing[0] = 2 days;
-        notIncreasing[1] = 1 days;
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
-        factory.createMidnightAdapter(address(newVault), notIncreasing, bytes32(0));
+    function testConstructorDurationTooHigh(uint256 value) public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        uint256[] memory zeroFirst = new uint256[](1);
-        vm.expectRevert(DurationsLib.DurationsNotIncreasing.selector);
-        factory.createMidnightAdapter(address(newVault), zeroFirst, bytes32(0));
+        value = bound(value, uint256(type(uint32).max) + 1, type(uint256).max);
+        uint256[] memory durations = new uint256[](1);
+        durations[0] = value;
+        vm.expectRevert(IMidnightAdapterBase.DurationTooHigh.selector);
+        factory.createMidnightAdapter(address(newVault), durations, bytes32(0));
+    }
 
-        uint256[] memory tooHigh = new uint256[](1);
-        tooHigh[0] = uint256(type(uint32).max) + 1;
-        vm.expectRevert(DurationsLib.DurationTooHigh.selector);
-        factory.createMidnightAdapter(address(newVault), tooHigh, bytes32(0));
+    function testConstructorZeroDuration() public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+
+        uint256[] memory durations = new uint256[](1);
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
+        factory.createMidnightAdapter(address(newVault), durations, bytes32(0));
+    }
+
+    function testConstructorDurationsNotIncreasing(uint32 first, uint32 second) public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+
+        first = uint32(bound(first, 1, type(uint32).max));
+        second = uint32(bound(second, 0, first));
+        uint256[] memory durations = new uint256[](2);
+        durations[0] = first;
+        durations[1] = second;
+        vm.expectRevert(IMidnightAdapterBase.DurationsNotIncreasing.selector);
+        factory.createMidnightAdapter(address(newVault), durations, bytes32(0));
     }
 
     /* DURATIONS */
