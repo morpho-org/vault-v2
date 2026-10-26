@@ -7,13 +7,17 @@ import {IVaultV2CompatibleEnterGateFactory} from "./interfaces/IVaultV2Compatibl
 
 contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory {
     mapping(address account => bool) public isCreated;
-    mapping(address subGate => mapping(bytes32 salt => address)) public vaultV2CompatibleEnterGate;
+    mapping(address subGate => mapping(address midnight => mapping(bytes32 salt => address))) public
+        vaultV2CompatibleEnterGate;
 
-    function createVaultV2CompatibleEnterGate(address subGate, bytes32 salt) external returns (address) {
-        address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate));
-        vaultV2CompatibleEnterGate[subGate][salt] = gate;
+    function createVaultV2CompatibleEnterGate(address subGate, address midnight, bytes32 salt)
+        external
+        returns (address)
+    {
+        address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, midnight));
+        vaultV2CompatibleEnterGate[subGate][midnight][salt] = gate;
         isCreated[gate] = true;
-        emit CreateVaultV2CompatibleEnterGate(gate, subGate);
+        emit CreateVaultV2CompatibleEnterGate(gate, subGate, midnight);
         return gate;
     }
 }

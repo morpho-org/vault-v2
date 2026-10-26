@@ -7,10 +7,14 @@ import {IEnterGateFactory} from "./IEnterGateFactory.sol";
 interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
     /* EVENTS */
 
-    event CreateVaultV2CompatibleEnterGate(address indexed vaultV2CompatibleEnterGate, address indexed subGate);
+    event CreateVaultV2CompatibleEnterGate(
+        address indexed vaultV2CompatibleEnterGate, address indexed subGate, address indexed midnight
+    );
 
     /* FUNCTIONS */
 
-    function vaultV2CompatibleEnterGate(address subGate, bytes32 salt) external view returns (address);
-    function createVaultV2CompatibleEnterGate(address subGate, bytes32 salt) external returns (address);
+    function vaultV2CompatibleEnterGate(address subGate, address midnight, bytes32 salt) external view returns (address);
+    function createVaultV2CompatibleEnterGate(address subGate, address midnight, bytes32 salt)
+        external
+        returns (address);
 }
