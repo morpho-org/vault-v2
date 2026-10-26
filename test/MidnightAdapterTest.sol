@@ -3516,7 +3516,6 @@ contract MidnightAdapterTest is Test {
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (otherAdapter)));
         address buyer = makeForceDeallocateBuyer(IMidnightAdapter(otherAdapter));
         realVault.transfer(buyer, 1);
-        SafeERC20Lib.safeApprove(address(loanToken), otherAdapter, 0.5e18);
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(otherAdapter, abi.encode(offer.market, buyer), 0.5e18, address(this));
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
@@ -3746,7 +3745,6 @@ contract MidnightAdapterTest is Test {
         address buyer,
         uint256 assets
     ) external {
-        SafeERC20Lib.safeApprove(address(loanToken), address(targetAdapter), assets);
         vault.forceDeallocate(address(targetAdapter), abi.encode(market, buyer), assets, address(this));
     }
 
