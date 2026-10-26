@@ -358,7 +358,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
-    function allocate(bytes calldata data, uint256, bytes4, address caller)
+    function allocate(bytes memory data, uint256, bytes4, address caller)
         external
         view
         returns (bytes32[] memory, int256)
@@ -372,7 +372,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the caller.
     /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
+    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
@@ -406,8 +406,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
-            bool shouldAdmit = enterGateFactory != address(0) && market.enterGate != address(0)
-                && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
+            bool shouldAdmit =
+                enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
             if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
@@ -461,7 +461,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+        bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
+        if (gated) {
             // Adapters must not buy through another adapter's transient admission.
             require(
                 IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate()).canIncreaseCredit(address(this)),
@@ -493,7 +494,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         if (newNetCredit > 0 && oldNetCredit == 0) {
-            if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+            if (gated) {
                 require(
                     IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
@@ -596,11 +597,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* INTERNAL FUNCTIONS */
 
     /// @dev Ends the external call, returning data without ABI encoding.
-    function returnExactBytes(bytes calldata data) internal pure {
+    function returnExactBytes(bytes memory data) internal pure {
         assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            calldatacopy(ptr, data.offset, data.length)
-            return(ptr, data.length)
+            return(add(data, 32), mload(data))
         }
     }
 
