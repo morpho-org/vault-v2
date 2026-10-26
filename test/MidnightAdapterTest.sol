@@ -2919,27 +2919,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
     }
 
-    function testRealAssetsDuringOwnSaleAfterBadDebt() public {
-        Offer memory boughtOffer = buy(7 days, 1e18);
-        bytes32 marketId = _marketId(boughtOffer.market);
-        this.realizeDefault(boughtOffer.market, ORACLE_PRICE_SCALE / 4);
-        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
-        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
-        assertGt(midnight.lossFactor(marketId), 0, "bad debt");
-
-        parentVault.setReadAdapterAssetsOnDeallocate(true);
-        sellUnits(boughtOffer.market, 0.1e18, MAX_TICK);
-
-        MarketData memory marketData = adapter.marketData(marketId);
-        (uint128 credit, uint128 pendingFee,) =
-            midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
-        uint256 currentNetCredit = credit - pendingFee;
-        assertEq(marketData.netCredit, currentNetCredit, "stored current netCredit after sale");
-        uint256 ttm = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
-        uint256 expectedRealAssets = currentNetCredit.mulDivDown(1e18, 1e18 + marketData.netRate * ttm);
-        assertEq(adapter.realAssets(), expectedRealAssets, "discounted Midnight netCredit");
-    }
-
     function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
         public
     {

@@ -18,7 +18,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
-/// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight and reverts during another sale, except during this adapter's onSell.
+/// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight, which reverts during a sale of the adapter's credit on that market.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
@@ -86,7 +86,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
-    bytes32 public transient inProgressSellMarketId;
 
     /* TIMELOCKS STORAGE */
 
@@ -550,7 +549,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        inProgressSellMarketId = marketId;
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -558,8 +556,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 sellerAssets
             );
-        inProgressSellMarketId = bytes32(0);
-
         emit Sell(marketId, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
     }
@@ -654,7 +650,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == 0 || marketId == inProgressSellMarketId) {
+            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
