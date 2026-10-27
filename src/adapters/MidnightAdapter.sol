@@ -25,8 +25,6 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
-/// @dev MidnightAdapters in the same vault, directly or through nested vaults, might not be able to trade with each other.
-///
 /// BUYING
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
@@ -54,6 +52,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
+///
+/// MISC
+/// @dev MidnightAdapters in the same vault, directly or through nested vaults, might not be able to trade with each other.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
