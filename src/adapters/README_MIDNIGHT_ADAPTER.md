@@ -24,7 +24,7 @@ The adapter trades in three ways:
 - **As a maker**: Any user on Midnight fills an offer that the adapter made and that an enabled [sub-ratifier](#sub-ratifiers) approved.
 - **In-kind redemption**: During `forceDeallocate`, the adapter sells credit to a vault shareholder. See [In-kind Redemptions and Enter Gates](#in-kind-redemptions-and-enter-gates).
 
-While Midnight executes a sale by the adapter in a market, no offer of the adapter in that market can be filled.
+While Midnight executes a sale by the adapter in a market, no offer made by the adapter in that market can be filled.
 
 When the adapter buys credit, the callback data of the trade selects the funding source.
 For a taker trade, the callback data is `takerCallbackData`.
