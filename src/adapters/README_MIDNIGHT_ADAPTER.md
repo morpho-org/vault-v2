@@ -35,7 +35,7 @@ The funding sources are:
 - `abi.encode(fundingAdapter, fundingData)`: Deallocates assets from `fundingAdapter` on the parent vault, then allocates them to the Midnight adapter.
 - `abi.encode(address(this), abi.encode(fundingMarket))`: Withdraws repaid assets from `fundingMarket` on the adapter. To do this, the adapter calls `deallocate` on the parent vault with `data` that requests a withdrawal from `fundingMarket`.
 
-The adapter has the allocator role, so a trade can deallocate assets from any adapter of the parent vault.
+The adapter must have an allocator role so a trade can deallocate assets from any adapter of the parent vault.
 Allocators control the callback data:
 
 - For a taker trade, the allocator who calls `take` sets the callback data.
