@@ -480,7 +480,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
-        updateRealAssets(marketId, newNetCredit - boughtNetCredit, newNetCredit, paidAssets, 0);
 
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
@@ -517,6 +516,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 DurationRelativeCapExceeded()
             );
         }
+
+        updateRealAssets(marketId, newNetCredit - boughtNetCredit, newNetCredit, paidAssets, 0);
 
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
