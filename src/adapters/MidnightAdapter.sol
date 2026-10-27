@@ -429,10 +429,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // netRate = (newNetCredit - amortizedValue) / (amortizedValue * ttm), with amortizedValue the carried net
             // credit's discounted value plus paidAssets. Both terms are multiplied by discount to round only once.
             uint256 discount = WAD + _marketData.netRate * ttm;
-            uint256 interestTimesDiscount =
-                (newNetCredit - boughtNetCredit) * (discount - WAD) + (boughtNetCredit - paidAssets) * discount;
             uint256 amortizedValueTimesDiscount = (newNetCredit - boughtNetCredit) * WAD + paidAssets * discount;
-            _marketData.netRate = interestTimesDiscount.mulDivDown(WAD, amortizedValueTimesDiscount * ttm).toUint64();
+            _marketData.netRate = (newNetCredit * discount - amortizedValueTimesDiscount)
+                .mulDivDown(WAD, amortizedValueTimesDiscount * ttm)
+                .toUint64();
         }
 
         _marketData.netCredit = newNetCredit;
@@ -510,11 +510,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 discount = WAD + _marketData.netRate * ttm;
             if (soldNetCredit * WAD > sellerAssets * discount) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 shortfallTimesDiscount = soldNetCredit * WAD - sellerAssets * discount;
-                uint256 interestTimesDiscount = newNetCredit * (discount - WAD);
-                require(shortfallTimesDiscount <= interestTimesDiscount, ShortfallTooHigh());
-                _marketData.netRate = (interestTimesDiscount - shortfallTimesDiscount)
-                    .mulDivDown(WAD, (newNetCredit * WAD + shortfallTimesDiscount) * ttm)
+                uint256 amortizedValueTimesDiscount = (newNetCredit + soldNetCredit) * WAD - sellerAssets * discount;
+                require(amortizedValueTimesDiscount <= newNetCredit * discount, ShortfallTooHigh());
+                _marketData.netRate = (newNetCredit * discount - amortizedValueTimesDiscount)
+                    .mulDivDown(WAD, amortizedValueTimesDiscount * ttm)
                     .toUint64();
             }
         }
