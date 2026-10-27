@@ -37,6 +37,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         external
         returns (address)
     {
+        require(!useGateFactory || enterGateFactory != address(0), EnterGateFactoryNotConfigured());
         address _enterGateFactory = useGateFactory ? enterGateFactory : address(0);
         address _midnightAdapter =
             address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, _enterGateFactory));

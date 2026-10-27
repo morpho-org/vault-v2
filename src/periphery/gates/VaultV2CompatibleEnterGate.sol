@@ -52,10 +52,10 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     function canIncreaseCredit(address account) external view returns (bool) {
-        return (admitted != address(0) && account == admitted) || IEnterSubGate(subGate).canIncreaseCredit(account);
+        return (admitted != address(0) && account == admitted) || IEnterSubGate(subGate).creditIncreaseAllowed(account);
     }
 
     function canIncreaseDebt(address account) external view returns (bool) {
-        return IEnterSubGate(subGate).canIncreaseDebt(account);
+        return IEnterSubGate(subGate).debtIncreaseAllowed(account);
     }
 }

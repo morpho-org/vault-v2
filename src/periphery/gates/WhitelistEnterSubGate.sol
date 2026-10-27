@@ -93,11 +93,11 @@ contract WhitelistEnterSubGate is IWhitelistEnterSubGate {
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function canIncreaseCredit(address account) external view returns (bool) {
+    function creditIncreaseAllowed(address account) external view returns (bool) {
         return CREDIT_OPEN || isWhitelisted[true][account];
     }
 
-    function canIncreaseDebt(address account) external view returns (bool) {
+    function debtIncreaseAllowed(address account) external view returns (bool) {
         return DEBT_OPEN || isWhitelisted[false][account];
     }
 

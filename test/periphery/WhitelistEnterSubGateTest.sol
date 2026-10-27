@@ -199,32 +199,32 @@ contract WhitelistEnterSubGateTest is Test {
         assertTrue(gate.isWhitelisted(creditSide, account2));
     }
 
-    function testCanIncreaseCredit(address account, address other) public {
+    function testCreditIncreaseAllowed(address account, address other) public {
         vm.assume(account != other);
         vm.prank(whitelister);
         gate.setIsWhitelisted(true, account, true);
-        assertTrue(gate.canIncreaseCredit(account));
-        assertFalse(gate.canIncreaseCredit(other));
+        assertTrue(gate.creditIncreaseAllowed(account));
+        assertFalse(gate.creditIncreaseAllowed(other));
     }
 
-    function testCanIncreaseCreditIgnoresDebtList(address account, bool listed) public {
+    function testCreditIncreaseAllowedIgnoresDebtList(address account, bool listed) public {
         vm.prank(whitelister);
         gate.setIsWhitelisted(false, account, listed);
-        assertFalse(gate.canIncreaseCredit(account));
+        assertFalse(gate.creditIncreaseAllowed(account));
     }
 
-    function testCanIncreaseDebt(address account, address other) public {
+    function testDebtIncreaseAllowed(address account, address other) public {
         vm.assume(account != other);
         vm.prank(whitelister);
         gate.setIsWhitelisted(false, account, true);
-        assertTrue(gate.canIncreaseDebt(account));
-        assertFalse(gate.canIncreaseDebt(other));
+        assertTrue(gate.debtIncreaseAllowed(account));
+        assertFalse(gate.debtIncreaseAllowed(other));
     }
 
-    function testCanIncreaseDebtIgnoresCreditList(address account, bool listed) public {
+    function testDebtIncreaseAllowedIgnoresCreditList(address account, bool listed) public {
         vm.prank(whitelister);
         gate.setIsWhitelisted(true, account, listed);
-        assertFalse(gate.canIncreaseDebt(account));
+        assertFalse(gate.debtIncreaseAllowed(account));
     }
 
     function testSidesAreIndependent(address account, bool creditListed, bool debtListed) public {
@@ -234,8 +234,8 @@ contract WhitelistEnterSubGateTest is Test {
         vm.stopPrank();
         assertEq(gate.isWhitelisted(true, account), creditListed);
         assertEq(gate.isWhitelisted(false, account), debtListed);
-        assertEq(gate.canIncreaseCredit(account), creditListed);
-        assertEq(gate.canIncreaseDebt(account), debtListed);
+        assertEq(gate.creditIncreaseAllowed(account), creditListed);
+        assertEq(gate.debtIncreaseAllowed(account), debtListed);
     }
 
     function testOpenCreditSideLetsAnyoneIn(address account, address other) public {
@@ -244,11 +244,11 @@ contract WhitelistEnterSubGateTest is Test {
         vm.prank(whitelister);
         gate.setIsWhitelisted(false, account, true);
 
-        assertTrue(gate.canIncreaseCredit(account));
-        assertTrue(gate.canIncreaseCredit(other));
+        assertTrue(gate.creditIncreaseAllowed(account));
+        assertTrue(gate.creditIncreaseAllowed(other));
         // The debt side still honours its whitelist.
-        assertTrue(gate.canIncreaseDebt(account));
-        assertFalse(gate.canIncreaseDebt(other));
+        assertTrue(gate.debtIncreaseAllowed(account));
+        assertFalse(gate.debtIncreaseAllowed(other));
     }
 
     function testOpenDebtSideLetsAnyoneIn(address account, address other) public {
@@ -257,18 +257,18 @@ contract WhitelistEnterSubGateTest is Test {
         vm.prank(whitelister);
         gate.setIsWhitelisted(true, account, true);
 
-        assertTrue(gate.canIncreaseDebt(account));
-        assertTrue(gate.canIncreaseDebt(other));
+        assertTrue(gate.debtIncreaseAllowed(account));
+        assertTrue(gate.debtIncreaseAllowed(other));
         // The credit side still honours its whitelist.
-        assertTrue(gate.canIncreaseCredit(account));
-        assertFalse(gate.canIncreaseCredit(other));
+        assertTrue(gate.creditIncreaseAllowed(account));
+        assertFalse(gate.creditIncreaseAllowed(other));
     }
 
     function testOpenSideIgnoresWhitelist(bool creditSide, address account, bool whitelisted) public {
         gate = _deploy(creditSide, !creditSide);
         vm.prank(whitelister);
         gate.setIsWhitelisted(creditSide, account, whitelisted);
-        assertTrue(creditSide ? gate.canIncreaseCredit(account) : gate.canIncreaseDebt(account));
+        assertTrue(creditSide ? gate.creditIncreaseAllowed(account) : gate.debtIncreaseAllowed(account));
     }
 
     function testSetIsWhitelistedWithSig(
@@ -548,10 +548,12 @@ contract WhitelistEnterSubGateTest is Test {
         gate.setIsWhitelistedWithSig(creditSide, account, listed, 0, deadline, 0, r, s);
     }
 
-    function testServesAsEnterGate(address account) public {
+    function testCannotServeAsEnterGate(address account) public {
         gate = _deploy(true, true);
-        assertTrue(IEnterGate(address(gate)).canIncreaseCredit(account));
-        assertTrue(IEnterGate(address(gate)).canIncreaseDebt(account));
+        vm.expectRevert();
+        IEnterGate(address(gate)).canIncreaseCredit(account);
+        vm.expectRevert();
+        IEnterGate(address(gate)).canIncreaseDebt(account);
     }
 
     function testMulticall(address account, bool creditListed, address account2, bool debtListed) public {

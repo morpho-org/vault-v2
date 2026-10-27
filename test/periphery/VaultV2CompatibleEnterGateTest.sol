@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {IEnterGate} from "../../lib/midnight/src/interfaces/IGate.sol";
+import {IEnterSubGate} from "../../src/periphery/gates/interfaces/IEnterSubGate.sol";
 import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
@@ -144,7 +144,9 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testAdmittedCreditBypassesSubGate() public {
-        vm.mockCallRevert(address(subGate), abi.encodeCall(IEnterGate.canIncreaseCredit, (depositor)), "gate reverted");
+        vm.mockCallRevert(
+            address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (depositor)), "gate reverted"
+        );
         vm.prank(adapter);
         wrapper.admit(depositor, address(adapterFactory));
         assertTrue(wrapper.canIncreaseCredit(depositor));
@@ -154,7 +156,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.assume(account != address(0));
         subGate.setIsWhitelisted(true, account, allowed);
         subGate.setIsWhitelisted(false, account, !allowed);
-        vm.expectCall(address(subGate), abi.encodeCall(IEnterGate.canIncreaseCredit, (account)));
+        vm.expectCall(address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (account)));
         assertEq(wrapper.canIncreaseCredit(account), allowed);
     }
 
@@ -168,7 +170,9 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testCreditBubblesSubGateRevert() public {
-        vm.mockCallRevert(address(subGate), abi.encodeCall(IEnterGate.canIncreaseCredit, (depositor)), "gate reverted");
+        vm.mockCallRevert(
+            address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (depositor)), "gate reverted"
+        );
         vm.expectRevert(bytes("gate reverted"));
         wrapper.canIncreaseCredit(depositor);
     }
@@ -178,14 +182,16 @@ contract VaultV2CompatibleEnterGateTest is Test {
         wrapper.admit(account, address(adapterFactory));
         subGate.setIsWhitelisted(false, account, allowed);
         subGate.setIsWhitelisted(true, account, !allowed);
-        vm.expectCall(address(subGate), abi.encodeCall(IEnterGate.canIncreaseDebt, (account)));
+        vm.expectCall(address(subGate), abi.encodeCall(IEnterSubGate.debtIncreaseAllowed, (account)));
         assertEq(wrapper.canIncreaseDebt(account), allowed);
     }
 
     function testDebtBubblesSubGateRevert() public {
         vm.prank(adapter);
         wrapper.admit(depositor, address(adapterFactory));
-        vm.mockCallRevert(address(subGate), abi.encodeCall(IEnterGate.canIncreaseDebt, (depositor)), "gate reverted");
+        vm.mockCallRevert(
+            address(subGate), abi.encodeCall(IEnterSubGate.debtIncreaseAllowed, (depositor)), "gate reverted"
+        );
         vm.expectRevert(bytes("gate reverted"));
         wrapper.canIncreaseDebt(depositor);
     }

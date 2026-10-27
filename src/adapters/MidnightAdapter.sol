@@ -472,7 +472,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (gated) {
             // Adapters must not buy through another adapter's transient admission.
             require(
-                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate()).canIncreaseCredit(address(this)),
+                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
+                    .creditIncreaseAllowed(address(this)),
                 IncorrectEnterGate()
             );
         }
