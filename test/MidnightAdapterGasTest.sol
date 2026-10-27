@@ -245,6 +245,8 @@ contract MidnightAdapterGasTest is BaseTest {
         _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setManagementFee, (MAX_MANAGEMENT_FEE)));
         vm.prank(allocator);
         vault.setMaxRate(MAX_MAX_RATE);
+        vm.prank(allocator);
+        adapter.setMaxRate(MAX_MAX_RATE);
 
         vm.warp(block.timestamp + 6 hours);
 
