@@ -667,7 +667,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
             }
-            assets += netCredit.mulDivDown(WAD, WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+            // Cannot overflow: netCredit < 2^128 and netRate * ttm < 2^112.
+            unchecked {
+                assets += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+            }
         }
         return assets;
     }
