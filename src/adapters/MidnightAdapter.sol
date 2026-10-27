@@ -344,6 +344,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         updateRealAssets(marketId, oldLiveNetCredit, newNetCredit, 0, withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        // forge-lint: disable-next-item(reentrancy-no-eth) real assets are checkpointed before the adapter callback.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
