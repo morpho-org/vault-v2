@@ -6,6 +6,7 @@ methods {
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
+
     // sound because these rules only assert reverts.
     function MidnightAdapter.netCreditExcept(bytes32) internal returns (uint256) => NONDET;
 }
