@@ -58,7 +58,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev `useGateFactory` relies on the fact that the adapter's factory always returns true to `isCreated(adapter)`.
+/// @dev useGateFactory relies on the fact that the gate factory correctly identifies its gates through isCreated. The adapter must be able to temporarily allow buyers to increase their credit by calling the gate's `admit` function.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
