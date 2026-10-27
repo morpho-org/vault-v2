@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -15,6 +15,7 @@ contract VaultV2Mock {
     mapping(bytes32 => uint256) public allocation;
     mapping(bytes32 => uint256) public relativeCap;
     mapping(bytes32 => uint256) public absoluteCap;
+    mapping(address => uint256) public balanceOf;
     uint256 public totalAssets;
     /// @dev This stub is always accrued; real-vault tests cover transaction-scoped accrual.
     uint256 public firstTotalAssets = 1;
@@ -80,6 +81,10 @@ contract VaultV2Mock {
 
     function setAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
         absoluteCap[id] = newAbsoluteCap;
+    }
+
+    function setBalanceOf(address account, uint256 newBalance) external {
+        balanceOf[account] = newBalance;
     }
 
     function setTotalAssets(uint256 newTotalAssets) external {

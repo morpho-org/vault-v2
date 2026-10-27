@@ -19,6 +19,8 @@ Global invariants and the accounting effects of each entry point.
   Deposits and mints add exactly the transferred or previewed assets, withdrawals and redemptions subtract exactly the withdrawn or previewed assets, and `forceDeallocate` subtracts exactly its rounded-up penalty.
   Every other entry point leaves `_totalAssets` unchanged.
 - [`TotalAssetsIsUpToDate.spec`](specs/TotalAssetsIsUpToDate.spec) checks that every state-changing entry point other than `accrueInterest` updates `_totalAssets` before reading it.
+- [`AccrueInterestFirst.spec`](specs/AccrueInterestFirst.spec) checks that functions accruing interest do not read nor write the variables written by `accrueInterest` before accruing interest.
+- [`AccrueInterestWrites.spec`](specs/AccrueInterestWrites.spec) checks that `accrueInterest` writes no storage variable other than `_totalAssets`, `lastUpdate`, `totalSupply` and `balanceOf`, and no transient storage variable other than `firstTotalAssets`.
 - [`AllocationVaultV2.spec`](specs/AllocationVaultV2.spec) checks that allocations change only through ERC-4626 entry and exit functions, `allocate`, `deallocate`, or `forceDeallocate`.
   An ERC-4626 operation can change allocations only when a liquidity adapter is set.
 - [`AllocationsHierarchy.spec`](specs/AllocationsHierarchy.spec) checks the leaf-group structure used by adapter ids.
@@ -52,6 +54,10 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
+- [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
+  It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
+  These hold whatever the adapter's net credit in Midnight is.
+- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
 
@@ -99,10 +105,13 @@ Shares and assets move only through permitted paths and by the exact requested a
 
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Blue, and Morpho Vault V1 (MetaMorpho), ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
+- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that every external call, to any contract, is made either before the first storage write or after the last one, apart from the writes of interest accrual.
+  For deposits and mints, it assumes there is no liquidity adapter. With one, they call it after creating the shares, so a second rule checks that only the caps allocations are written after that call.
+  The rule assumes that the asset is a standard ERC20 token that does not reenter the vault on `transfer` and `transferFrom`.
+  It does not check that values read from storage before a call are still up to date when they are used after the call.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
-  It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
+- [`SettledAllocations.spec`](specs/SettledAllocations.spec) checks that the vault makes external calls only when it has applied all allocation changes returned by adapters, so allocations are up to date whenever another contract runs.
 
 # Verification setup
 
@@ -120,7 +129,7 @@ Verification is performed according to the following modeling conventions:
 Install the `certora-cli` package with `pip install certora-cli`.
 To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`.
 This requires a valid Certora key in the `CERTORAKEY` environment variable.
-The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, and `solc-0.8.28`; the compiler versions required by a particular job are listed in its configuration.
+The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, `solc-0.8.28`, and `solc-0.8.37`; the compiler versions required by a particular job are listed in its configuration.
 
 Additional arguments can select a specific rule. For example, from the repository root:
 
