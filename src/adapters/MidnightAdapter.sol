@@ -77,7 +77,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* IMMUTABLES */
 
-    address internal immutable factory;
+    address public immutable factory;
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
