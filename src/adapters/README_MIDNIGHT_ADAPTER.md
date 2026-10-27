@@ -15,7 +15,8 @@ Trades on Midnight trigger allocations and deallocations on the adapter through 
 These callbacks then call `allocate` and `deallocate` on the parent vault.
 Because of this flow:
 
-- The adapter must have the **allocator** role on the parent vault to trade.
+- The adapter must have the **allocator** role on the parent vault to buy on Midnight.
+- The adapter must have either the **allocator** or the **sentinel** role on the parent vault to sell on Midnight.
 - The Midnight adapter must not be set as the liquidity adapter of the parent vault. `allocate` accepts only calls from the adapter itself, so vault deposits revert.
 
 The adapter trades in three ways:
