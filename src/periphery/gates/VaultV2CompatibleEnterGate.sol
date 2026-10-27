@@ -60,10 +60,9 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         admittedMarketId = bytes32(0);
     }
 
-    /// @dev Only midnight can use admission, and not during the admitting adapter's sale callbacks.
+    /// @dev Admission cannot be used during the admitting adapter's sale callbacks.
     function canIncreaseCredit(address account) external view returns (bool) {
-        return (msg.sender == midnight
-                && admitted != address(0)
+        return (admitted != address(0)
                 && account == admitted
                 && !IMidnight(midnight).liquidationLocked(admittedMarketId, admitter))
             || IEnterSubGate(subGate).canIncreaseCredit(account);
