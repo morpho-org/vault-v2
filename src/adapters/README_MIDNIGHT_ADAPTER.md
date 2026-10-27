@@ -86,7 +86,7 @@ When the adapter sells credit, the _shortfall_ is the amortized value of the sol
 If a market takes bad debt on Midnight (`lossFactor` changes), `realAssets` immediately uses the reduced net credit.
 This change realizes the principal loss and decreases the remaining unearned interest in proportion to the loss.
 
-The gas cost of `realAssets` increases with the number of active markets, because `realAssets` reads `lossFactor` from Midnight for each market.
+The gas cost of `realAssets` increases with the number of active markets, because `realAssets` reads `lossFactor` and possibly net credit from Midnight for each market.
 The parent vault calls `realAssets` at each interest accrual, so many active markets make most vault operations more expensive.
 
 ### Caps and Duration Caps
