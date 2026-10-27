@@ -40,7 +40,7 @@ The adapter must have an allocator role so a trade can deallocate assets from an
 Allocators control the callback data:
 
 - For a taker trade, the allocator who calls `take` sets the callback data.
-- For a maker trade, the callback data is part of the offer. A sub-ratifier approves the offer only if the offer is in a Merkle tree that the allocators approved.
+- For a maker trade, the callback data is part of the offer. A sub-ratifier can constrain the callback data if necessary.
 
 Borrowers repay a market directly or through liquidations, possibly before maturity.
 Allocators and sentinels can withdraw the repaid assets to the idle assets of the vault.
