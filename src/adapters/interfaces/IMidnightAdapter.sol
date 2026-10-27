@@ -9,8 +9,6 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev Midnight's loss factor of the market when netCredit was last updated.
-    uint128 lossFactor;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
     uint64 netRate;
     uint48 maturity;
@@ -20,7 +18,7 @@ struct MarketData {
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
-    uint128 minForceSellPrice;
+    uint256 minForceSellPrice;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -65,12 +63,14 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();
+    error TooManyDurations();
+    error DurationsNotIncreasing();
+    error DurationTooHigh();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
-    error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
@@ -90,6 +90,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
+    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -101,6 +102,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
+    function MAX_DURATIONS() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -150,12 +152,11 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint128 lossFactor,
             uint64 netRate,
             uint48 maturity,
             uint8 index,
             bool forceSellable,
-            uint128 minForceSellPrice
+            uint256 minForceSellPrice
         );
 }
 
