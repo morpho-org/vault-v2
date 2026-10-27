@@ -79,7 +79,7 @@ The adapter rounds `netRate` down and realizes any rounding remainder immediatel
 When the adapter sells credit, the _shortfall_ is the amortized value of the sold net credit minus the sale assets, or zero if the sale assets are higher.
 
 - If the shortfall is zero, `netRate` does not change. The adapter realizes any gain immediately.
-- If the shortfall is more than zero, the adapter does not realize it immediately. It spreads the shortfall until maturity:
+- If the shortfall is more than zero, the adapter does not realize it immediately:
   - The amortized value of the market decreases only by the sale assets.
   - The adapter decreases `netRate` on the remaining net credit, so the market earns less interest until maturity.
   - The shortfall must not be more than the remaining unearned interest of the market. Otherwise, the sale reverts (`ShortfallTooHigh`).
