@@ -38,7 +38,10 @@ function summaryMulDivUp(uint256 x, uint256 y, uint256 d) returns uint256 {
     if (shouldRevert) {
         revert();
     }
-    require result * d >= x * y && (result - 1) * d < x * y, "result is x * y / d rounded up";
+
+    // Both requires are proven in MathLibSummaries.spec.
+    require result * d >= x * y, "result is at least x * y / d";
+    require (result - 1) * d < x * y, "result is less than x * y / d plus one";
     return result;
 }
 

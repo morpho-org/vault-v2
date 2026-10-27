@@ -31,6 +31,10 @@ contract Utils {
         return MathLib.mulDivDown(x, y, d);
     }
 
+    function libMulDivUp(uint256 x, uint256 y, uint256 d) external pure returns (uint256) {
+        return MathLib.mulDivUp(x, y, d);
+    }
+
     function wad() external pure returns (uint256) {
         return WAD;
     }
