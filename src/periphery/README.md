@@ -52,12 +52,12 @@ The factory records each gate in `isCreated[gate]` and indexes it by subgate, Mi
 
 A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
 `VaultV2CompatibleEnterGate` calls this subgate with an account.
-The subgate has the functions of a Midnight enter gate, so a market can also use it directly as `Market.enterGate`, without admissions. It is not a Vault V2 gate.
+It cannot be used directly as a Midnight or Vault V2 gate.
 
 Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
 Each side has its own role setter, who grants or revokes the whitelister role on that side.
 Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
-`setIsWhitelistedWithSig` is a no-op instead of a revert when the signed nonce is stale and the account is already set to the signed value.
+`setIsWhitelistedWithSig` accepts a stale nonce when the account is already set to the signed value. The signature must still be unexpired and from a current whitelister.
 A side can be made open at deployment, letting any account enter on that side (forever).
 
 ### `WhitelistEnterSubGateFactory`

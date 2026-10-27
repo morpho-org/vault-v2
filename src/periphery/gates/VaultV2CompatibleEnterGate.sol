@@ -14,7 +14,6 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev Registration is permanent. Revoking subgate approval does not revoke canAdmit.
 /// @dev No factory can admit until roleSetter calls addAdmitterFactory.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
-    /// @dev The underlying subgate.
     address public immutable subGate;
     address public immutable midnight;
 
@@ -65,10 +64,10 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         return (admitted != address(0)
                 && account == admitted
                 && !IMidnight(midnight).liquidationLocked(admittedMarketId, admitter))
-            || IEnterSubGate(subGate).canIncreaseCredit(account);
+            || IEnterSubGate(subGate).creditIncreaseAllowed(account);
     }
 
     function canIncreaseDebt(address account) external view returns (bool) {
-        return IEnterSubGate(subGate).canIncreaseDebt(account);
+        return IEnterSubGate(subGate).debtIncreaseAllowed(account);
     }
 }

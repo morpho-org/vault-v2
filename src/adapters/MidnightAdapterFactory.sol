@@ -38,18 +38,16 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    /// @dev With useGateFactory, the adapter enters a gated market only if its gate lets vault users buy through forceDeallocate, which keeps in-kind redemptions possible.
+    /// @dev With useGateFactory, see the ENTER GATE requirements in MidnightAdapter.
     /// @dev Without useGateFactory, the adapter can enter any gated market, and forceDeallocate there works only with buyers the market's gate allows.
     function createMidnightAdapter(address parentVault, uint256[] memory durations, bool useGateFactory, bytes32 salt)
         external
         returns (address)
     {
+        require(!useGateFactory || enterGateFactory != address(0), EnterGateFactoryNotConfigured());
         address _enterGateFactory = useGateFactory ? enterGateFactory : address(0);
-        address _midnightAdapter = address(
-            new MidnightAdapter{salt: keccak256(abi.encode(useGateFactory, salt))}(
-                parentVault, midnight, durations, _enterGateFactory
-            )
-        );
+        address _midnightAdapter =
+            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, _enterGateFactory));
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][useGateFactory][salt] = _midnightAdapter;
         isCreated[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, useGateFactory);
