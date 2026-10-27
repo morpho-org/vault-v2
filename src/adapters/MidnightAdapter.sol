@@ -652,14 +652,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity.
     function realAssets() external view returns (uint256) {
         uint256 assets;
-        for (uint256 i = 0; i < marketIds.length; i++) {
+        uint256 _marketIdsLength = marketIds.length;
+        bytes32 _inProgressBuyMarketId = inProgressBuyMarketId;
+        for (uint256 i = 0; i < _marketIdsLength; i++) {
             bytes32 marketId = marketIds[i];
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
             uint64 netRate = _marketData.netRate;
             uint48 maturity = _marketData.maturity;
             uint256 netCredit;
-            if (marketId == inProgressBuyMarketId) {
+            if (marketId == _inProgressBuyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
