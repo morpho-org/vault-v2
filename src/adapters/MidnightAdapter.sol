@@ -45,14 +45,16 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
 ///
+/// CAPS
+/// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
+/// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
+///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
 /// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
 /// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
-/// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
-/// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
 /// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
