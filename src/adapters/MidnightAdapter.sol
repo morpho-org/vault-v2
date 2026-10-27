@@ -78,7 +78,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
-    uint256 internal immutable marketIdsStart;
 
     /* TRANSIENT STORAGE */
 
@@ -131,12 +130,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
         packedDurations = PackedDurationsLib.pack(_durations);
         durationsLength = _durations.length;
-        uint256 _marketIdsStart;
-        assembly ("memory-safe") {
-            mstore(0, marketIds.slot)
-            _marketIdsStart := keccak256(0, 32)
-        }
-        marketIdsStart = _marketIdsStart;
         emit Constructor(_parentVault, _midnight, _durations);
     }
 
@@ -659,11 +652,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity.
     function realAssets() external view returns (uint256) {
         uint256 assets;
-        uint256 marketIdsStartValue = marketIdsStart;
+        uint256 marketIdsStart;
+        assembly ("memory-safe") {
+            mstore(0, marketIds.slot)
+            marketIdsStart := keccak256(0, 32)
+        }
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId;
             assembly ("memory-safe") {
-                marketId := sload(add(marketIdsStartValue, i))
+                marketId := sload(add(marketIdsStart, i))
             }
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
