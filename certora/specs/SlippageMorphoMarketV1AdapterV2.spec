@@ -13,27 +13,31 @@ methods {
     function MorphoMarketV1.lastUpdate(MorphoHarness.Id) external returns (uint256) envfree;
     function Utils.unwrapId(MorphoHarness.Id) external returns (bytes32) envfree;
 
-    // Sound because the rules only look at the supply shares of the adapter and the market totals.
     function allocation(MorphoHarness.MarketParams memory) internal returns (uint256) => NONDET;
     function expectedSupplyAssets(bytes32) internal returns (uint256) => NONDET;
-    function updateList(bytes32, uint256, uint256) internal => NONDET;
-
+    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => NONDET;
     function MathLib.mulDivUp(uint256 x, uint256 y, uint256 d) internal returns (uint256) => summaryMulDivUp(x, y, d);
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    // Sound because the rules only look at the supply shares of the adapter and the market totals.
+    function updateList(bytes32, uint256, uint256) internal => NONDET;
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
 
-    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
-
+    // Sound because the intermediary state is a valid state, except for token balances, which this spec doesn't look at.
     function _.onMorphoSupply(uint256, bytes) external => NONDET;
+
+    // Sound because this spec doesn't look at token balances.
+    function _.transfer(address, uint256) external => NONDET;
+    function _.transferFrom(address, address, uint256) external => NONDET;
 }
 
 persistent ghost uint256 constantBorrowRate;
 
-// Over-approximation of the rounded up division, that only keeps its defining property.
 function summaryMulDivUp(uint256 x, uint256 y, uint256 d) returns uint256 {
     uint256 result;
+    bool shouldRevert;
+    if (shouldRevert) {
+        revert();
+    }
     require result * d >= x * y && (result - 1) * d < x * y, "result is x * y / d rounded up";
     return result;
 }
@@ -49,7 +53,7 @@ rule allocateGetsSharesForAtMostOneAssetEach(env e, bytes data, uint256 assets, 
 }
 
 // Check that each deallocation burns less than one share in excess of the withdrawn assets, at the share price of the market.
-// Together with allocateGetsSharesForAtMostOneAssetEach, this means that deallocating loses at most one asset.
+// Together with allocateGetsSharesForAtMostOneAssetEach, this means that deallocating loses at most one asset: the adapter loses at most one more share than the fair price, but each share was acquired for less than one asset.
 rule deallocateLosesLessThanOneShare(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     MorphoHarness.Id id = Utils.id(Utils.decodeMarketParams(data));
     bytes32 marketId = Utils.unwrapId(id);
@@ -58,13 +62,12 @@ rule deallocateLosesLessThanOneShare(env e, bytes data, uint256 assets, bytes4 s
     // Safe because the market totals are taken after interest accrual, and accruing interest twice in the same block is a no-op.
     require MorphoMarketV1.lastUpdate(id) == e.block.timestamp, "assume interest is already accrued";
 
+    mathint totalAssets = MorphoMarketV1.totalSupplyAssets(id);
+    mathint totalShares = MorphoMarketV1.totalSupplyShares(id);
+
     deallocate(e, data, assets, selector, sender);
 
     mathint burnedShares = sharesBefore - supplyShares(marketId);
-
-    // Market totals right before the withdrawal, after interest accrual.
-    mathint totalAssets = MorphoMarketV1.totalSupplyAssets(id) + assets;
-    mathint totalShares = MorphoMarketV1.totalSupplyShares(id) + burnedShares;
 
     assert (burnedShares - 1) * (totalAssets + 1) < assets * (totalShares + 10 ^ 6);
 }
