@@ -39,9 +39,8 @@ function summaryMulDivUp(uint256 x, uint256 y, uint256 d) returns uint256 {
         revert();
     }
 
-    // Both requires are proven in MathLibSummaries.spec.
-    require result * d >= x * y, "result is at least x * y / d";
-    require (result - 1) * d < x * y, "result is less than x * y / d plus one";
+    require result * d >= x * y, "see mulDivUpIsAtLeastExactQuotient";
+    require (result - 1) * d < x * y, "see mulDivUpIsLessThanExactQuotientPlusOne";
     return result;
 }
 
