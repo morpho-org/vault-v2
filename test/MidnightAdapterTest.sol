@@ -2564,7 +2564,9 @@ contract MidnightAdapterTest is Test {
         if (netCredit == 0) {
             buyAdditionalCredit(first.market, 1e18);
             firstBucket = currentDurationBucket(adapter, firstId);
-            assertEq(adapter.marketData(firstId).durationBucket, firstBucket, "removed market reenters its current bucket");
+            assertEq(
+                adapter.marketData(firstId).durationBucket, firstBucket, "removed market reenters its current bucket"
+            );
             assertEq(adapter.durationBuckets(firstBucket - 1), 1e18, "reentered credit");
             assertEq(storedDurationAllocations(adapter)[0], 4e18, "no credit counted twice");
         }
@@ -2671,11 +2673,7 @@ contract MidnightAdapterTest is Test {
         return target.durationAllocations();
     }
 
-    function currentDurationBucket(IMidnightAdapter target, bytes32 marketId)
-        internal
-        view
-        returns (uint256 bucket)
-    {
+    function currentDurationBucket(IMidnightAdapter target, bytes32 marketId) internal view returns (uint256 bucket) {
         MarketData memory data = target.marketData(marketId);
         uint256 ttm = uint256(data.maturity).zeroFloorSub(block.timestamp);
         uint256[] memory durations = target.durations();
@@ -2863,7 +2861,8 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0))
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, 0, 0, false, 0))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");

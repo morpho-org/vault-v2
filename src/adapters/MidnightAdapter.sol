@@ -313,7 +313,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         marketData[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         decreaseDurationBucket(marketId, oldNetCredit, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        // forge-lint: disable-next-item(unsafe-typecast,reentrancy-no-eth) both net credit values fit in uint128, and onBuy's cache refresh after this call only recomputes from stored market data.
         IVaultV2(parentVault)
             .deallocate(
                 address(this),
@@ -451,6 +451,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         updateDurationBucket(marketId, oldNetCredit);
 
         (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+        // forge-lint: disable-next-item(reentrancy-no-eth) the cache refresh below only recomputes from stored market data.
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
         } else if (fundingAdapter != address(0)) {
