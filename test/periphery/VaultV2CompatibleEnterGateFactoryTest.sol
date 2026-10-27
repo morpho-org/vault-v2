@@ -15,22 +15,22 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     address internal adapterFactory = makeAddr("adapterFactory");
 
     function setUp() public {
-        factory = new VaultV2CompatibleEnterGateFactory();
+        factory = new VaultV2CompatibleEnterGateFactory(address(midnight));
     }
 
     function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate) public {
         vm.recordLogs();
         vm.prank(caller);
-        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, address(midnight), bytes32(0));
+        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, bytes32(0));
 
-        assertEq(factory.vaultV2CompatibleEnterGate(forwardedGate, address(midnight), bytes32(0)), created);
+        assertEq(factory.midnight(), midnight);
+        assertEq(factory.vaultV2CompatibleEnterGate(forwardedGate, bytes32(0)), created);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, address(factory));
-        assertEq(logs[0].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address,address)"));
+        assertEq(logs[0].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address)"));
         assertEq(logs[0].topics[1], bytes32(uint256(uint160(created))));
         assertEq(logs[0].topics[2], bytes32(uint256(uint160(forwardedGate))));
-        assertEq(logs[0].topics[3], bytes32(uint256(uint160(midnight))));
         assertEq(logs[0].data.length, 0);
         assertEq(VaultV2CompatibleEnterGate(created).midnight(), midnight);
         assertTrue(IEnterGateFactory(address(factory)).isCreated(created));
@@ -39,30 +39,21 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     }
 
     function testCreateMultipleGatesWithDifferentSalts() public {
-        address first = factory.createVaultV2CompatibleEnterGate(gate, address(midnight), bytes32(0));
-        address second = factory.createVaultV2CompatibleEnterGate(gate, address(midnight), bytes32(uint256(1)));
+        address first = factory.createVaultV2CompatibleEnterGate(gate, bytes32(0));
+        address second = factory.createVaultV2CompatibleEnterGate(gate, bytes32(uint256(1)));
 
         assertNotEq(first, second);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, address(midnight), bytes32(0)), first);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, address(midnight), bytes32(uint256(1))), second);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, address(midnight), bytes32(uint256(2))), address(0));
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, bytes32(0)), first);
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, bytes32(uint256(1))), second);
+        assertEq(factory.vaultV2CompatibleEnterGate(gate, bytes32(uint256(2))), address(0));
         assertTrue(factory.isCreated(first));
         assertTrue(factory.isCreated(second));
     }
 
-    function testCreateMultipleGatesWithDifferentMidnights() public {
-        address otherMidnight = makeAddr("otherMidnight");
-        address first = factory.createVaultV2CompatibleEnterGate(gate, midnight, bytes32(0));
-        address second = factory.createVaultV2CompatibleEnterGate(gate, otherMidnight, bytes32(0));
-        assertNotEq(first, second);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, midnight, bytes32(0)), first);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, otherMidnight, bytes32(0)), second);
-    }
-
     function testIsCreatedRejectsUnregisteredGates() public {
         address direct = address(new VaultV2CompatibleEnterGate(gate, address(midnight)));
-        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
-        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, address(midnight), bytes32(0));
+        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory(address(midnight));
+        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, bytes32(0));
 
         assertFalse(factory.isCreated(address(0)));
         assertFalse(factory.isCreated(gate));

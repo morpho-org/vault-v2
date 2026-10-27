@@ -6,18 +6,20 @@ import {VaultV2CompatibleEnterGate} from "./VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGateFactory} from "./interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 
 contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory {
-    mapping(address account => bool) public isCreated;
-    mapping(address subGate => mapping(address midnight => mapping(bytes32 salt => address))) public
-        vaultV2CompatibleEnterGate;
+    address public immutable midnight;
 
-    function createVaultV2CompatibleEnterGate(address subGate, address midnight, bytes32 salt)
-        external
-        returns (address)
-    {
+    mapping(address account => bool) public isCreated;
+    mapping(address subGate => mapping(bytes32 salt => address)) public vaultV2CompatibleEnterGate;
+
+    constructor(address _midnight) {
+        midnight = _midnight;
+    }
+
+    function createVaultV2CompatibleEnterGate(address subGate, bytes32 salt) external returns (address) {
         address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate, midnight));
-        vaultV2CompatibleEnterGate[subGate][midnight][salt] = gate;
+        vaultV2CompatibleEnterGate[subGate][salt] = gate;
         isCreated[gate] = true;
-        emit CreateVaultV2CompatibleEnterGate(gate, subGate, midnight);
+        emit CreateVaultV2CompatibleEnterGate(gate, subGate);
         return gate;
     }
 }
