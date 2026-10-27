@@ -13,7 +13,6 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev Registration is permanent. Revoking subgate approval does not revoke canAdmit.
 /// @dev No factory can admit until roleSetter calls addAdmitterFactory.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
-    /// @dev The underlying subgate.
     address public immutable subGate;
 
     mapping(address factory => bool) public canAdmit;
