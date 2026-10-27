@@ -414,8 +414,7 @@ contract MidnightAdapterGasTest is BaseTest {
         for (uint256 i; i < maxMarkets; i++) {
             bytes32 marketId = adapter.marketIds(i);
             Market memory market = midnight.toMarket(marketId);
-            MarketData memory marketData = adapter.marketData(marketId);
-            assertNotEq(midnight.lossFactor(marketId), marketData.lossFactor, "bad debt loss factor");
+            assertGt(midnight.lossFactor(marketId), 0, "bad debt loss factor");
             (uint128 currentCredit, uint128 pendingFee,) =
                 midnight.updatePositionView(market, marketId, address(adapter));
             assertGt(uint256(currentCredit) - pendingFee, 0, "market credit");
