@@ -4,6 +4,7 @@ pragma solidity 0.8.37;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
+import {IVaultV2CompatibleEnterGateFactory} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
@@ -22,7 +23,13 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* CONSTRUCTOR */
 
+    /// @dev The enter gate factory must use the same Midnight because its gates check that Midnight's liquidation lock.
     constructor(address _midnight, address _enterGateFactory) {
+        require(
+            _enterGateFactory == address(0)
+                || IVaultV2CompatibleEnterGateFactory(_enterGateFactory).midnight() == _midnight,
+            EnterGateFactoryMidnightMismatch()
+        );
         midnight = _midnight;
         enterGateFactory = _enterGateFactory;
         emit CreateMidnightAdapterFactory(_midnight, enterGateFactory);

@@ -406,9 +406,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
-            bool shouldAdmit = enterGateFactory != address(0)
-                && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                && IVaultV2CompatibleEnterGate(market.enterGate).midnight() == midnight;
+            bool shouldAdmit =
+                enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
             if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory, marketId);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
@@ -498,7 +497,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (gated) {
                 require(
                     IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                        && IVaultV2CompatibleEnterGate(market.enterGate).midnight() == midnight
                         && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
                     IncorrectEnterGate()
                 );

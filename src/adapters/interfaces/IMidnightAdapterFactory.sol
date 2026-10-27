@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
-pragma solidity >=0.5.0;
+pragma solidity >=0.8.4;
 
 interface IMidnightAdapterFactory {
     /* EVENTS */
@@ -13,6 +13,10 @@ interface IMidnightAdapterFactory {
         address indexed midnightAdapter,
         bool useGateFactory
     );
+
+    /* ERRORS */
+
+    error EnterGateFactoryMidnightMismatch();
 
     /* FUNCTIONS */
 

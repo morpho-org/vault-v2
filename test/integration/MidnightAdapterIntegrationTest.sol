@@ -319,7 +319,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
+        address enterGateFactory = deployCode(
+            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(midnight))
+        );
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode(
                 "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
@@ -335,7 +337,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
         market.enterGate = IVaultV2CompatibleEnterGateFactory(factory.enterGateFactory())
-            .createVaultV2CompatibleEnterGate(address(subGate), address(midnight), bytes32(0));
+            .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
