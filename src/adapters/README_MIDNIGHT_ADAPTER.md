@@ -44,8 +44,7 @@ Allocators control the callback data:
 Borrowers repay a market directly or through liquidations, possibly before maturity.
 Allocators and sentinels can withdraw the repaid assets to the idle assets of the vault.
 To do this, they call `deallocate` on the parent vault with `data` that requests a withdrawal from `market`.
-Anyone can also do this with `forceDeallocate` and the same `data`.
-In that case, the vault charges its `forceDeallocate` penalty.
+Anyone can also do this by calling `forceDeallocate` with the same `data`. In that case, the vault charges its `forceDeallocate` penalty.
 
 ### Sub-ratifiers
 
