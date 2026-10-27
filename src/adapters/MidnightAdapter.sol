@@ -38,6 +38,10 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
+/// FORCE DEALLOCATE
+/// @dev The caller must be the taker, or be authorized by the taker on Midnight.
+/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
@@ -82,6 +86,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public immutable durationsLength;
 
     /* TRANSIENT STORAGE */
+
+    /// @dev Set to true so forceDeallocate offers are ratified.
+    bool public transient forceSelling;
 
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
@@ -278,7 +285,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
@@ -352,7 +358,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
-    function allocate(bytes calldata data, uint256, bytes4, address caller)
+    function allocate(bytes memory data, uint256, bytes4, address caller)
         external
         view
         returns (bytes32[] memory, int256)
@@ -363,29 +369,52 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver, and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the caller.
+    /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    function deallocate(bytes calldata data, uint256 assets, bytes4 messageSig, address caller)
+    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
-            bytes32 marketId = IdLib.toId(offer.market);
+            (Market memory market, address taker) = abi.decode(data, (Market, address));
+            require(taker == caller || IMidnight(midnight).isAuthorized(taker, caller), NotAuthorized());
+            require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
+            require(market.loanToken == asset, LoanAssetMismatch());
+            bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            bool shouldAdmit = enterGateFactory != address(0) && offer.market.enterGate != address(0)
-                && IEnterGateFactory(enterGateFactory).isCreated(offer.market.enterGate)
-                && IVaultV2CompatibleEnterGate(offer.market.enterGate).midnight() == midnight
-                && IERC20(parentVault).balanceOf(offer.maker) > 0;
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).admit(offer.maker, factory, marketId);
-
+            Offer memory offer = Offer({
+                market: market,
+                buy: false,
+                maker: address(this),
+                start: 0,
+                expiry: type(uint256).max,
+                tick: 0,
+                group: bytes32(0),
+                callback: address(0),
+                callbackData: hex"",
+                receiverIfMakerIsSeller: address(this),
+                ratifier: address(this),
+                reduceOnly: true,
+                maxUnits: 0,
+                maxAssets: type(uint128).max,
+                continuousFeeCap: type(uint256).max
+            });
+            uint256 settlementFeeAssets = assets.mulDivUp(
+                IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
+            );
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
+            bool shouldAdmit = enterGateFactory != address(0)
+                && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                && IVaultV2CompatibleEnterGate(market.enterGate).midnight() == midnight;
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory, marketId);
+            forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
-            IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(offer.market.enterGate).unadmit();
-            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
+            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
+            forceSelling = false;
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -394,7 +423,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(offer.market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             returnExactBytes(data);
@@ -403,8 +432,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Returns the result of the sub-ratifier selected in data.
+    /// @dev Returns the result of the sub-ratifier selected in data, except while the adapter takes its own offer through forceDeallocate.
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
+        if (forceSelling) return CALLBACK_SUCCESS;
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.midnight == midnight, NotMidnight());
@@ -432,7 +462,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+        bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
+        if (gated) {
             // Adapters must not buy through another adapter's transient admission.
             require(
                 IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate()).canIncreaseCredit(address(this)),
@@ -464,7 +495,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         if (newNetCredit > 0 && oldNetCredit == 0) {
-            if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+            if (gated) {
                 require(
                     IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
                         && IVaultV2CompatibleEnterGate(market.enterGate).midnight() == midnight
@@ -568,11 +599,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* INTERNAL FUNCTIONS */
 
     /// @dev Ends the external call, returning data without ABI encoding.
-    function returnExactBytes(bytes calldata data) internal pure {
+    function returnExactBytes(bytes memory data) internal pure {
         assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            calldatacopy(ptr, data.offset, data.length)
-            return(ptr, data.length)
+            return(add(data, 32), mload(data))
         }
     }
 

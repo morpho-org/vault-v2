@@ -309,38 +309,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         Market memory market = _market(7 days);
 
         uint256 units = 1000 * oneToken;
-        Offer memory offer = Offer({
-            market: market,
-            buy: true,
-            maker: lender,
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode("external", market.maturity, units, true)),
-            callback: address(0),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(setterRatifier),
-            reduceOnly: false,
-            maxUnits: uint128(units),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        deal(address(underlyingToken), lender, units);
-        bytes32 root = HashLib.hashOffer(offer);
-        bytes32[] memory proof = new bytes32[](0);
-        bytes memory ratifierData = abi.encode(root, uint256(0), proof);
-        vm.startPrank(lender);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(address(setterRatifier), true, lender);
-        setterRatifier.setIsRootRatified(lender, root, true);
-        vm.stopPrank();
-
-        uint256 sellerAssets = units * TickLib.tickToPrice(TICK) / WAD;
-        deal(address(underlyingToken), depositor, units - sellerAssets);
+        deal(address(underlyingToken), depositor, units);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
-        vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
+        midnight.setIsAuthorized(address(adapter), true, depositor);
+        vault.forceDeallocate(address(adapter), abi.encode(market, depositor), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }
@@ -362,7 +335,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
         market.enterGate = IVaultV2CompatibleEnterGateFactory(factory.enterGateFactory())
-            .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
+            .createVaultV2CompatibleEnterGate(address(subGate), address(midnight), bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
@@ -426,25 +399,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.setMarketSettlementFee(marketId, 2, 0.00005e18);
         vm.stopPrank();
         units = 1000 * oneToken;
-        Offer memory exitOffer = Offer({
-            market: market,
-            buy: true,
-            maker: depositor,
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: MAX_TICK,
-            group: keccak256(abi.encode("shareholder exit", marketId, units)),
-            callback: address(0),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(setterRatifier),
-            reduceOnly: false,
-            maxUnits: uint128(units),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        root = HashLib.hashOffer(exitOffer);
-        ratifierData = abi.encode(root, uint256(0), proof);
         uint256 settlementFeeAssets =
             units - units * (WAD - midnight.settlementFee(marketId, market.maturity - block.timestamp)) / WAD;
         deal(address(underlyingToken), depositor, settlementFeeAssets);
@@ -457,11 +411,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(router), settlementFeeAssets);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), units);
         vault.approve(address(router), type(uint256).max);
-        midnight.setIsAuthorized(address(setterRatifier), true, depositor);
-        setterRatifier.setIsRootRatified(depositor, root, true);
-        router.exit(exitOffer, ratifierData, units);
+        midnight.setIsAuthorized(address(gatedAdapter), true, depositor);
+        midnight.setIsAuthorized(address(router), true, depositor);
+        router.exit(market, units);
         vm.stopPrank();
     }
 
@@ -502,7 +455,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 /// @dev The caller must approve this router for vault shares and the settlement fee, and Midnight for the principal.
 contract MidnightAdapterExitRouter is IMorphoFlashLoanCallback {
     error Unauthorized();
-    error IncorrectOffer();
 
     address public immutable morpho;
     address public immutable adapter;
@@ -518,28 +470,25 @@ contract MidnightAdapterExitRouter is IMorphoFlashLoanCallback {
         asset = IMidnightAdapter(_adapter).asset();
     }
 
-    /// @dev The caller's buy offer must be at par and have no buy callback.
-    function exit(Offer memory offer, bytes memory ratifierData, uint256 units) external {
-        require(offer.maker == msg.sender, Unauthorized());
-        require(offer.buy && offer.tick == MAX_TICK && offer.callback == address(0), IncorrectOffer());
+    /// @dev The caller must authorize this router and the adapter on Midnight.
+    function exit(Market memory market, uint256 assets) external {
         uint256 settlementFee = IMidnight(midnight)
-            .settlementFee(IdLib.toId(offer.market), MathLib.zeroFloorSub(offer.market.maturity, block.timestamp));
-        uint256 settlementFeeAssets = MathLib.mulDivUp(units, settlementFee, WAD);
+            .settlementFee(IdLib.toId(market), MathLib.zeroFloorSub(market.maturity, block.timestamp));
+        uint256 settlementFeeAssets = MathLib.mulDivUp(assets, settlementFee, WAD);
         if (settlementFeeAssets > 0) {
             SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
         }
-        IMorpho(morpho).flashLoan(asset, units, abi.encode(offer, ratifierData));
+        IMorpho(morpho).flashLoan(asset, assets, abi.encode(market, msg.sender, settlementFeeAssets));
     }
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
         require(msg.sender == morpho, Unauthorized());
-        (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-        // The caller pays Midnight directly, without an onBuy callback.
-        SafeERC20Lib.safeTransfer(asset, offer.maker, assets);
-        SafeERC20Lib.safeApprove(asset, adapter, assets);
-        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(offer, ratifierData), assets, offer.maker);
-        // The caller keeps the credit. The vault withdrawal repays the flashloan.
-        IVaultV2(parentVault).withdraw(assets, address(this), offer.maker);
+        (Market memory market, address taker, uint256 settlementFeeAssets) =
+            abi.decode(data, (Market, address, uint256));
+        SafeERC20Lib.safeApprove(asset, adapter, assets + settlementFeeAssets);
+        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(market, taker), assets, taker);
+        // The taker keeps the credit. The vault withdrawal repays the flashloan.
+        IVaultV2(parentVault).withdraw(assets, address(this), taker);
         SafeERC20Lib.safeApprove(asset, morpho, assets);
     }
 }

@@ -40,7 +40,7 @@ Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
 Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
 One gate can serve multiple markets on one Midnight.
 For ordinary permission checks, the gate calls its `subGate` with the account.
-During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The adapter clears the admission as soon as its sale returns.
+During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The adapter sells through its own offer, without callback, and clears the admission as soon as its sale returns.
 The gate checks the selling adapter's liquidation lock to prevent buyer callbacks from reusing admission.
 
 ### `VaultV2CompatibleEnterGateFactory`
