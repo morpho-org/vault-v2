@@ -40,6 +40,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
     event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
+    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
@@ -85,6 +86,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
     error ShortfallTooHigh();
+    error MaxShortfallRatioTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
     error ForceSellPriceTooLow();
@@ -103,6 +105,11 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
+    function MAX_SHORTFALL_RATIO() external view returns (uint256);
+    function SHORTFALL_REFILL_PERIOD() external view returns (uint256);
+    function shortfallRatio() external view returns (uint64);
+    function shortfallUpdatedAt() external view returns (uint48);
+    function maxShortfallRatio() external view returns (uint64);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -127,6 +134,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;

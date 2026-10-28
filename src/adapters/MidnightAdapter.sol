@@ -32,9 +32,9 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
-/// @dev Bad debt that is visible in onSell is applied before the shortfall.
-/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
+/// @dev Shortfalls first reduce netRate. Any loss left after netRate reaches zero consumes the shortfall budget.
+/// @dev All markets share a shortfall budget of maxShortfallRatio of recorded net credit, refilled over 24 hours. The budget starts full.
+/// @dev The denominator corrects bad debt in the sold market, but uses stored credit for other markets.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -43,7 +43,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
+/// @dev Sales in forceSellable markets check minForceSellPrice instead of maxNetSellRate, noSalesWithShortfall and the shortfall budget.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -63,6 +63,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for uint64;
     using MathLib for uint48;
     using PackedDurationsLib for bytes32;
 
@@ -71,6 +72,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
+    uint256 public constant MAX_SHORTFALL_RATIO = 0.001e18;
+    uint256 public constant SHORTFALL_REFILL_PERIOD = 1 days;
 
     /* IMMUTABLES */
 
@@ -100,20 +103,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ADAPTER STORAGE */
 
     address public skimRecipient;
+    uint32 public maxTtm;
+    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
+    uint64 public minNetBuyRate;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
-    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
-    uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
+    /// @dev Fraction consumed of the shared shortfall budget at shortfallUpdatedAt.
+    uint64 public shortfallRatio;
+    uint48 public shortfallUpdatedAt;
+    uint64 public maxShortfallRatio = MAX_SHORTFALL_RATIO.toUint64();
 
     /* CONSTRUCTOR */
 
@@ -219,6 +226,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* TIMELOCKED CURATOR SETTINGS */
+
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
+        timelocked();
+        require(newMaxShortfallRatio <= MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
+        shortfallRatio = shortfallRatio.zeroFloorSub(
+                maxShortfallRatio * (block.timestamp - shortfallUpdatedAt) / SHORTFALL_REFILL_PERIOD
+            )
+            .toUint64();
+        shortfallUpdatedAt = block.timestamp.toUint48();
+        maxShortfallRatio = newMaxShortfallRatio.toUint64();
+        emit SetMaxShortfallRatio(newMaxShortfallRatio);
+    }
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
@@ -552,8 +571,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                _marketData.netRate = amortizedValue < newNetCredit
+                    ? (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64()
+                    : 0;
+                uint256 remainingShortfall = amortizedValue.zeroFloorSub(newNetCredit);
+                if (remainingShortfall > 0) {
+                    uint256 totalNetCredit = IVaultV2(parentVault).allocation(adapterId) + newNetCredit + soldNetCredit
+                        - _marketData.netCredit;
+                    uint256 newShortfallRatio = shortfallRatio.zeroFloorSub(
+                        maxShortfallRatio * (block.timestamp - shortfallUpdatedAt) / SHORTFALL_REFILL_PERIOD
+                    ) + remainingShortfall.mulDivUp(WAD, totalNetCredit);
+                    require(newShortfallRatio <= maxShortfallRatio, ShortfallTooHigh());
+                    shortfallRatio = newShortfallRatio.toUint64();
+                    shortfallUpdatedAt = block.timestamp.toUint48();
+                }
             }
         }
 
