@@ -34,7 +34,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev Shortfalls first reduce netRate. Any loss left after netRate reaches zero consumes the shortfall budget.
 /// @dev All markets share a shortfall budget of maxShortfallRatio of recorded net credit, refilled over 24 hours. The budget starts full.
-/// @dev The denominator corrects bad debt in the sold market, but uses stored credit for other markets.
+/// @dev The denominator uses stored credit, which may not reflect bad debt.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -63,6 +63,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for uint88;
     using MathLib for uint64;
     using MathLib for uint48;
     using PackedDurationsLib for bytes32;
@@ -117,9 +118,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-    /// @dev Fraction consumed of the shared shortfall budget at shortfallUpdatedAt.
-    uint64 public shortfallRatio;
-    uint48 public shortfallUpdatedAt;
+    /// @dev Consumed shortfall ratio plus cumulative refill.
+    uint88 public shortfallEnd;
     uint64 public maxShortfallRatio = MAX_SHORTFALL_RATIO.toUint64();
 
     /* CONSTRUCTOR */
@@ -227,14 +227,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TIMELOCKED CURATOR SETTINGS */
 
+    /// @dev Resets the shortfall budget.
     function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
         timelocked();
         require(newMaxShortfallRatio <= MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
-        shortfallRatio = shortfallRatio.zeroFloorSub(
-                maxShortfallRatio * (block.timestamp - shortfallUpdatedAt) / SHORTFALL_REFILL_PERIOD
-            )
-            .toUint64();
-        shortfallUpdatedAt = block.timestamp.toUint48();
+        shortfallEnd = 0;
         maxShortfallRatio = newMaxShortfallRatio.toUint64();
         emit SetMaxShortfallRatio(newMaxShortfallRatio);
     }
@@ -576,14 +573,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     : 0;
                 uint256 remainingShortfall = amortizedValue.zeroFloorSub(newNetCredit);
                 if (remainingShortfall > 0) {
-                    uint256 totalNetCredit = IVaultV2(parentVault).allocation(adapterId) + newNetCredit + soldNetCredit
-                        - _marketData.netCredit;
-                    uint256 newShortfallRatio = shortfallRatio.zeroFloorSub(
-                        maxShortfallRatio * (block.timestamp - shortfallUpdatedAt) / SHORTFALL_REFILL_PERIOD
-                    ) + remainingShortfall.mulDivUp(WAD, totalNetCredit);
+                    uint256 refilled = block.timestamp * maxShortfallRatio / SHORTFALL_REFILL_PERIOD;
+                    uint256 newShortfallRatio = shortfallEnd.zeroFloorSub(refilled)
+                        + remainingShortfall.mulDivUp(WAD, IVaultV2(parentVault).allocation(adapterId));
                     require(newShortfallRatio <= maxShortfallRatio, ShortfallTooHigh());
-                    shortfallRatio = newShortfallRatio.toUint64();
-                    shortfallUpdatedAt = block.timestamp.toUint48();
+                    shortfallEnd = (refilled + newShortfallRatio).toUint88();
                 }
             }
         }
