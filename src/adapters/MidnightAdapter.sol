@@ -45,6 +45,10 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
 ///
+/// CAPS
+/// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
+/// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
+///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
 /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
