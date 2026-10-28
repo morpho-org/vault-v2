@@ -33,7 +33,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev Shortfalls first reduce netRate. Any loss left after netRate reaches zero consumes the shortfall budget.
-/// @dev All markets share a shortfall budget of maxShortfallRatio of recorded net credit, refilled over 24 hours. The budget starts full.
+/// @dev All markets share a shortfall budget of maxShortfallRatio of recorded net credit, refilled over 24 hours.
 /// @dev The denominator uses stored credit, which may not reflect bad debt.
 ///
 /// FORCE DEALLOCATE
@@ -73,7 +73,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
-    uint256 public constant MAX_SHORTFALL_RATIO = 0.001e18;
+    uint64 public constant MAX_SHORTFALL_RATIO = 0.001e18;
     uint256 public constant SHORTFALL_REFILL_PERIOD = 1 days;
 
     /* IMMUTABLES */
@@ -120,7 +120,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bool public noSalesWithShortfall;
     /// @dev Consumed shortfall ratio plus cumulative refill.
     uint88 public shortfallEnd;
-    uint64 public maxShortfallRatio = MAX_SHORTFALL_RATIO.toUint64();
+    uint64 public maxShortfallRatio;
 
     /* CONSTRUCTOR */
 
@@ -568,9 +568,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                _marketData.netRate = amortizedValue < newNetCredit
-                    ? (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64()
-                    : 0;
+                _marketData.netRate =
+                    newNetCredit.zeroFloorSub(amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
                 uint256 remainingShortfall = amortizedValue.zeroFloorSub(newNetCredit);
                 if (remainingShortfall > 0) {
                     uint256 refilled = block.timestamp * maxShortfallRatio / SHORTFALL_REFILL_PERIOD;

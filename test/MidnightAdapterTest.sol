@@ -164,6 +164,10 @@ contract MidnightAdapterTest is Test {
         setUpMaxTtm(type(uint32).max);
         // Sales below face value are blocked by default. Tests of the limit itself set it back.
         setMaxNetSellRate(type(uint64).max);
+        uint256 maxShortfallRatio = adapter.MAX_SHORTFALL_RATIO();
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (maxShortfallRatio)));
+        adapter.setMaxShortfallRatio(maxShortfallRatio);
 
         priceRatifier = new MidnightAdapterPriceRatifierV1();
         addSubRatifier(adapter, address(priceRatifier));
@@ -768,7 +772,7 @@ contract MidnightAdapterTest is Test {
         uint256 rate = adapter.marketData(marketId).netRate;
         setMinNetBuyRate(type(uint64).max);
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
-        uint256 maxSold = 100e18 * adapter.MAX_SHORTFALL_RATIO() / (1e18 - TickLib.tickToPrice(tick));
+        uint256 maxSold = uint256(100e18) * adapter.MAX_SHORTFALL_RATIO() / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 amortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
@@ -1718,6 +1722,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
+        assertEq(IMidnightAdapter(newAdapter).maxShortfallRatio(), 0, "default maxShortfallRatio");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
@@ -4749,6 +4754,11 @@ contract MidnightAdapterTest is Test {
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
         setMaxNetSellRate(type(uint64).max);
+
+        uint256 maxShortfallRatio = adapter.MAX_SHORTFALL_RATIO();
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxShortfallRatio, (maxShortfallRatio)));
+        adapter.setMaxShortfallRatio(maxShortfallRatio);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
