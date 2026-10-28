@@ -17,7 +17,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Bad debt is immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the bad debt and the adapter's position in the market hit by it.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
@@ -32,9 +32,14 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
+/// @dev Shortfalls are deferred adapter-wide, so realAssets decreases only by the received assets right after the sale.
+/// @dev The deferred shortfall is still added to realAssets, and released linearly until a release end weighted by amounts between the maturities of the markets sold with a shortfall, so the interest of all markets absorbs it. Rates do not change.
+/// @dev So a sale can defer up to the whole portfolio's remaining interest, not only the sold market's. maxNetSellRate and noSalesWithShortfall remain the limits on sales.
+/// @dev realAssets only counts the part of the deferred shortfall that the unearned interest covers, so a larger shortfall is realized immediately, and a sale never reverts because of the size of its shortfall.
+/// @dev If the shortfall is released faster than the interest of the portfolio is earned, realAssets dips until the release end and then catches up. The vault's performance fee is charged on the catch up as if it were interest.
+/// @dev A buy while a shortfall is deferred first caps the remaining deferred shortfall by the unearned interest, so the bought interest does not release it.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
-/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the adapter by at most the shortfall right after the sale, and by zero at the end of the release.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -91,6 +96,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
 
+    /// @dev Set while onBuy accrues the vault's interest after having already run the realAssets loop, so realAssets returns it.
+    /// @dev A cached value of 0 means no other market has a position, so running the loop instead is trivial.
+    uint256 internal transient cachedRealAssets;
+
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
@@ -114,6 +123,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
+
+    /// @dev Shortfall of past sales not yet recognized at releaseStart, released linearly until releaseEnd.
+    uint128 public deferredShortfall;
+    uint64 public releaseStart;
+    uint64 public releaseEnd;
 
     /* CONSTRUCTOR */
 
@@ -469,9 +483,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
+        if (deferredShortfall > 0) {
+            // Cap the deferred shortfall by the unearned interest, excluding the purchase, so the purchase does not release it.
+            // The loop is run here and its result cached, so the vault's accrueInterest does not run it again.
+            (uint256 amortizedValue, uint256 unearnedInterest) = valuation();
+            uint256 newDeferredShortfall = MathLib.min(remainingShortfall(), unearnedInterest);
+            // forge-lint: disable-next-item(unsafe-typecast) newDeferredShortfall <= deferredShortfall.
+            deferredShortfall = uint128(newDeferredShortfall);
+            // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+            releaseStart = uint64(block.timestamp);
+            cachedRealAssets = amortizedValue + newDeferredShortfall;
+        }
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
-        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
+        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit, cachedRealAssets) = (bytes32(0), 0, 0);
 
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -551,9 +576,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                // A shortfall implies ttm > 0, so the release ends after it starts.
+                uint256 remaining = remainingShortfall();
+                uint256 newDeferredShortfall = remaining + shortfall;
+                // The release end is weighted by amounts, so a small sale in a long market barely moves the end of a large remaining shortfall.
+                // Taking the later maturity instead would let anyone taking a tiny sale stretch the release of the whole shortfall.
+                uint256 newReleaseEnd = (remaining * releaseEnd + shortfall * market.maturity) / newDeferredShortfall;
+                deferredShortfall = newDeferredShortfall.toUint128();
+                // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+                releaseStart = uint64(block.timestamp);
+                releaseEnd = newReleaseEnd.toUint64();
+                emit DeferShortfall(marketId, shortfall, newDeferredShortfall, newReleaseEnd);
             }
         }
 
@@ -660,9 +693,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity.
+    /// @dev Returns the part of the deferred shortfall that is not released yet.
+    function remainingShortfall() public view returns (uint256) {
+        uint256 _releaseEnd = releaseEnd;
+        if (block.timestamp >= _releaseEnd) return 0;
+        // releaseEnd > releaseStart: both are written together, with releaseStart = now and releaseEnd > now.
+        return deferredShortfall * (_releaseEnd - block.timestamp) / (_releaseEnd - releaseStart);
+    }
+
+    /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity, plus the part of the remaining shortfall that the unearned interest covers.
     function realAssets() external view returns (uint256) {
-        uint256 assets;
+        if (cachedRealAssets != 0) return cachedRealAssets;
+        (uint256 amortizedValue, uint256 unearnedInterest) = valuation();
+        return amortizedValue + MathLib.min(remainingShortfall(), unearnedInterest);
+    }
+
+    /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity, and the interest not yet earned.
+    function valuation() internal view returns (uint256 amortizedValue, uint256 unearnedInterest) {
+        uint256 netCreditSum;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
@@ -679,11 +727,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = currentNetCredit(marketId);
             }
             // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint64 * uint48) are << 2^256.
-            // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow either.
+            // Each iteration adds at most netCredit (uint128) to each sum and there are at most MAX_MARKETS additions, so the sums do not overflow either.
             unchecked {
-                assets += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+                netCreditSum += netCredit;
+                amortizedValue += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
             }
         }
-        return assets;
+        // The discounted net credit is at most the net credit.
+        unearnedInterest = netCreditSum - amortizedValue;
     }
 }

@@ -53,6 +53,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Sell(
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
+    event DeferShortfall(
+        bytes32 indexed marketId, uint256 shortfall, uint256 newDeferredShortfall, uint256 newReleaseEnd
+    );
 
     /* ERRORS */
 
@@ -84,7 +87,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error OtherSellInProgress();
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
-    error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
     error ForceSellPriceTooLow();
@@ -113,6 +115,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyBoughtNetCredit() external view returns (uint256);
     function maxNetSellRate() external view returns (uint64);
+    function deferredShortfall() external view returns (uint128);
+    function releaseStart() external view returns (uint64);
+    function releaseEnd() external view returns (uint64);
+    function remainingShortfall() external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
