@@ -286,7 +286,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function setMaxRate(uint256 newMaxRate) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(newMaxRate <= MAX_MAX_RATE, MaxRateTooHigh());
-        updateRealAssets(bytes32(0), 0, 0, 0, 0);
+        lastRealAssets = MathLib.min(netCreditExcept(bytes32(0)), maxRealAssets()).toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+        lastUpdate = uint64(block.timestamp);
         // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
         maxRate = uint64(newMaxRate);
         emit SetMaxRate(msg.sender, newMaxRate);
@@ -342,7 +344,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = marketData[marketId].netCredit;
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        updateRealAssets(marketId, oldLiveNetCredit, newNetCredit, 0, withdrawnAssets);
+        uint256 otherNetCredit = netCreditExcept(marketId);
+        uint256 oldRealAssets = MathLib.min(otherNetCredit + oldLiveNetCredit, maxRealAssets());
+        lastRealAssets =
+            MathLib.min(otherNetCredit + newNetCredit, oldRealAssets.zeroFloorSub(withdrawnAssets)).toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+        lastUpdate = uint64(block.timestamp);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         // forge-lint: disable-next-item(reentrancy-no-eth) real assets are checkpointed before the adapter callback.
         IVaultV2(parentVault)
@@ -424,7 +431,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 oldNetCredit = marketData[marketId].netCredit;
             marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            updateRealAssets(marketId, oldLiveNetCredit, newNetCredit, 0, assets);
+            uint256 otherNetCredit = netCreditExcept(marketId);
+            uint256 oldRealAssets = MathLib.min(otherNetCredit + oldLiveNetCredit, maxRealAssets());
+            lastRealAssets = MathLib.min(otherNetCredit + newNetCredit, oldRealAssets.zeroFloorSub(assets)).toUint128();
+            // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+            lastUpdate = uint64(block.timestamp);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
@@ -518,7 +529,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        updateRealAssets(marketId, newNetCredit - boughtNetCredit, newNetCredit, paidAssets, 0);
+        uint256 otherNetCredit = netCreditExcept(marketId);
+        uint256 oldRealAssets = MathLib.min(otherNetCredit + newNetCredit - boughtNetCredit, maxRealAssets());
+        lastRealAssets = MathLib.min(otherNetCredit + newNetCredit, oldRealAssets + paidAssets).toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+        lastUpdate = uint64(block.timestamp);
 
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -558,8 +573,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        (uint256 oldRealAssets, uint256 newRealAssets) =
-            updateRealAssets(marketId, newNetCredit + soldNetCredit, newNetCredit, 0, sellerAssets);
+        uint256 otherNetCredit = netCreditExcept(marketId);
+        uint256 oldRealAssets = MathLib.min(otherNetCredit + newNetCredit + soldNetCredit, maxRealAssets());
+        uint256 newRealAssets = MathLib.min(otherNetCredit + newNetCredit, oldRealAssets.zeroFloorSub(sellerAssets));
+        lastRealAssets = newRealAssets.toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
+        lastUpdate = uint64(block.timestamp);
         if (!_marketData.forceSellable) require(newRealAssets + sellerAssets >= oldRealAssets, RealAssetsDecrease());
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -597,22 +616,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             mstore(0, marketIds.slot)
             marketId := sload(add(keccak256(0, 32), i))
         }
-    }
-
-    /// @dev Stores realAssets after marketId's net credit went from oldNetCredit to newNetCredit, with assetsIn received and assetsOut sent.
-    function updateRealAssets(
-        bytes32 marketId,
-        uint256 oldNetCredit,
-        uint256 newNetCredit,
-        uint256 assetsIn,
-        uint256 assetsOut
-    ) internal returns (uint256 oldRealAssets, uint256 newRealAssets) {
-        uint256 otherNetCredit = netCreditExcept(marketId);
-        oldRealAssets = MathLib.min(otherNetCredit + oldNetCredit, maxRealAssets());
-        newRealAssets = MathLib.min(otherNetCredit + newNetCredit, (oldRealAssets + assetsIn).zeroFloorSub(assetsOut));
-        lastRealAssets = newRealAssets.toUint128();
-        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
-        lastUpdate = uint64(block.timestamp);
     }
 
     function netCreditExcept(bytes32 excludedMarketId) internal view returns (uint256 totalNetCredit) {
