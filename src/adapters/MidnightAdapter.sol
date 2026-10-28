@@ -591,6 +591,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
+    /// @dev Returns marketIds[i] without the bounds check. Assumes i < marketIds.length.
+    function marketIdAt(uint256 i) internal view returns (bytes32 marketId) {
+        assembly ("memory-safe") {
+            mstore(0, marketIds.slot)
+            marketId := sload(add(keccak256(0, 32), i))
+        }
+    }
+
     /// @dev Stores realAssets after marketId's net credit went from oldNetCredit to newNetCredit, with assetsIn received and assetsOut sent.
     function updateRealAssets(
         bytes32 marketId,
@@ -609,7 +617,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function netCreditExcept(bytes32 excludedMarketId) internal view returns (uint256 totalNetCredit) {
         for (uint256 i; i < marketIds.length; i++) {
-            bytes32 marketId = marketIds[i];
+            bytes32 marketId = marketIdAt(i);
             if (marketId == excludedMarketId) continue;
             MarketData storage _marketData = marketData[marketId];
             uint256 netCredit;
