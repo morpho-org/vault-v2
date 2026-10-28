@@ -17,7 +17,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Bad debt is immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the bad debt and the adapter's position in the market hit by it.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
