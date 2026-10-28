@@ -38,14 +38,15 @@ Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to c
 
 Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
 Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
-One gate can be the `enterGate` of any number of markets, on any Midnight.
+One gate can be the enterGate of any number of markets.
 For ordinary permission checks, the gate calls its `subGate` with the account.
 During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The adapter sells through its own offer, without callback, and clears the admission as soon as its sale returns.
+The gate checks the selling adapter's liquidation lock to prevent buyer callbacks from reusing admission.
 
 ### `VaultV2CompatibleEnterGateFactory`
 
 Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
-The factory records each gate in `isCreated[gate]` and indexes it by subgate and salt in `vaultV2CompatibleEnterGate`.
+The factory records each gate in `isCreated[gate]` and indexes it by subgate, Midnight and salt in `vaultV2CompatibleEnterGate`.
 
 ### `WhitelistEnterSubGate`
 

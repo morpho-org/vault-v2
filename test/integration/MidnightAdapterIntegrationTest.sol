@@ -319,7 +319,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
+        address enterGateFactory = deployCode(
+            "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(midnight))
+        );
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode(
                 "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
