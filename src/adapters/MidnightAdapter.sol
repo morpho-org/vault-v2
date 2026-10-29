@@ -472,6 +472,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
+        // Exclude the unpaid purchase from realAssets during the following accrueInterest call.
+        // If firstTotalAssets != 0, later accruals in this transaction use the vault's cached valuation.
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
@@ -493,6 +495,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             removeMarket(id);
         }
 
+        // Funding can reenter as stored credit already accounts for the in-progress buy.
         (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
