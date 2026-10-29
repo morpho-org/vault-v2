@@ -468,8 +468,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (forceSelling) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             forceSelling = false;
-            // unadmit is a noop if the user did not need admission.
-            if (market.enterGate != address(0)) IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
+            if (enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
+                IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
+            }
             return CALLBACK_SUCCESS;
         }
         require(buyer == address(this), NotSelf());

@@ -8,10 +8,7 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
-/// @dev roleSetter must register only factories whose adapters follow the admission rules, including after upgrades.
-/// @dev Registered factories must not revoke adapter membership.
-/// @dev Registration is permanent. Revoking subgate approval does not revoke canAdmit.
-/// @dev No factory can admit until roleSetter calls addAdmitterFactory.
+/// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
 
@@ -34,10 +31,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
-    /// @dev The contract calling this function should not have debt.
-    /// @dev The caller must use admission only for its own sale, in which it must be the buyer callback.
-    /// @dev A contract calling this function must clear the buyer in that buyer callback, before Midnight transfers the loan token.
-    /// @dev The caller must check that the buyer holds shares in its parent vault.
+    /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
     function admit(address user, address factory) external {
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 

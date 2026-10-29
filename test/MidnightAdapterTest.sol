@@ -3739,6 +3739,23 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), hasShares ? 0.5e18 : 0);
     }
 
+    function testEnterGateForceDeallocateWithoutAdmission() public {
+        setUpEnterGateRealVault(false);
+        EnterGateMock gate = new EnterGateMock();
+        gate.setCanIncreaseCredit(address(adapter), true);
+        gate.setCanIncreaseDebt(taker, true);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(address(gate), true);
+        take(boughtOffer);
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
+        gate.setCanIncreaseCredit(buyer, true);
+
+        realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
+
+        assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
+        assertEq(adapter.marketData(_marketId(boughtOffer.market)).netCredit, 0.5e18);
+    }
+
     /// forge-config: default.isolate = false
     function testEnterGateShareholderExitBypassesRevertingSubGate() public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
