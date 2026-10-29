@@ -10,12 +10,11 @@ import {IEnterGateFactory} from "../../src/periphery/gates/interfaces/IEnterGate
 
 contract VaultV2CompatibleEnterGateFactoryTest is Test {
     VaultV2CompatibleEnterGateFactory internal factory;
-    address internal midnight = makeAddr("midnight");
     address internal gate = makeAddr("gate");
     address internal adapterFactory = makeAddr("adapterFactory");
 
     function setUp() public {
-        factory = new VaultV2CompatibleEnterGateFactory(address(midnight));
+        factory = new VaultV2CompatibleEnterGateFactory();
     }
 
     function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate) public {
@@ -23,7 +22,6 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         vm.prank(caller);
         address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, bytes32(0));
 
-        assertEq(factory.midnight(), midnight);
         assertEq(factory.vaultV2CompatibleEnterGate(forwardedGate, bytes32(0)), created);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
@@ -32,7 +30,6 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         assertEq(logs[0].topics[1], bytes32(uint256(uint160(created))));
         assertEq(logs[0].topics[2], bytes32(uint256(uint160(forwardedGate))));
         assertEq(logs[0].data.length, 0);
-        assertEq(VaultV2CompatibleEnterGate(created).midnight(), midnight);
         assertTrue(IEnterGateFactory(address(factory)).isCreated(created));
         assertEq(VaultV2CompatibleEnterGate(created).subGate(), forwardedGate);
         assertFalse(VaultV2CompatibleEnterGate(created).canAdmit(adapterFactory));
@@ -51,8 +48,8 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     }
 
     function testIsCreatedRejectsUnregisteredGates() public {
-        address direct = address(new VaultV2CompatibleEnterGate(gate, address(midnight)));
-        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory(address(midnight));
+        address direct = address(new VaultV2CompatibleEnterGate(gate));
+        VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
         address other = otherFactory.createVaultV2CompatibleEnterGate(gate, bytes32(0));
 
         assertFalse(factory.isCreated(address(0)));

@@ -4,7 +4,6 @@ pragma solidity 0.8.37;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
-import {IVaultV2CompatibleEnterGateFactory} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
@@ -37,13 +36,9 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         address enterGateFactory,
         bytes32 salt
     ) external returns (address) {
-        require(
-            enterGateFactory == address(0)
-                || IVaultV2CompatibleEnterGateFactory(enterGateFactory).midnight() == midnight,
-            EnterGateFactoryMidnightMismatch()
+        address _midnightAdapter = address(
+            new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory)
         );
-        address _midnightAdapter =
-            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory));
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][enterGateFactory][salt] = _midnightAdapter;
         isCreated[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, enterGateFactory);

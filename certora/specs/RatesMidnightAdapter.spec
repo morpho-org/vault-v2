@@ -13,6 +13,7 @@ definition WAD() returns mathint = 10 ^ 18;
 
 // Check that a buy reverts in a forceSellable market.
 rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
+    require !currentContract.forceSelling, "assume the adapter is buying, not force selling";
     require currentContract.marketData[marketId].forceSellable, "assume the market is forceSellable";
 
     onBuy@withrevert(e, marketId, market, paidAssets, boughtCredit, buyPendingFeeIncrease, buyer, callbackData);
@@ -22,6 +23,7 @@ rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Ma
 
 // Check that a buy reverts if the market is matured or its time to maturity is above maxTtm.
 rule buyRevertsIfTtmOutOfBounds(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
+    require !currentContract.forceSelling, "assume the adapter is buying, not force selling";
     mathint ttm = market.maturity - e.block.timestamp;
     require ttm <= 0 || ttm > maxTtm(), "assume the time to maturity is out of bounds";
 
@@ -32,6 +34,7 @@ rule buyRevertsIfTtmOutOfBounds(env e, bytes32 marketId, MidnightAdapter.Market 
 
 // Check that a buy reverts if its net rate is below minNetBuyRate.
 rule buyRevertsIfNetRateTooLow(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
+    require !currentContract.forceSelling, "assume the adapter is buying, not force selling";
     mathint ttm = market.maturity - e.block.timestamp;
     mathint boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
 

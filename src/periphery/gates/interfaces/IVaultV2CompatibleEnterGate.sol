@@ -17,10 +17,9 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* FUNCTIONS */
 
     function subGate() external view returns (address);
-    function midnight() external view returns (address);
     function canAdmit(address factory) external view returns (bool);
     function roleSetter() external view returns (address);
     function addAdmitterFactory(address factory) external;
-    function admit(address user, address factory, bytes32 marketId) external;
+    function admit(address user, address factory) external;
     function unadmit() external;
 }

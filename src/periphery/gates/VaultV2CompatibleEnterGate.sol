@@ -3,26 +3,21 @@
 pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
-import {IMidnight} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
-/// @dev Any market on midnight can use this gate as its enterGate. The subgate's permissions apply to all of them.
-/// @dev roleSetter permanently registers adapter factories; their adapters admit a vault shareholder only during their own sale, which has no callbacks.
+/// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
+/// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
-    address public immutable midnight;
 
     mapping(address factory => bool) public canAdmit;
 
     address transient admitted;
-    address transient admitter;
-    bytes32 transient admittedMarketId;
 
-    constructor(address _subGate, address _midnight) {
+    constructor(address _subGate) {
         subGate = _subGate;
-        midnight = _midnight;
     }
 
     function roleSetter() public view returns (address) {
@@ -36,29 +31,21 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
-    /// @dev The caller must be a debt-free adapter from a registered factory that checked the buyer holds its vault's shares, and must unadmit right after its sale on midnight in marketId.
-    function admit(address user, address factory, bytes32 marketId) external {
+    /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
+    function admit(address user, address factory) external {
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;
-        admitter = msg.sender;
-        admittedMarketId = marketId;
         emit Admit(msg.sender, user, factory);
     }
 
-    /// @dev Clear the admission, should be called after taking the buyer's offer.
+    /// @dev Clear the admission, should be called from the buyer callback of the buyer's take.
     function unadmit() external {
         admitted = address(0);
-        admitter = address(0);
-        admittedMarketId = bytes32(0);
     }
 
-    /// @dev Admission cannot be used during the admitting adapter's sale callbacks.
     function canIncreaseCredit(address account) external view returns (bool) {
-        return (admitted != address(0)
-                && account == admitted
-                && !IMidnight(midnight).liquidationLocked(admittedMarketId, admitter))
-            || IEnterSubGate(subGate).creditIncreaseAllowed(account);
+        return (admitted != address(0) && account == admitted) || IEnterSubGate(subGate).creditIncreaseAllowed(account);
     }
 
     function canIncreaseDebt(address account) external view returns (bool) {
