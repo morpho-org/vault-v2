@@ -1006,6 +1006,16 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
+    function testBuyNetRateAboveUint64() public {
+        uint256 tick = TickLib.priceToTick(0.01e18, DEFAULT_TICK_SPACING);
+        Offer memory offer = buy(1, 1e18, tick);
+        MarketData memory data = adapter.marketData(_marketId(offer.market));
+
+        assertGt(data.netRate, type(uint64).max, "rate exceeds uint64");
+        assertEq(data.maturity, offer.market.maturity, "maturity");
+        assertApproxEqAbs(adapter.realAssets(), 1e18, 1, "assets");
+    }
+
     function testBuyNetRateOverflowReverts() public {
         uint256 price = TickLib.tickToPrice(DEFAULT_TICK_SPACING);
         assertGt(price, 0, "lowest nonzero price");

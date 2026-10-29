@@ -10,8 +10,8 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
-    uint64 netRate;
-    uint48 maturity;
+    uint72 netRate;
+    uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, its own netRate isn't reduced on sale shortfalls; listed markets absorb what they can.
@@ -152,8 +152,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint64 netRate,
-            uint48 maturity,
+            uint72 netRate,
+            uint40 maturity,
             uint8 index,
             bool forceSellable,
             uint256 minForceSellPrice
