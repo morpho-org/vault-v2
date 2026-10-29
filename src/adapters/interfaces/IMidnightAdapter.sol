@@ -14,7 +14,7 @@ struct MarketData {
     uint48 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
+    /// @dev When activated, its own netRate isn't reduced on sale shortfalls; listed markets absorb what they can.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -44,7 +44,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
-    event ReorderMarkets(address indexed caller, bytes32[] newMarketIds);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
@@ -60,43 +59,43 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
 
     error Abdicated();
     error AutomaticallyTimelocked();
-    error DataAlreadyPending();
-    error DataNotTimelocked();
-    error DurationAbsoluteCapExceeded();
-    error DurationRelativeCapExceeded();
-    error DurationZeroAbsoluteCap();
-    error TooManyDurations();
-    error DurationsNotIncreasing();
-    error DurationTooHigh();
     error BuyAtLoss();
     error UnauthorizedBuy();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
+    error DataAlreadyPending();
+    error DataNotTimelocked();
+    error DuplicateMarket();
+    error DurationAbsoluteCapExceeded();
+    error DurationRelativeCapExceeded();
+    error DurationTooHigh();
+    error DurationZeroAbsoluteCap();
+    error DurationsNotIncreasing();
+    error ForceSellPriceTooLow();
     error IncorrectCallbackAddress();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
     error LoanAssetMismatch();
+    error MarketNotHeld();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
-    error NotAPermutation();
+    error NetBuyRateTooLow();
+    error NetSellRateTooHigh();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
-    error NonEmptyCallbackData();
     error OtherSellInProgress();
-    error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
-    error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
-    error ForceSellPriceTooLow();
-    error NetSellRateTooHigh();
+    error ShortfallTooHigh();
     error SubRatifierFailed();
     error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
+    error TooManyDurations();
     error TooManyMarkets();
 
     /* FUNCTIONS */
@@ -143,7 +142,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
-    function reorderMarkets(bytes32[] calldata newMarketIds) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
 }

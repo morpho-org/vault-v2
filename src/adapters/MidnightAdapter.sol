@@ -31,9 +31,11 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
+/// @dev Sell offer callbackData, or takerCallbackData in take, must be abi.encode(bytes32[] marketIds).
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate of markets in marketIds order, down to zero, so the amortized value of the adapter decreases only by the received assets.
-/// @dev Markets with a sale in progress or force sellable do not absorb shortfalls.
+/// @dev A shortfall decreases the rates of listed markets in list order, down to zero. The sold market absorbs only if listed.
+/// @dev An empty list makes sales with a shortfall revert, except in forceSellable markets, where any unabsorbed shortfall is a loss.
+/// @dev Listed markets that are not held or listed twice revert when reached.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -285,28 +287,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
-    /// @dev newMarketIds must be a permutation of marketIds.
-    function reorderMarkets(bytes32[] calldata newMarketIds) external {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(newMarketIds.length == marketIds.length, InvalidLength());
-
-        uint256 seen;
-        for (uint256 i; i < newMarketIds.length; i++) {
-            uint256 index = marketData[newMarketIds[i]].index;
-            require(marketIds[index] == newMarketIds[i] && ((seen >> index) & 1) == 0, NotAPermutation());
-            seen |= 1 << index;
-        }
-
-        for (uint256 i; i < newMarketIds.length; i++) {
-            marketIds[i] = newMarketIds[i];
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
-            marketData[newMarketIds[i]].index = uint8(i);
-        }
-
-        emit ReorderMarkets(msg.sender, newMarketIds);
-    }
-
     function setConsumed(bytes32 group, uint128 amount) external {
         require(
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
@@ -556,49 +536,54 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         address,
         bytes memory callbackData
     ) external returns (bytes32) {
+        bytes32[] memory shortfallMarketIds = abi.decode(callbackData, (bytes32[]));
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
-        require(callbackData.length == 0, NonEmptyCallbackData());
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData storage _marketData = marketData[marketId];
+        uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
-            uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-            if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 remainingShortfall = shortfall;
-                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
-                    bytes32 id = marketIds[i];
-                    MarketData storage otherMarketData = marketData[id];
-                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                    if (
-                        otherMarketData.forceSellable || otherTtm == 0 || otherMarketData.netRate == 0
-                            || (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this)))
-                    ) continue;
-                    uint128 netCredit;
-                    if (id == marketId) {
-                        netCredit = newNetCredit;
-                    } else if (IMidnight(midnight).lossFactor(id) == 0) {
-                        netCredit = otherMarketData.netCredit;
-                    } else {
-                        netCredit = currentNetCredit(id);
-                    }
-                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                    uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit.zeroFloorSub(amortizedValue));
-                    if (shortfallReduction == 0) continue;
-                    uint256 newAmortizedValue = amortizedValue + shortfallReduction;
-                    otherMarketData.netRate =
-                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
-                    remainingShortfall -= shortfallReduction;
-                    emit ReduceRate(id, otherMarketData.netRate);
+        }
+        uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+        if (shortfall > 0) {
+            if (!_marketData.forceSellable) require(!noSalesWithShortfall, SalesWithShortfallDisabled());
+            uint256 remainingShortfall = shortfall;
+            uint256 seen;
+            for (uint256 i; i < shortfallMarketIds.length && remainingShortfall > 0; i++) {
+                bytes32 id = shortfallMarketIds[i];
+                uint256 index = marketData[id].index;
+                require(marketIds[index] == id, MarketNotHeld());
+                require((seen >> index) & 1 == 0, DuplicateMarket());
+                seen |= 1 << index;
+                MarketData storage otherMarketData = marketData[id];
+                uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                if (
+                    otherMarketData.forceSellable || otherTtm == 0 || otherMarketData.netRate == 0
+                        || (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this)))
+                ) continue;
+                uint128 netCredit;
+                if (id == marketId) {
+                    netCredit = newNetCredit;
+                } else if (IMidnight(midnight).lossFactor(id) == 0) {
+                    netCredit = otherMarketData.netCredit;
+                } else {
+                    netCredit = currentNetCredit(id);
                 }
-                require(remainingShortfall == 0, ShortfallTooHigh());
+                uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit.zeroFloorSub(amortizedValue));
+                if (shortfallReduction == 0) continue;
+                uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                otherMarketData.netRate =
+                    (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
+                remainingShortfall -= shortfallReduction;
+                emit ReduceRate(id, otherMarketData.netRate);
             }
+            if (!_marketData.forceSellable) require(remainingShortfall == 0, ShortfallTooHigh());
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
