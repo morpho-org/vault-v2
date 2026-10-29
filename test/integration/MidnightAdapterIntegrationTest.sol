@@ -141,7 +141,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.repay(market, units, borrower, address(0), "");
         vm.stopPrank();
 
-        adapter.withdrawToVault(market, units);
+        vm.prank(allocator);
+        vault.deallocate(address(adapter), abi.encode(true, market), units);
         uint256 shares = vault.balanceOf(depositor);
         vm.startPrank(depositor);
         vault.redeem(shares, depositor, depositor);
@@ -305,7 +306,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         midnight.setIsAuthorized(address(adapter), true, depositor);
-        vault.forceDeallocate(address(adapter), abi.encode(market, depositor), units, depositor);
+        vault.forceDeallocate(address(adapter), abi.encode(false, market, depositor), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }

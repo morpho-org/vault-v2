@@ -267,7 +267,7 @@ contract MidnightAdapterGasTest is BaseTest {
 
         claimableSettlementFeeBefore = midnight.claimableSettlementFee(address(underlyingToken));
         continuousFeeCreditBefore = midnight.continuousFeeCredit(soldMarketId);
-        forceDeallocateData = abi.encode(soldMarket, address(exiter));
+        forceDeallocateData = abi.encode(false, soldMarket, address(exiter));
 
         assertEq(vault.forceDeallocatePenalty(address(adapter)), MAX_FORCE_DEALLOCATE_PENALTY);
         assertNotEq(performanceFeeRecipient, managementFeeRecipient, "fee recipients");
