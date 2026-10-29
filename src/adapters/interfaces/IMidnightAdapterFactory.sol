@@ -3,6 +3,10 @@
 pragma solidity >=0.8.4;
 
 interface IMidnightAdapterFactory {
+    /* ERRORS */
+
+    error EnterGateFactoryMidnightMismatch();
+
     /* EVENTS */
 
     event CreateMidnightAdapterFactory(address indexed midnight);
@@ -13,10 +17,6 @@ interface IMidnightAdapterFactory {
         address indexed midnightAdapter,
         address enterGateFactory
     );
-
-    /* ERRORS */
-
-    error EnterGateFactoryMidnightMismatch();
 
     /* FUNCTIONS */
 
