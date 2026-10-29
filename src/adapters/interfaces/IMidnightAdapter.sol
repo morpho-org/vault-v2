@@ -14,7 +14,6 @@ struct MarketData {
     uint48 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -110,6 +109,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
+    function floor() external view returns (uint128);
+    function floorHeadroom() external view returns (uint128);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyBoughtNetCredit() external view returns (uint256);
     function maxNetSellRate() external view returns (uint64);
