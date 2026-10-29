@@ -1732,8 +1732,10 @@ contract MidnightAdapterTest is Test {
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
-        vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault), allDurations, salt);
+        vm.expectEmit(address(factory));
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), allDurations, salt, newAdapter);
+        vm.prank(taker);
+        assertEq(factory.createMidnightAdapter(address(newVault), allDurations, salt), newAdapter, "existing adapter");
 
         address otherAdapter = factory.createMidnightAdapter(address(newVault), allDurations, differentSalt);
         assertTrue(otherAdapter != newAdapter, "different salts create different adapters");

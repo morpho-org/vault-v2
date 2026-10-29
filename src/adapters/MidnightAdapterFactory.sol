@@ -31,7 +31,9 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         external
         returns (address)
     {
-        address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
+        address _midnightAdapter = midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] != address(0)
+            ? midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt]
+            : address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);
