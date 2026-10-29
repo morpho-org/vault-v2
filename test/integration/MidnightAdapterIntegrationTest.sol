@@ -187,6 +187,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     function testTakerSell() public {
         testMakerBuy();
         Market memory market = _market(7 days);
+        bytes32[] memory shortfallMarketIds = new bytes32[](1);
+        shortfallMarketIds[0] = IdLib.toId(market);
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
@@ -217,7 +219,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
 
         vm.prank(allocator);
-        adapter.take(offer, ratifierData, units, "");
+        adapter.take(offer, ratifierData, units, abi.encode(shortfallMarketIds));
         // Only the sale's proceeds (price ~0.994) are idle.
         vm.prank(depositor);
         vault.withdraw(units * 99 / 100, depositor, depositor);
@@ -226,6 +228,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     function testMakerSell() public {
         testMakerBuy();
         Market memory market = _market(7 days);
+        bytes32[] memory shortfallMarketIds = new bytes32[](1);
+        shortfallMarketIds[0] = IdLib.toId(market);
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
@@ -237,7 +241,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             tick: TICK,
             group: keccak256(abi.encode("sell", market.maturity, units)),
             callback: address(adapter),
-            callbackData: "",
+            callbackData: abi.encode(shortfallMarketIds),
             receiverIfMakerIsSeller: address(adapter),
             ratifier: address(adapter),
             reduceOnly: true,
@@ -293,7 +297,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
 
         vm.prank(allocator);
-        adapter.take(offer, ratifierData, units, "");
+        adapter.take(offer, ratifierData, units, abi.encode(new bytes32[](0)));
     }
 
     function testForceDeallocate() public {
