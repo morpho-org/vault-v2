@@ -49,7 +49,6 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         admitted = user;
         admitter = msg.sender;
         admittedMarketId = marketId;
-        emit Admit(msg.sender, user, factory);
     }
 
     /// @dev Clear the admission, should be called after taking the buyer's offer.
