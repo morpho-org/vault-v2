@@ -119,7 +119,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
     /// @dev Consumed shortfall ratio plus cumulative refill.
-    /// @dev Replaces uint64 ratio + uint48 timestamp with uint88, saving 3 bytes in slot 7, not a whole slot.
+    /// @dev Saves storage: one uint88 instead of a uint64 ratio and a uint48 last update timestamp.
     uint88 public shortfallEnd;
     uint64 public maxShortfallRatio;
 
