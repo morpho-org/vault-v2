@@ -70,9 +70,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
-            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), address(0)))
+            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, address(0), bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );
@@ -323,20 +323,18 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             "VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory", abi.encode(address(midnight))
         );
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
-            deployCode(
-                "MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), enterGateFactory)
-            )
+            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
         IMidnightAdapter gatedAdapter =
-            IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
+            IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, enterGateFactory, bytes32(0)));
         IWhitelistEnterSubGateFactory subGateFactory =
             IWhitelistEnterSubGateFactory(deployCode("WhitelistEnterSubGateFactory.sol:WhitelistEnterSubGateFactory"));
         IWhitelistEnterSubGate subGate =
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
-        market.enterGate = IVaultV2CompatibleEnterGateFactory(factory.enterGateFactory())
+        market.enterGate = IVaultV2CompatibleEnterGateFactory(enterGateFactory)
             .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 

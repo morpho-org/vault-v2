@@ -10,42 +10,43 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
     address public immutable midnight;
-    address public immutable enterGateFactory;
 
     /* STORAGE */
 
     /// @dev durationsHash is keccak256(abi.encode(durations)).
-    mapping(address parentVault => mapping(bytes32 durationsHash => mapping(bytes32 salt => address))) public
-        midnightAdapter;
+    mapping(
+        address parentVault
+            => mapping(bytes32 durationsHash => mapping(address enterGateFactory => mapping(bytes32 salt => address)))
+    ) public midnightAdapter;
     mapping(address account => bool) public isCreated;
 
     /* CONSTRUCTOR */
 
-    /// @dev The enter gate factory must use the same Midnight because its gates check that Midnight's liquidation lock.
-    constructor(address _midnight, address _enterGateFactory) {
-        require(
-            _enterGateFactory == address(0)
-                || IVaultV2CompatibleEnterGateFactory(_enterGateFactory).midnight() == _midnight,
-            EnterGateFactoryMidnightMismatch()
-        );
+    constructor(address _midnight) {
         midnight = _midnight;
-        enterGateFactory = _enterGateFactory;
-        emit CreateMidnightAdapterFactory(_midnight, enterGateFactory);
+        emit CreateMidnightAdapterFactory(_midnight);
     }
 
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    /// @dev Adapters use the factory's enterGateFactory; deploy a factory with address(0) for ungated adapters.
-    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
-        external
-        returns (address)
-    {
+    /// @dev enterGateFactory is address(0) for ungated adapters; otherwise see the ENTER GATE requirements in MidnightAdapter.
+    function createMidnightAdapter(
+        address parentVault,
+        uint256[] memory durations,
+        address enterGateFactory,
+        bytes32 salt
+    ) external returns (address) {
+        require(
+            enterGateFactory == address(0)
+                || IVaultV2CompatibleEnterGateFactory(enterGateFactory).midnight() == midnight,
+            EnterGateFactoryMidnightMismatch()
+        );
         address _midnightAdapter =
             address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory));
-        midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
+        midnightAdapter[parentVault][keccak256(abi.encode(durations))][enterGateFactory][salt] = _midnightAdapter;
         isCreated[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);
+        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, enterGateFactory);
         return _midnightAdapter;
     }
 }

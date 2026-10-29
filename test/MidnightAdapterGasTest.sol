@@ -153,9 +153,9 @@ contract MidnightAdapterGasTest is BaseTest {
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
-            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), address(0)))
+            deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, address(0), bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );
