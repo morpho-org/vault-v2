@@ -3,6 +3,8 @@
 
 // Each rule assumes that a guardrail is not met, and checks that the call reverts.
 methods {
+    // valuation reads the portfolio markets and Midnight views.
+    function valuation(bytes32) internal returns (uint256, uint256) => NONDET;
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;

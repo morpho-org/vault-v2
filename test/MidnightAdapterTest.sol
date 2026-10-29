@@ -750,9 +750,9 @@ contract MidnightAdapterTest is Test {
         assertEq(data.netCredit, 100e18 - sold);
         assertEq(data.netRate, rate, "sale does not change the market rate");
         if (shortfall > 0) {
-            assertApproxEqAbs(adapterFloor(), assetsBefore - proceeds, 3, "shortfall is deferred by the portfolio");
+            assertLt(adapterUnearnedCap(), type(uint128).max, "shortfall activates the cap");
         } else {
-            assertEq(adapterFloor(), 0, "a sale without a shortfall does not establish a floor");
+            assertEq(adapterUnearnedCap(), type(uint128).max, "no shortfall leaves the cap inactive");
         }
         assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
         assertApproxEqAbs(adapter.realAssets() + proceeds, assetsBefore, 3, "sale proceeds offset the book value");
@@ -846,9 +846,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, low + 1, tick);
         sellUnits(offer.market, low, tick);
         assertEq(adapter.marketData(marketId).netRate, rate, "sale preserves the rate");
-        assertApproxEqAbs(
-            adapterFloor(), adapter.marketData(marketId).netCredit, 1, "all remaining interest is deferred"
-        );
+        assertEq(adapterUnearnedCap(), 0, "sale consumes all remaining unearned interest");
         assertApproxEqAbs(adapter.realAssets(), adapter.marketData(marketId).netCredit, 1, "carried at par");
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
@@ -2530,8 +2528,6 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 5);
-        assertEq(adapterFloor(), 5, "sale uses the remaining interest");
-        assertEq(adapterFloorHeadroom(), 0);
         assertEq(adapter.realAssets(), 5);
         assertEq(loanToken.balanceOf(address(parentVault)), 5);
     }
@@ -3993,7 +3989,6 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, MAX_TICK);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
-        assertEq(adapterFloor(), 0);
     }
 
     function testShortfallUsesAmortizedValue() public {
@@ -4035,114 +4030,71 @@ contract MidnightAdapterTest is Test {
         assertGe(adapter.realAssets(), current, "second warp cannot reduce portfolio value");
     }
 
-    function testBookFloorStaysFlatUntilInterestRepaid() public {
+    function testUnearnedCapKeepsBackingFlatUntilInterestRepaid() public {
+        Offer memory offer = buyAtDiscount(30 days, 100e18);
+        uint256 backingBefore = adapter.realAssets() + loanToken.balanceOf(address(parentVault));
+        this.sellWithShortfall(offer.market, 0.1e18);
+        uint256 valueAfterSale = adapter.realAssets();
+        assertApproxEqAbs(
+            adapter.realAssets() + loanToken.balanceOf(address(parentVault)),
+            backingBefore,
+            3,
+            "sale proceeds preserve backing"
+        );
+        assertLt(adapterUnearnedCap(), type(uint128).max);
+        skip(1);
+        assertEq(adapter.realAssets(), valueAfterSale, "interest below the loss does not grow book value");
+        skip(15 days);
+        assertGt(adapter.realAssets(), valueAfterSale, "earned interest repays the loss");
+        skip(offer.market.maturity - block.timestamp);
+        assertEq(adapter.realAssets(), adapter.marketData(_marketId(offer.market)).netCredit);
+    }
+
+    function testUnearnedCapWorkedExample() public {
+        Offer memory x = buy(100 days, 50e18, MAX_TICK);
+        Offer memory y = buy(101 days, 100e18, MAX_TICK);
+        setNetRate(_marketId(x.market), 0);
+        setNetRate(_marketId(y.market), uint256(2.28e18).mulDivDown(1e18, 97.72e18 * 11 days));
+        skip(90 days);
+        uint256 tick = TickLib.priceToTick(0.97e18, DEFAULT_TICK_SPACING);
+        sellUnits(x.market, 50e18, tick);
+        assertApproxEqAbs(adapterUnearnedCap(), 0.78e18, 0.03e18);
+        assertApproxEqAbs(adapter.realAssets(), 99.22e18, 0.03e18);
+        assertApproxEqAbs(adapterRemainingShortfall(), 1.5e18, 0.03e18);
+    }
+
+    function testBuyDuringDeferralChangesRealAssetsByPaidAssets() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         this.sellWithShortfall(offer.market, 0.1e18);
-        uint256 floor_ = adapterFloor();
-        uint256 rate = adapter.marketData(_marketId(offer.market)).netRate;
-        uint256 netCredit = adapter.marketData(_marketId(offer.market)).netCredit;
-
-        assertEq(adapter.realAssets(), floor_, "sale establishes the floor");
-        skip(1);
-        assertEq(adapter.realAssets(), floor_, "interest below the loss does not grow book value");
-
-        skip(15 days);
-        uint256 ttm = offer.market.maturity - block.timestamp;
-        uint256 expectedValue = netCredit.mulDivDown(1e18, 1e18 + rate * ttm);
-        assertEq(adapter.realAssets(), expectedValue > floor_ ? expectedValue : floor_);
-        assertGt(adapter.realAssets(), floor_, "earned interest repays the loss");
-        skip(ttm);
-        assertEq(adapter.realAssets(), netCredit, "value grows to net credit at maturity");
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 idleBefore = loanToken.balanceOf(address(parentVault));
+        buyAtDiscount(7 days, 1e18);
+        uint256 paidAssets = idleBefore - loanToken.balanceOf(address(parentVault));
+        assertApproxEqAbs(adapter.realAssets() - assetsBefore, paidAssets, 3);
+        assertApproxEqAbs(
+            adapter.realAssets() + loanToken.balanceOf(address(parentVault)), assetsBefore + idleBefore, 3
+        );
     }
 
-    function testBookFloorWorkedPortfolioExample() public {
-        uint256 xCredit = ((100e18 + 195) / 196) * 196;
-        uint256 yCredit = ((97e18 + 193) / 194) * 194;
-        Offer memory x = buyAtDiscount(2, xCredit);
-        Offer memory y = buyAtDiscount(3, yCredit);
-        uint256 xRate = xCredit / 98 - 1e18;
-        uint256 yRate = (yCredit / 97 - 1e18) / 2;
-        setNetRate(_marketId(x.market), xRate);
-        setNetRate(_marketId(y.market), yRate);
-        skip(1);
-        assertApproxEqAbs(adapter.realAssets(), 195e18, 500, "book values are approximately 98 and 97");
-
-        uint256 backingBefore = floorBacking();
-        uint256 sold = xCredit / 2;
-        uint256 tick = TickLib.priceToTick(0.96e18, DEFAULT_TICK_SPACING);
-        uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        sellUnits(x.market, sold, tick);
-
-        assertApproxEqAbs(adapterFloor(), 147e18, 0.03e18, "the sale leaves a portfolio floor near 147");
-        assertApproxEqAbs(floorBacking(), backingBefore, 0.03e18, "floor and sale proceeds preserve backing");
-        assertApproxEqAbs(proceeds, 48e18, 0.03e18, "tick rounding around the 48-unit proceeds");
-    }
-
-    function testActiveFloorCashAccounting() public {
+    function testSaleAboveBookRepaysDeferredLossFirst() public {
         Offer memory first = buyAtDiscount(30 days, 100e18);
         Offer memory second = buyAtDiscount(31 days, 100e18);
         this.sellWithShortfall(first.market, 0.1e18);
-        assertGt(adapterFloor(), 0);
-
-        uint256 beforeBacking = floorBacking();
-        buy(7 days, 1e18, discountTick);
-        assertApproxEqAbs(floorBacking(), beforeBacking, 5, "idle-funded buy moves value from idle to book");
-
-        beforeBacking = floorBacking();
-        uint256 storedValueBefore = storedPortfolioValue();
-        uint256 deferredLoss = adapterFloor() > storedValueBefore ? adapterFloor() - storedValueBefore : 0;
+        uint256 backingBefore = adapter.realAssets() + loanToken.balanceOf(address(parentVault));
         uint256 rate = adapter.marketData(_marketId(second.market)).netRate;
         uint256 ttm = second.market.maturity - block.timestamp;
         uint256 bookSold = uint256(1e18).mulDivDown(1e18, 1e18 + rate * ttm);
-        uint256 gain = 1e18 - bookSold;
+        uint256 deferredLoss = unearnedInterest().zeroFloorSub(adapterUnearnedCap());
         sellUnits(second.market, 1e18, MAX_TICK);
-        assertApproxEqAbs(
-            floorBacking() - beforeBacking,
-            gain > deferredLoss ? gain - deferredLoss : 0,
-            5,
-            "gain repays deferred loss first"
-        );
-
-        deal(address(loanToken), address(this), 0.5e18);
-        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
-        midnight.repay(second.market, 0.5e18, taker, address(0), "");
-
-        beforeBacking = floorBacking();
-        adapter.withdrawToVault(second.market, 0.5e18);
-        assertApproxEqAbs(floorBacking(), beforeBacking, 5, "withdrawal moves value to vault idle");
+        uint256 gain = 1e18 - bookSold;
+        uint256 backingAfter = adapter.realAssets() + loanToken.balanceOf(address(parentVault));
+        assertApproxEqAbs(backingAfter - backingBefore, gain > deferredLoss ? gain - deferredLoss : 0, 5);
     }
 
-    function testActiveFloorForceDeallocateAccounting() public {
+    function testNonShortfallSaleUnderflowsUnearnedCap() public {
         Offer memory first = buyAtDiscount(30 days, 100e18);
         Offer memory second = buyAtDiscount(31 days, 100e18);
-        this.sellWithShortfall(first.market, 0.1e18);
-
-        uint256 beforeBacking = floorBacking();
-        uint256 storedValueBefore = storedPortfolioValue();
-        uint256 deferredLoss = adapterFloor() > storedValueBefore ? adapterFloor() - storedValueBefore : 0;
-        uint256 rate = adapter.marketData(_marketId(second.market)).netRate;
-        uint256 ttm = second.market.maturity - block.timestamp;
-        uint256 bookSold = uint256(0.5e18).mulDivDown(1e18, 1e18 + rate * ttm);
-        uint256 gain = 0.5e18 - bookSold;
-
-        deal(address(loanToken), address(this), 2e18);
-        forceDeallocate(second.market, 0.5e18);
-
-        assertApproxEqAbs(
-            floorBacking() - beforeBacking,
-            gain > deferredLoss ? gain - deferredLoss : 0,
-            5,
-            "force-deallocation gains repay deferred loss first"
-        );
-    }
-
-    function testNonShortfallSaleCannotExceedFloorHeadroom() public {
-        Offer memory first = buyAtDiscount(30 days, 100e18);
-        Offer memory second = buyAtDiscount(31 days, 100e18);
-        uint256 remainingInterest = unearnedInterest();
-        this.sellWithShortfall(first.market, remainingInterest * 85 / 100);
-        assertLt(adapterFloorHeadroom(), 0.6e18);
-
+        this.sellWithShortfall(first.market, unearnedInterest() * 85 / 100);
         uint256 rate = adapter.marketData(_marketId(second.market)).netRate;
         uint256 ttm = second.market.maturity - block.timestamp;
         uint256 bookPrice = 1e36 / (1e18 + rate * ttm);
@@ -4150,19 +4102,26 @@ contract MidnightAdapterTest is Test {
         uint256 proceeds = uint256(20e18).mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 bookSold = uint256(20e18).mulDivUp(1e18, 1e18 + rate * ttm);
         assertGe(proceeds, bookSold, "sale is not below book value");
-        assertGt(20e18 - proceeds, adapterFloorHeadroom(), "sale exceeds remaining headroom");
-
+        assertLt(adapterUnearnedCap(), 20e18 - proceeds);
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(second.market, 20e18, tick);
     }
 
-    function testFloorBadDebtIsAmortizedBeforeAndAfterSync(bool activeFloor) public {
+    function testForceSellUnderflowsUnearnedCap() public {
         Offer memory first = buyAtDiscount(30 days, 100e18);
-        if (activeFloor) {
-            Offer memory second = buyAtDiscount(31 days, 100e18);
-            this.sellWithShortfall(second.market, 0.001e18);
-        }
+        Offer memory second = buyAtDiscount(31 days, 100e18);
+        this.sellWithShortfall(first.market, unearnedInterest() * 85 / 100);
+        setForceSellable(_marketId(second.market));
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        sellUnits(second.market, 20e18, MAX_TICK);
+    }
 
+    function testBadDebtAccountingWithAndWithoutDeferral(bool activeDeferral) public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        if (activeDeferral) {
+            Offer memory second = buyAtDiscount(31 days, 100e18);
+            this.sellWithShortfall(second.market, unearnedInterest() * 85 / 100);
+        }
         uint256 beforeValue = adapter.realAssets();
         this.realizeDefault(first.market, ORACLE_PRICE_SCALE * 49 / 100);
         bytes32 marketId = _marketId(first.market);
@@ -4174,34 +4133,10 @@ contract MidnightAdapterTest is Test {
         uint256 writeDown = storedCredit.mulDivDown(1e18, 1e18 + rate * ttm)
             - (uint256(liveCredit) - pendingFee).mulDivDown(1e18, 1e18 + rate * ttm);
         uint256 valueAfterBadDebt = adapter.realAssets();
-        uint256 expectedBeforeSync = beforeValue - writeDown;
-        assertApproxEqAbs(valueAfterBadDebt, expectedBeforeSync, 2, "bad debt reduces amortized book value");
-
-        uint256 headroom = adapterFloorHeadroom();
-        assertTrue(!activeFloor || headroom > storedCredit - (uint256(liveCredit) - pendingFee));
+        uint256 loss = activeDeferral ? storedCredit - (uint256(liveCredit) - pendingFee) : writeDown;
+        assertApproxEqAbs(valueAfterBadDebt, beforeValue - loss, 2, "default loss follows the active cap");
         adapter.withdrawToVault(first.market, 0);
         assertApproxEqAbs(adapter.realAssets(), valueAfterBadDebt, 2, "sync does not realize the loss twice");
-    }
-
-    function testFloorClampDoesNotUnrealizeOnNextBuy() public {
-        Offer memory first = buyAtDiscount(30 days, 100e18);
-        Offer memory second = buyAtDiscount(31 days, 100e18);
-        this.sellWithShortfall(second.market, unearnedInterest() - 1e18);
-
-        bytes32 firstId = _marketId(first.market);
-        stdstore.enable_packed_slots()
-            .target(address(midnight))
-            .sig("lossFactor(bytes32)")
-            .with_key(firstId)
-            .checked_write(type(uint128).max - 1);
-
-        adapter.withdrawToVault(first.market, 0);
-        assertEq(adapterFloor(), netCreditSum(), "bad debt larger than headroom clamps the floor");
-        assertEq(adapterFloorHeadroom(), 0);
-
-        uint256 beforeBacking = floorBacking();
-        buy(7 days, 1e18, MAX_TICK);
-        assertApproxEqAbs(floorBacking(), beforeBacking, 5, "a later buy cannot unwind the clamp");
     }
 
     function testSaleBelowAmortizedValue(uint256 elapsed, uint256 sold, uint256 sellPrice) public {
@@ -4300,15 +4235,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.minNetBuyRate(), type(uint64).max);
         assertEq(adapter.maxNetSellRate(), type(uint64).max);
         assertFalse(adapter.noSalesWithShortfall());
-        assertEq(adapterFloor(), 0);
-        assertEq(adapterFloorHeadroom(), 0);
+        assertEq(adapterUnearnedCap(), type(uint128).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 6);
+        assertEq(reads.length, 5);
         assertEq(reads[0], reads[1], "maxTtm and minNetBuyRate share one slot");
         assertEq(reads[1], reads[2], "maxNetSellRate shares the same slot");
         assertEq(reads[2], reads[3], "noSalesWithShortfall shares the same slot");
-        assertNotEq(reads[3], reads[4], "floor data occupies its own slot");
-        assertEq(reads[4], reads[5], "floor and headroom share one slot");
+        assertNotEq(reads[3], reads[4], "unearnedCap occupies its own slot");
     }
 
     function testMarketDataPacking() public {
@@ -4346,7 +4279,7 @@ contract MidnightAdapterTest is Test {
             }
             if (!isMarketId) marketDataReads++;
         }
-        assertEq(marketDataReads, marketCount + 1, "one MarketData slot per market plus floor data");
+        assertEq(marketDataReads, marketCount + 1, "one MarketData slot per market plus cap data");
     }
 
     /* HELPERS */
@@ -4387,19 +4320,16 @@ contract MidnightAdapterTest is Test {
         return netCreditSum() - storedPortfolioValue();
     }
 
-    function floorBacking() internal view returns (uint256) {
-        return adapter.realAssets() + loanToken.balanceOf(address(parentVault));
+    function adapterUnearnedCap() internal view returns (uint128) {
+        (bool success, bytes memory result) = address(adapter).staticcall(abi.encodeWithSignature("unearnedCap()"));
+        assertTrue(success, "unearned cap getter unavailable");
+        return abi.decode(result, (uint128));
     }
 
-    function adapterFloor() internal view returns (uint256) {
-        (bool success, bytes memory result) = address(adapter).staticcall(abi.encodeWithSignature("floor()"));
-        assertTrue(success, "floor getter unavailable");
-        return abi.decode(result, (uint256));
-    }
-
-    function adapterFloorHeadroom() internal view returns (uint256) {
-        (bool success, bytes memory result) = address(adapter).staticcall(abi.encodeWithSignature("floorHeadroom()"));
-        assertTrue(success, "floor headroom getter unavailable");
+    function adapterRemainingShortfall() internal view returns (uint256) {
+        (bool success, bytes memory result) =
+            address(adapter).staticcall(abi.encodeWithSignature("remainingShortfall()"));
+        assertTrue(success, "remaining shortfall getter unavailable");
         return abi.decode(result, (uint256));
     }
 

@@ -4,10 +4,32 @@ pragma solidity ^0.8.0;
 
 import {MidnightAdapterGasTest} from "./MidnightAdapterGasTest.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {Market, Offer} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {MAX_TICK, TickLib} from "../lib/midnight/src/libraries/TickLib.sol";
 import {console} from "../lib/forge-std/src/console.sol";
 import {StdStorage, stdStorage} from "../lib/forge-std/src/StdStorage.sol";
+
+contract MidnightAdapterGasBatchCaller {
+    IMidnightAdapter internal immutable adapter;
+
+    constructor(IMidnightAdapter adapter_) {
+        adapter = adapter_;
+    }
+
+    function takeTwice(Offer memory firstOffer, Offer memory secondOffer)
+        external
+        returns (uint256 gasFirst, uint256 gasSecond)
+    {
+        uint256 beforeGas = gasleft();
+        adapter.take(firstOffer, hex"", firstOffer.maxUnits, abi.encode(address(0), bytes("")));
+        gasFirst = beforeGas - gasleft();
+
+        beforeGas = gasleft();
+        adapter.take(secondOffer, hex"", secondOffer.maxUnits, abi.encode(address(0), bytes("")));
+        gasSecond = beforeGas - gasleft();
+    }
+}
 
 contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
     bytes32 internal constant CALLBACK_SUCCESS = keccak256("morpho.midnight.callbackSuccess");
@@ -21,6 +43,8 @@ contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
         uint128[] memory lossFactors = new uint128[](maxMarkets);
 
         vm.pauseGasMetering();
+        MidnightAdapterGasBatchCaller batchCaller = new MidnightAdapterGasBatchCaller(adapter);
+        _submitAndSet(address(vault), abi.encodeCall(IVaultV2.setIsAllocator, (address(batchCaller), true)));
         vm.prank(curator);
         adapter.setMaxNetSellRate(type(uint64).max);
         for (uint256 i; i < maxMarkets; i++) {
@@ -29,17 +53,22 @@ contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
             _setLossFactor(marketId, 0);
         }
         vm.resumeGasMetering();
-        _runFixture(0, 1, "no bad debt");
+        _runFixture(batchCaller, 0, 1, "no bad debt");
 
         vm.pauseGasMetering();
         for (uint256 i; i < maxMarkets; i++) {
             _setLossFactor(adapter.marketIds(i), lossFactors[i]);
         }
         vm.resumeGasMetering();
-        _runFixture(2, 3, "unsynced bad debt");
+        _runFixture(batchCaller, 2, 3, "unsynced bad debt");
     }
 
-    function _runFixture(uint256 setupMarketIndex, uint256 benchmarkMarketIndex, string memory fixture) internal {
+    function _runFixture(
+        MidnightAdapterGasBatchCaller batchCaller,
+        uint256 setupMarketIndex,
+        uint256 benchmarkMarketIndex,
+        string memory fixture
+    ) internal {
         Market memory setupMarket = midnight.toMarket(adapter.marketIds(setupMarketIndex));
         Market memory benchmarkMarket = midnight.toMarket(adapter.marketIds(benchmarkMarketIndex));
 
@@ -58,28 +87,26 @@ contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
             _makeBuyOffer(benchmarkMarket, 1e18, MAX_TICK, keccak256(abi.encode(fixture, "sale-par")));
 
         vm.resumeGasMetering();
-        skip(1);
         vm.cool(address(adapter));
         vm.cool(address(vault));
         vm.cool(address(midnight));
         vm.cool(address(underlyingToken));
         vm.cool(address(collateralToken));
+        vm.cool(address(batchCaller));
         uint256 beforeGas = gasleft();
         (bool success, bytes memory returnData) = address(adapter).staticcall(abi.encodeWithSignature("realAssets()"));
         _logGas(fixture, "realAssets", beforeGas - gasleft(), success, returnData);
 
+        vm.warp(block.timestamp + 1);
         vm.cool(address(adapter));
         vm.cool(address(vault));
         vm.cool(address(midnight));
         vm.cool(address(underlyingToken));
         vm.cool(address(collateralToken));
-        beforeGas = gasleft();
-        (success, returnData) = _take(firstBuy);
-        _logGas(fixture, "first buy", beforeGas - gasleft(), success, returnData);
-
-        beforeGas = gasleft();
-        (success, returnData) = _take(secondBuy);
-        _logGas(fixture, "second buy", beforeGas - gasleft(), success, returnData);
+        vm.cool(address(batchCaller));
+        (uint256 gasFirst, uint256 gasSecond) = batchCaller.takeTwice(firstBuy, secondBuy);
+        _logGas(fixture, "first buy", gasFirst, true, bytes(""));
+        _logGas(fixture, "second buy", gasSecond, true, bytes(""));
 
         vm.cool(address(adapter));
         vm.cool(address(vault));
