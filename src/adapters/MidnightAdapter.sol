@@ -611,8 +611,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function currentPosition(bytes32 overrideMarketId, uint256 overrideNetCredit)
         internal
         view
-        returns (uint256 totalNetCredit, uint256 totalDiscount)
+        returns (uint256, uint256)
     {
+        uint256 totalNetCredit;
+        uint256 totalDiscount;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
@@ -635,6 +637,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 totalDiscount += netCredit - netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
             }
         }
+        return (totalNetCredit, totalDiscount);
     }
 
     function removeMarket(bytes32 marketId) internal {
