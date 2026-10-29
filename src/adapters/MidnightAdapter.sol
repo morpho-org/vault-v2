@@ -414,7 +414,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
-            if (enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
+            if (
+                market.enterGate != address(0) && enterGateFactory != address(0)
+                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+            ) {
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
             }
             forceSelling = true;
@@ -468,7 +471,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (forceSelling) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             forceSelling = false;
-            if (market.enterGate != address(0) && enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
+            if (
+                market.enterGate != address(0) && enterGateFactory != address(0)
+                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+            ) {
                 IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
