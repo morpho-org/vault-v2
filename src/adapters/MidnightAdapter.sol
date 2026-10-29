@@ -57,7 +57,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev useGateFactory relies on the fact that the gate factory correctly identifies its gates through isCreated. The adapter must be able to temporarily allow buyers to increase their credit by calling the gate's `admit` function, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
+/// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 /// @dev The gate's unadmit function must be a noop if nobody is currently admitted.
 ///
 /// TIMELOCKS
