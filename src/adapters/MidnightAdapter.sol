@@ -422,6 +422,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
+            // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
