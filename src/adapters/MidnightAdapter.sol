@@ -67,7 +67,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
-    using MathLib for uint48;
+    using MathLib for uint40;
     using PackedDurationsLib for bytes32;
 
     /* CONSTANTS */
@@ -480,12 +480,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit > 0) {
             uint256 amortizedValue =
                 (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + buyerAssets;
-            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
         }
 
         if (newNetCredit > 0 && oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
+            _marketData.maturity = market.maturity.toUint40();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
             _marketData.index = uint8(marketIds.length);
             marketIds.push(id);
@@ -559,7 +559,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
                 require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
         }
 
@@ -674,8 +674,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
-            uint64 netRate = _marketData.netRate;
-            uint48 maturity = _marketData.maturity;
+            uint72 netRate = _marketData.netRate;
+            uint40 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
@@ -685,7 +685,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
             }
-            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint64 * uint48) are << 2^256.
+            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint72 * uint40) are << 2^256.
             // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow either.
             unchecked {
                 assets += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
