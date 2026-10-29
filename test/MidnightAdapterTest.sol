@@ -4063,36 +4063,53 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketIdB).netRate, newRateB, "listed market absorbs the shortfall");
     }
 
-    function testReachedNotHeldShortfallMarketReverts() public {
-        (Offer memory offerA,) = buyShortfallMarkets();
-        uint256 sold = adapter.marketData(_marketId(offerA.market)).netCredit;
-        bytes32[] memory shortfallMarketIds = new bytes32[](1);
-        shortfallMarketIds[0] = keccak256("not-held");
-
-        vm.expectRevert(IMidnightAdapterBase.MarketNotHeld.selector);
-        sellUnitsWithCallbackData(
-            offerA.market, sold, TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING), shortfallMarketIds
-        );
-    }
-
-    function testNotHeldShortfallMarketAfterCoverageIsNotChecked() public {
+    function testNotHeldShortfallMarketIsSkipped() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);
         bytes32 marketIdB = _marketId(offerB.market);
-        uint256 rateB = adapter.marketData(marketIdB).netRate;
+        MarketData memory dataA = adapter.marketData(marketIdA);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+        uint256 sold = 1e18;
+        uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
+        uint256 ttmA = dataA.maturity - block.timestamp;
+        uint256 ttmB = dataB.maturity - block.timestamp;
+        uint256 amortizedSold = sold.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
+        uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
+        uint256 shortfall = amortizedSold - proceeds;
+        uint256 amortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 capacityB = uint256(dataB.netCredit).zeroFloorSub(amortizedValueB);
+        uint256 newRateB = (uint256(dataB.netCredit) - (amortizedValueB + shortfall))
+        .mulDivDown(WAD, (amortizedValueB + shortfall) * ttmB);
+        bytes32[] memory shortfallMarketIds = new bytes32[](2);
+        shortfallMarketIds[0] = keccak256("not-held");
+        shortfallMarketIds[1] = marketIdB;
+
+        assertGt(shortfall, 0, "sale has a shortfall");
+        assertLt(shortfall, capacityB, "listed market absorbs the shortfall");
+        sellUnitsWithCallbackData(offerA.market, sold, tick, shortfallMarketIds);
+
+        assertEq(adapter.marketData(marketIdA).netRate, dataA.netRate, "unlisted sold market rate unchanged");
+        assertEq(adapter.marketData(marketIdB).netRate, newRateB, "listed market absorbs the shortfall");
+    }
+
+    function testRemovedShortfallMarketIsSkipped() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+
+        sellUnitsWithCallbackData(offerB.market, adapter.marketData(marketIdB).netCredit, MAX_TICK, new bytes32[](0));
+
+        assertEq(adapter.marketData(marketIdB).maturity, 0, "removed market maturity is zero");
+
+        uint256 rateA = adapter.marketData(marketIdA).netRate;
         bytes32[] memory shortfallMarketIds = new bytes32[](2);
         shortfallMarketIds[0] = marketIdB;
-        shortfallMarketIds[1] = keccak256("not-held");
-
+        shortfallMarketIds[1] = marketIdA;
         sellUnitsWithCallbackData(
-            offerA.market,
-            adapter.marketData(marketIdA).netCredit,
-            TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING),
-            shortfallMarketIds
+            offerA.market, 1e18, TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING), shortfallMarketIds
         );
 
-        assertEq(adapter.marketData(marketIdA).netCredit, 0, "sold market removed");
-        assertLt(adapter.marketData(marketIdB).netRate, rateB, "listed market covered shortfall");
+        assertLt(adapter.marketData(marketIdA).netRate, rateA, "held market absorbs the shortfall");
     }
 
     function testShortfallSpillsToNextMarketWhenFirstMarketCapacityIsExhausted() public {
