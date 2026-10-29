@@ -63,6 +63,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for uint88;
     using MathLib for uint64;
     using MathLib for uint48;
     using PackedDurationsLib for bytes32;
@@ -117,9 +118,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-    /// @dev Consumed shortfall ratio as of shortfallLastUpdate.
-    uint64 public shortfallRatio;
-    uint48 public shortfallLastUpdate;
+    /// @dev Consumed shortfall ratio plus cumulative refill.
+    /// @dev Replaces uint64 ratio + uint48 timestamp with uint88, saving 3 bytes in slot 7, not a whole slot.
+    uint88 public shortfallEnd;
     uint64 public maxShortfallRatio;
 
     /* CONSTRUCTOR */
@@ -231,7 +232,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
         timelocked();
         require(newMaxShortfallRatio <= MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
-        shortfallRatio = 0;
+        shortfallEnd = 0;
         maxShortfallRatio = newMaxShortfallRatio.toUint64();
         emit SetMaxShortfallRatio(newMaxShortfallRatio);
     }
@@ -572,13 +573,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     newNetCredit.zeroFloorSub(amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
                 uint256 remainingShortfall = amortizedValue.zeroFloorSub(newNetCredit);
                 if (remainingShortfall > 0) {
-                    uint256 refilled =
-                        (block.timestamp - shortfallLastUpdate) * maxShortfallRatio / SHORTFALL_REFILL_PERIOD;
-                    uint256 newShortfallRatio = shortfallRatio.zeroFloorSub(refilled)
+                    uint256 refilled = block.timestamp * maxShortfallRatio / SHORTFALL_REFILL_PERIOD;
+                    uint256 newShortfallRatio = shortfallEnd.zeroFloorSub(refilled)
                         + remainingShortfall.mulDivUp(WAD, IVaultV2(parentVault).allocation(adapterId));
                     require(newShortfallRatio <= maxShortfallRatio, ShortfallTooHigh());
-                    shortfallRatio = newShortfallRatio.toUint64();
-                    shortfallLastUpdate = block.timestamp.toUint48();
+                    shortfallEnd = (refilled + newShortfallRatio).toUint88();
                 }
             }
         }

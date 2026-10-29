@@ -107,8 +107,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function MAX_DURATIONS() external view returns (uint256);
     function MAX_SHORTFALL_RATIO() external view returns (uint64);
     function SHORTFALL_REFILL_PERIOD() external view returns (uint256);
-    function shortfallRatio() external view returns (uint64);
-    function shortfallLastUpdate() external view returns (uint48);
+    function shortfallEnd() external view returns (uint88);
     function maxShortfallRatio() external view returns (uint64);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
