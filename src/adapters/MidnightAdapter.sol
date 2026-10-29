@@ -648,9 +648,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
-    function durationAllocations(uint256 length) public view returns (uint256[] memory allocations) {
+    function durationAllocations(uint256 length) public view returns (uint256[] memory) {
         require(length <= durationsLength, InvalidLength());
-        allocations = new uint256[](length);
+        uint256[] memory allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
@@ -664,10 +664,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 j = length - 1; j > 0; j--) {
             allocations[j - 1] += allocations[j];
         }
+        return allocations;
     }
 
     /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity.
-    function realAssets() external view returns (uint256 assets) {
+    function realAssets() external view returns (uint256) {
+        uint256 assets;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
