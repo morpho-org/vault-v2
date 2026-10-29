@@ -414,9 +414,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
-            bool shouldAdmit =
-                enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
+            if (enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
+                IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
+            }
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
@@ -471,84 +471,86 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
                 IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             }
-            return CALLBACK_SUCCESS;
-        }
-        require(buyer == address(this), NotSelf());
-        bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
-        require(block.timestamp < market.maturity, BuyPostMaturity());
-        uint256 ttm = market.maturity - block.timestamp;
-        require(ttm <= maxTtm, BuyTtmTooHigh());
-        MarketData storage _marketData = marketData[marketId];
-        require(!_marketData.forceSellable, UnauthorizedBuy());
-        uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
-        require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
+        } else {
+            require(buyer == address(this), NotSelf());
+            bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
+            require(block.timestamp < market.maturity, BuyPostMaturity());
+            uint256 ttm = market.maturity - block.timestamp;
+            require(ttm <= maxTtm, BuyTtmTooHigh());
+            MarketData storage _marketData = marketData[marketId];
+            require(!_marketData.forceSellable, UnauthorizedBuy());
+            uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
+            require(boughtNetCredit >= paidAssets, BuyAtLoss());
+            require((boughtNetCredit - paidAssets) * WAD >= minNetBuyRate * ttm * paidAssets, NetBuyRateTooLow());
 
-        uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
-        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
-        // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
-        IVaultV2(parentVault).accrueInterest();
-        (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
+            uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = _marketData.netCredit;
+            _marketData.netCredit = newNetCredit;
+            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
+            // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
+            IVaultV2(parentVault).accrueInterest();
+            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
 
-        if (newNetCredit > 0) {
-            uint256 amortizedValue =
-                (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
-            _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-        }
+            if (newNetCredit > 0) {
+                uint256 amortizedValue =
+                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + paidAssets;
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+            }
 
-        if (newNetCredit > 0 && oldNetCredit == 0) {
-            if (gated) {
+            if (newNetCredit > 0 && oldNetCredit == 0) {
+                if (gated) {
+                    require(
+                        IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
+                        IncorrectEnterGate()
+                    );
+                }
+                require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+                _marketData.maturity = market.maturity.toUint48();
+                // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+                _marketData.index = uint8(marketIds.length);
+                marketIds.push(marketId);
+            } else if (newNetCredit == 0 && oldNetCredit > 0) {
+                removeMarket(marketId);
+            }
+
+            (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+            if (fundingAdapter == address(this)) {
+                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
+            } else if (fundingAdapter != address(0)) {
+                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
+            }
+
+            // Only durations up to the bought market's time to maturity can have their allocation increased.
+            uint256 affectedDurationCount;
+            while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
+                affectedDurationCount++;
+            }
+            uint256[] memory allocations = durationAllocations(affectedDurationCount);
+            uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
+            for (uint256 i; i < affectedDurationCount; i++) {
+                bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
+                uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
+                require(absoluteCap > 0, DurationZeroAbsoluteCap());
+                require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());
+                uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
                 require(
-                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                        && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
-                    IncorrectEnterGate()
+                    relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
+                    DurationRelativeCapExceeded()
                 );
             }
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            _marketData.index = uint8(marketIds.length);
-            marketIds.push(marketId);
-        } else if (newNetCredit == 0 && oldNetCredit > 0) {
-            removeMarket(marketId);
-        }
 
-        (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-        if (fundingAdapter == address(this)) {
-            withdrawToVault(abi.decode(fundingData, (Market)), paidAssets);
-        } else if (fundingAdapter != address(0)) {
-            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets);
-        }
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            IVaultV2(parentVault)
+                .allocate(
+                    address(this),
+                    abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
+                    paidAssets
+                );
 
-        // Only durations up to the bought market's time to maturity can have their allocation increased.
-        uint256 affectedDurationCount;
-        while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
-            affectedDurationCount++;
+            SafeERC20Lib.forceApproveMax(asset, midnight);
+            emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
-        uint256[] memory allocations = durationAllocations(affectedDurationCount);
-        uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-        for (uint256 i; i < affectedDurationCount; i++) {
-            bytes32 id = keccak256(abi.encode("this/duration", address(this), packedDurations.get(i)));
-            uint256 absoluteCap = IVaultV2(parentVault).absoluteCap(id);
-            require(absoluteCap > 0, DurationZeroAbsoluteCap());
-            require(allocations[i] <= absoluteCap, DurationAbsoluteCapExceeded());
-            uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
-            require(
-                relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
-                DurationRelativeCapExceeded()
-            );
-        }
-
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .allocate(
-                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), paidAssets
-            );
-
-        SafeERC20Lib.forceApproveMax(asset, midnight);
-        emit Buy(marketId, paidAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
     }
 
