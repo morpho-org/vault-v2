@@ -111,6 +111,7 @@ The total stored `netCredit` of these markets must stay within the absolute and 
 For example, with durations of 30 and 90 days, only the 30-day caps limit the credit in a market that matures in 60 days. When the market is less than 30 days from maturity, no duration cap limits its credit.
 The adapter checks these caps on every buy.
 The parent vault stores the caps, and the adapter calculates the allocations.
+The parent vault reverts a deallocation if one of the market IDs has zero allocation (`ZeroAllocation`). The adapter does not apply this check to duration IDs.
 
 For a buy, every configured duration up to the remaining time to maturity of the market must have a non-zero absolute cap on the parent vault.
 Otherwise, the buy reverts with `DurationZeroAbsoluteCap`.
