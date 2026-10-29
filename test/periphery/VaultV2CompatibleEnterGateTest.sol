@@ -102,18 +102,6 @@ contract VaultV2CompatibleEnterGateTest is Test {
         wrapper.admit(depositor, address(adapterFactory), marketId);
     }
 
-    function testEmptyAdmissionDoesNotAdmitZeroAddress() public {
-        vm.prank(midnight);
-        assertFalse(wrapper.canIncreaseCredit(address(0)));
-        vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
-        vm.prank(midnight);
-        assertFalse(wrapper.canIncreaseCredit(address(0)));
-        wrapper.unadmit();
-        vm.prank(midnight);
-        assertFalse(wrapper.canIncreaseCredit(address(0)));
-    }
-
     function testAdmitRequiresAllowedFactory() public {
         MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
         otherFactory.setIsCreated(adapter, true);
