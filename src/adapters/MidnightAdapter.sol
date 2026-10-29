@@ -58,6 +58,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ENTER GATE
 /// @dev useGateFactory relies on the fact that the gate factory correctly identifies its gates through isCreated. The adapter must be able to temporarily allow buyers to increase their credit by calling the gate's `admit` function, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
+/// @dev The gate's unadmit function must be a noop if nobody is currently admitted.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -468,9 +469,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             forceSelling = false;
             // unadmit is a noop if the user did not need admission.
-            if (market.enterGate != address(0) && enterGateFactory != address(0)) {
-                IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
-            }
+            if (market.enterGate != address(0)) IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             return CALLBACK_SUCCESS;
         }
         require(buyer == address(this), NotSelf());
