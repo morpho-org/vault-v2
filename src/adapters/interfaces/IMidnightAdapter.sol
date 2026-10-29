@@ -61,7 +61,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error AutomaticallyTimelocked();
     error DataAlreadyPending();
     error DataNotTimelocked();
-    error DuplicateMarket();
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();

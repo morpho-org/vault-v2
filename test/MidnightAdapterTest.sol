@@ -4095,20 +4095,6 @@ contract MidnightAdapterTest is Test {
         assertLt(adapter.marketData(marketIdB).netRate, rateB, "listed market covered shortfall");
     }
 
-    function testReachedDuplicateShortfallMarketReverts() public {
-        (Offer memory offerA,) = buyShortfallMarkets();
-        bytes32 marketIdA = _marketId(offerA.market);
-        uint256 sold = adapter.marketData(marketIdA).netCredit;
-        bytes32[] memory shortfallMarketIds = new bytes32[](2);
-        shortfallMarketIds[0] = marketIdA;
-        shortfallMarketIds[1] = marketIdA;
-
-        vm.expectRevert(IMidnightAdapterBase.DuplicateMarket.selector);
-        sellUnitsWithCallbackData(
-            offerA.market, sold, TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING), shortfallMarketIds
-        );
-    }
-
     function testShortfallSpillsToNextMarketWhenFirstMarketCapacityIsExhausted() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);

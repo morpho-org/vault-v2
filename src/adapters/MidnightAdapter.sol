@@ -35,7 +35,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall decreases the rates of listed markets in list order, down to zero. The sold market absorbs only if listed.
 /// @dev An empty list makes sales with a shortfall revert, except in forceSellable markets, where any unabsorbed shortfall is a loss.
-/// @dev Listed markets that are not held or listed twice revert when reached.
+/// @dev Listed markets that are not held revert when reached.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -553,13 +553,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (shortfall > 0) {
             if (!_marketData.forceSellable) require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             uint256 remainingShortfall = shortfall;
-            uint256 seen;
             for (uint256 i; i < shortfallMarketIds.length && remainingShortfall > 0; i++) {
                 bytes32 id = shortfallMarketIds[i];
                 uint256 index = marketData[id].index;
                 require(marketIds[index] == id, MarketNotHeld());
-                require((seen >> index) & 1 == 0, DuplicateMarket());
-                seen |= 1 << index;
                 MarketData storage otherMarketData = marketData[id];
                 uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                 if (
