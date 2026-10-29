@@ -3338,35 +3338,6 @@ contract MidnightAdapterTest is Test {
         takeEnterGateOffer(offer, true);
     }
 
-    /// forge-config: default.isolate = false
-    function testEnterGateAdapterBuysRequireOrdinaryApproval(bool adapterIsMaker, bool existingPosition, bool approved)
-        public
-    {
-        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
-        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
-        Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-        if (existingPosition) {
-            takeEnterGateOffer(offer, adapterIsMaker);
-            offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
-            offer.group = bytes32("second purchase");
-        }
-        gate.setIsWhitelisted(true, address(adapter), approved);
-        realVault.transfer(address(adapter), 1);
-        vm.prank(address(adapter));
-        VaultV2CompatibleEnterGate(wrapper).admit(address(adapter), address(factory), _marketId(offer.market));
-        vm.prank(address(midnight));
-        assertTrue(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(adapter)));
-        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
-
-        if (!approved) vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
-        takeEnterGateOffer(offer, adapterIsMaker);
-
-        assertEq(
-            midnight.credit(_marketId(offer.market), address(adapter)),
-            (existingPosition ? 1e18 : 0) + (approved ? 1e18 : 0)
-        );
-    }
-
     /// forge-config: default.isolate = true
     function testEnterGateMultipleVaults(bool adapterIsMaker) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);

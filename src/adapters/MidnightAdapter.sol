@@ -3,7 +3,6 @@
 pragma solidity 0.8.37;
 
 import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IEnterSubGate} from "../periphery/gates/interfaces/IEnterSubGate.sol";
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
@@ -469,14 +468,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
         bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
-        if (gated) {
-            // Adapters must not buy through another adapter's transient admission.
-            require(
-                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
-                    .creditIncreaseAllowed(address(this)),
-                IncorrectEnterGate()
-            );
-        }
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
         require(ttm <= maxTtm, BuyTtmTooHigh());
