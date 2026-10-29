@@ -71,20 +71,24 @@ contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
     ) internal {
         Market memory setupMarket = midnight.toMarket(adapter.marketIds(setupMarketIndex));
         Market memory benchmarkMarket = midnight.toMarket(adapter.marketIds(benchmarkMarketIndex));
+        uint256 saleUnits = oneToken < 10 ? 10 : oneToken;
+        uint256 buyUnits = oneToken / 1_000;
+        if (buyUnits < 10) buyUnits = 10;
 
         vm.pauseGasMetering();
         _prepareBuyer(benchmarkBuyer);
-        Offer memory setupSale =
-            _makeBuyOffer(setupMarket, 1e18, TickLib.priceToTick(0.5e18, 4), keccak256(abi.encode(fixture, "setup")));
+        Offer memory setupSale = _makeBuyOffer(
+            setupMarket, saleUnits, TickLib.priceToTick(0.5e18, 4), keccak256(abi.encode(fixture, "setup"))
+        );
         _take(setupSale);
 
-        Offer memory firstBuy = _makeBorrowOffer(benchmarkMarket, 1e15, keccak256(abi.encode(fixture, "buy-1")));
-        Offer memory secondBuy = _makeBorrowOffer(benchmarkMarket, 1e15, keccak256(abi.encode(fixture, "buy-2")));
+        Offer memory firstBuy = _makeBorrowOffer(benchmarkMarket, buyUnits, keccak256(abi.encode(fixture, "buy-1")));
+        Offer memory secondBuy = _makeBorrowOffer(benchmarkMarket, buyUnits, keccak256(abi.encode(fixture, "buy-2")));
         Offer memory shortfallSale = _makeBuyOffer(
-            benchmarkMarket, 1e18, TickLib.priceToTick(0.5e18, 4), keccak256(abi.encode(fixture, "sale-shortfall"))
+            benchmarkMarket, saleUnits, TickLib.priceToTick(0.5e18, 4), keccak256(abi.encode(fixture, "sale-shortfall"))
         );
         Offer memory parSale =
-            _makeBuyOffer(benchmarkMarket, 1e18, MAX_TICK, keccak256(abi.encode(fixture, "sale-par")));
+            _makeBuyOffer(benchmarkMarket, saleUnits, MAX_TICK, keccak256(abi.encode(fixture, "sale-par")));
 
         vm.resumeGasMetering();
         vm.cool(address(adapter));
@@ -128,7 +132,7 @@ contract MidnightAdapterValuationGasTest is MidnightAdapterGasTest {
     }
 
     function _prepareBuyer(address buyer) internal {
-        uint256 balance = 100e18;
+        uint256 balance = 100 * oneToken;
         deal(address(underlyingToken), buyer, balance);
         vm.startPrank(buyer);
         underlyingToken.approve(address(midnight), type(uint256).max);
