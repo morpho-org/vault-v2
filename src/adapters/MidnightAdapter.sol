@@ -468,7 +468,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (forceSelling) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             forceSelling = false;
-            if (enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
+            if (market.enterGate != address(0) && enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)) {
                 IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
