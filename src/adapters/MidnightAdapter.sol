@@ -3,7 +3,6 @@
 pragma solidity 0.8.37;
 
 import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IEnterSubGate} from "../periphery/gates/interfaces/IEnterSubGate.sol";
 import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
@@ -58,7 +57,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev useGateFactory relies on the fact that the gate factory correctly identifies its gates through isCreated. The adapter must be able to temporarily allow buyers to increase their credit by calling the gate's `admit` function.
+/// @dev useGateFactory relies on the fact that the gate factory correctly identifies its gates through isCreated. The adapter must be able to temporarily allow buyers to increase their credit by calling the gate's `admit` function, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
@@ -416,12 +415,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
             bool shouldAdmit =
                 enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory, marketId);
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
-            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
-            forceSelling = false;
+            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
@@ -467,16 +464,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
+        if (forceSelling) {
+            // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
+            forceSelling = false;
+            // unadmit is a noop if the user did not need admission.
+            if (market.enterGate != address(0) && enterGateFactory != address(0)) {
+                IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
+            }
+            return CALLBACK_SUCCESS;
+        }
         require(buyer == address(this), NotSelf());
         bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
-        if (gated) {
-            // Adapters must not buy through another adapter's transient admission.
-            require(
-                IEnterSubGate(IVaultV2CompatibleEnterGate(market.enterGate).subGate())
-                    .creditIncreaseAllowed(address(this)),
-                IncorrectEnterGate()
-            );
-        }
         require(block.timestamp < market.maturity, BuyPostMaturity());
         uint256 ttm = market.maturity - block.timestamp;
         require(ttm <= maxTtm, BuyTtmTooHigh());

@@ -18,10 +18,6 @@ interface IMidnightAdapterFactory {
         bool useGateFactory
     );
 
-    /* ERRORS */
-
-    error EnterGateFactoryMidnightMismatch();
-
     /* FUNCTIONS */
 
     function midnight() external view returns (address);
