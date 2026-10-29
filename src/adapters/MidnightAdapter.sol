@@ -17,7 +17,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Portfolio interest can defer sale shortfalls, up to unearnedCap.
+/// @dev realAssets counts at most unearnedCap of unearned interest, so a deferred sale loss is repaid by the portfolio's interest before realAssets grows.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
@@ -31,8 +31,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 ///
 /// SELLING
-/// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev Sale shortfalls are covered by unearned portfolio interest, up to unearnedCap.
+/// @dev A sale's loss against face value is deducted from unearnedCap; a shortfall sale first caps it at the unearned interest before the sale. Sales (including force sales) that would make it negative revert.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -550,15 +549,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         uint64 netRate = _marketData.netRate;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+        uint256 soldBook = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm);
         uint256 shortfall;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            shortfall = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm).zeroFloorSub(sellerAssets);
+            shortfall = soldBook.zeroFloorSub(sellerAssets);
             require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
         }
-        uint256 soldBook = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm);
 
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
@@ -566,7 +565,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (shortfall > 0) {
             (uint256 amortized, uint256 netCredit) = valuation(marketId);
             uint256 unearnedBefore = netCredit - amortized + (soldNetCredit - soldBook);
-            require(soldNetCredit >= sellerAssets, ShortfallTooHigh());
             uint256 loss = soldNetCredit - sellerAssets;
             uint256 remainingCap = MathLib.min(unearnedBefore, unearnedCap);
             require(remainingCap >= loss, ShortfallTooHigh());
@@ -702,12 +700,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the book value after deferring at most the configured unearned interest.
+    /// @dev Returns the net credit minus its unearned interest, the latter capped at unearnedCap.
     function realAssets() external view returns (uint256) {
         (uint256 amortized, uint256 netCredit) = valuation(bytes32(0));
         return netCredit - MathLib.min(netCredit - amortized, unearnedCap);
     }
 
+    /// @dev Returns the deferred loss not yet repaid by interest.
     function remainingShortfall() external view returns (uint256) {
         (uint256 amortized, uint256 netCredit) = valuation(bytes32(0));
         return (netCredit - amortized).zeroFloorSub(unearnedCap);
