@@ -59,19 +59,19 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
 
     error Abdicated();
     error AutomaticallyTimelocked();
-    error BuyAtLoss();
-    error UnauthorizedBuy();
-    error BuyPostMaturity();
-    error BuyTtmTooHigh();
     error DataAlreadyPending();
     error DataNotTimelocked();
     error DuplicateMarket();
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
-    error DurationTooHigh();
     error DurationZeroAbsoluteCap();
+    error TooManyDurations();
     error DurationsNotIncreasing();
-    error ForceSellPriceTooLow();
+    error DurationTooHigh();
+    error BuyAtLoss();
+    error UnauthorizedBuy();
+    error BuyPostMaturity();
+    error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
     error IncorrectMaker();
     error IncorrectReceiver();
@@ -80,22 +80,22 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error MarketNotHeld();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
-    error NetBuyRateTooLow();
-    error NetSellRateTooHigh();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
     error OtherSellInProgress();
+    error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
+    error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
-    error ShortfallTooHigh();
+    error ForceSellPriceTooLow();
+    error NetSellRateTooHigh();
     error SubRatifierFailed();
     error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
-    error TooManyDurations();
     error TooManyMarkets();
 
     /* FUNCTIONS */
