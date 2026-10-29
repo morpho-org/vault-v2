@@ -3585,6 +3585,22 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
+    function testEnterGateZeroForceDeallocateNonFactoryGate() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        take(makeEnterGateBuyOffer(wrapper, true));
+
+        Market memory otherMarket = makeBuyOffer(30 days, 1e18, MAX_TICK).market;
+        otherMarket.enterGate = address(new EnterGateMock());
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
+        midnight.touchMarket(otherMarket);
+
+        vm.expectCall(otherMarket.enterGate, abi.encodeWithSelector(VaultV2CompatibleEnterGate.unadmit.selector), 0);
+        realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
+    }
+
+    /// forge-config: default.isolate = false
     function testEnterGateAttackerGateCannotExit() public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
         address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
