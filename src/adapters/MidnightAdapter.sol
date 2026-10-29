@@ -573,9 +573,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 shortfallReduction =
                     MathLib.min(remainingShortfall, netCredit.zeroFloorSub(otherAmortizedValue));
                 if (shortfallReduction == 0) continue;
-                uint256 newAmortizedValue = otherAmortizedValue + shortfallReduction;
+                uint256 newOtherAmortizedValue = otherAmortizedValue + shortfallReduction;
                 otherMarketData.netRate =
-                    (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint64();
+                    (netCredit - newOtherAmortizedValue).mulDivDown(WAD, newOtherAmortizedValue * otherTtm).toUint64();
                 remainingShortfall -= shortfallReduction;
                 emit ReduceRate(id, otherMarketData.netRate);
             }
