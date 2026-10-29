@@ -584,7 +584,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     MarketData storage otherMarketData = marketData[id];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     if (
-                        otherMarketData.forceSellable || otherTtm == 0 || otherMarketData.netRate == 0
+                        otherMarketData.forceSellable || otherTtm == 0
                             || (id != marketId && IMidnight(midnight).liquidationLocked(id, address(this)))
                     ) continue;
                     uint128 netCredit;
