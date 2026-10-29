@@ -85,6 +85,7 @@ Privileged actions enforce their roles, while authorized accounts retain the ope
 - [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
 - [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Blue position can be fully deallocated and removed.
   Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
+- [`WithdrawToVaultZeroMidnightAdapter.spec`](specs/WithdrawToVaultZeroMidnightAdapter.spec) checks that anyone can call the Midnight adapter's `withdrawToVault` with zero assets through a harness that builds a one-collateral market in memory, to sync the vault's allocations with the adapter's net credit in Midnight without selling, assuming the position is not liquidation-locked, the adapter is registered with the allocator or sentinel role, Midnight's zero withdraw succeeds, and the market's ids have positive allocations that the change keeps in range.
 
 ## Gates and token transfers
 
