@@ -15,10 +15,8 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* STORAGE */
 
     /// @dev durationsHash is keccak256(abi.encode(durations)).
-    mapping(
-        address parentVault
-            => mapping(bytes32 durationsHash => mapping(bool useGateFactory => mapping(bytes32 salt => address)))
-    ) public midnightAdapter;
+    mapping(address parentVault => mapping(bytes32 durationsHash => mapping(bytes32 salt => address))) public
+        midnightAdapter;
     mapping(address account => bool) public isCreated;
 
     /* CONSTRUCTOR */
@@ -38,19 +36,16 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    /// @dev With useGateFactory, see the ENTER GATE requirements in MidnightAdapter.
-    /// @dev Without useGateFactory, the adapter can enter any gated market, and forceDeallocate there works only with buyers the market's gate allows.
-    function createMidnightAdapter(address parentVault, uint256[] memory durations, bool useGateFactory, bytes32 salt)
+    /// @dev Adapters use the factory's enterGateFactory; deploy a factory with address(0) for ungated adapters.
+    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
         external
         returns (address)
     {
-        require(!useGateFactory || enterGateFactory != address(0), EnterGateFactoryNotConfigured());
-        address _enterGateFactory = useGateFactory ? enterGateFactory : address(0);
         address _midnightAdapter =
-            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, _enterGateFactory));
-        midnightAdapter[parentVault][keccak256(abi.encode(durations))][useGateFactory][salt] = _midnightAdapter;
+            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory));
+        midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
         isCreated[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, useGateFactory);
+        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter);
         return _midnightAdapter;
     }
 }

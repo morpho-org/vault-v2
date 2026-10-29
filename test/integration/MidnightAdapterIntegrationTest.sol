@@ -72,7 +72,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight), address(0)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, false, bytes32(0)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );
@@ -330,7 +330,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
         IMidnightAdapter gatedAdapter =
-            IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, true, bytes32(0)));
+            IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
         IWhitelistEnterSubGateFactory subGateFactory =
             IWhitelistEnterSubGateFactory(deployCode("WhitelistEnterSubGateFactory.sol:WhitelistEnterSubGateFactory"));
         IWhitelistEnterSubGate subGate =
