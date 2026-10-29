@@ -12,7 +12,7 @@ methods {
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // valuation loops over marketIds and only reads storage and Midnight views.
-    function valuation(bytes32) internal returns (uint256, uint256, uint256, uint256) => NONDET;
+    function valuation(bytes32) internal returns (uint256, uint256) => NONDET;
 
     // Resolved so that strong invariants are not checked at this call, which is in the middle of market list updates.
     function _.lossFactor(bytes32) external => NONDET;

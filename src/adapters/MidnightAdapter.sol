@@ -17,8 +17,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev A sale loss sets a portfolio-wide book floor that interest repays before realAssets grows again.
-/// @dev Unsynced bad debt is deducted from the floor-adjusted book value.
+/// @dev Portfolio interest can defer sale shortfalls, up to unearnedCap.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
@@ -33,8 +32,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev Shortfalls are absorbed by portfolio interest without changing market net rates.
-/// @dev Bad debt visible in onSell is applied before setting the book floor.
+/// @dev Sale shortfalls are covered by unearned portfolio interest, up to unearnedCap.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -118,13 +116,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     bool public noSalesWithShortfall;
-
-    struct FloorData {
-        uint128 floor;
-        uint128 headroom;
-    }
-
-    FloorData private _floorData;
+    /// @dev type(uint128).max means no loss is deferred.
+    uint128 public unearnedCap = type(uint128).max;
 
     /* CONSTRUCTOR */
 
@@ -340,29 +333,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        MarketData storage _marketData = marketData[marketId];
-        uint256 oldNetCredit = _marketData.netCredit;
-        uint64 netRate = _marketData.netRate;
-        uint48 maturity = _marketData.maturity;
-        bool floorActive = _floorData.floor != 0;
-        uint256 liveNetCreditBefore;
-        if (floorActive) liveNetCreditBefore = currentNetCredit(marketId);
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        _marketData.netCredit = newNetCredit;
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        if (floorActive && _floorData.floor != 0) {
-            syncFloorBadDebt(oldNetCredit, liveNetCreditBefore, netRate, maturity.zeroFloorSub(block.timestamp));
-        }
-        if (_floorData.floor != 0) {
-            updateFloor(
-                -int256(withdrawnAssets),
-                int256(uint256(newNetCredit)) - int256(liveNetCreditBefore) + int256(withdrawnAssets),
-                false
-            );
-        }
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -432,12 +409,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 settlementFeeAssets = assets.mulDivUp(
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
-            MarketData storage _marketData = marketData[marketId];
-            uint256 oldNetCredit = _marketData.netCredit;
-            uint64 netRate = _marketData.netRate;
-            bool floorActive = _floorData.floor != 0;
-            uint256 liveNetCreditBefore;
-            if (floorActive) liveNetCreditBefore = currentNetCredit(marketId);
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
@@ -445,18 +416,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             forceSelling = false;
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            _marketData.netCredit = newNetCredit;
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            if (floorActive && _floorData.floor != 0) {
-                syncFloorBadDebt(
-                    oldNetCredit, liveNetCreditBefore, netRate, market.maturity.zeroFloorSub(block.timestamp)
-                );
-            }
-            if (_floorData.floor != 0) {
-                updateFloor(
-                    -int256(assets), int256(uint256(newNetCredit)) - int256(liveNetCreditBefore) + int256(assets), false
-                );
-            }
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
@@ -509,19 +471,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = _marketData.netCredit;
-        uint64 netRate = _marketData.netRate;
-        uint256 lPre = uint256(newNetCredit) - boughtNetCredit;
-        bool floorActive = _floorData.floor != 0;
         _marketData.netCredit = newNetCredit;
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (marketId, boughtNetCredit);
-        if (floorActive) syncFloorBadDebt(oldNetCredit, lPre, netRate, ttm);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
         IVaultV2(parentVault).accrueInterest();
+        if (unearnedCap != type(uint128).max) unearnedCap += (boughtNetCredit - paidAssets).toUint128();
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
-
-        if (_floorData.floor != 0) {
-            updateFloor(int256(paidAssets), int256(boughtNetCredit) - int256(paidAssets), false);
-        }
 
         if (newNetCredit > 0) {
             uint256 amortizedValue =
@@ -593,46 +548,34 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData storage _marketData = marketData[marketId];
-        uint256 oldNetCredit = _marketData.netCredit;
         uint64 netRate = _marketData.netRate;
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-        uint256 lPre = uint256(newNetCredit) + soldNetCredit;
         uint256 shortfall;
-        bool floorActive = _floorData.floor != 0;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm).zeroFloorSub(sellerAssets);
-            if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-            }
+            require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
         }
+        uint256 soldBook = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm);
 
+        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        if (floorActive) {
-            syncFloorBadDebt(oldNetCredit, lPre, netRate, ttm);
-        }
-        if (_marketData.forceSellable) {
-            if (_floorData.floor != 0) {
-                uint256 soldBookValue = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm);
-                updateFloor(-int256(soldBookValue), int256(soldBookValue) - int256(soldNetCredit), false);
-            }
-        } else if (shortfall > 0) {
-            {
-                uint128 floorAfterBadDebt = _floorData.floor;
-                (uint256 storedValue,, uint256 storedNetCreditSum, uint256 liveNetCreditSum) = valuation(marketId);
-                uint256 newFloor = storedValue + shortfall;
-                uint256 floorAfterProceeds = uint256(floorAfterBadDebt).zeroFloorSub(sellerAssets);
-                if (floorAfterProceeds > newFloor) newFloor = floorAfterProceeds;
-                require(newFloor <= liveNetCreditSum, ShortfallTooHigh());
-                _floorData = FloorData(newFloor.toUint128(), (storedNetCreditSum - newFloor).toUint128());
-            }
-        } else if (_floorData.floor != 0) {
-            updateFloor(
-                -int256(sellerAssets), int256(uint256(newNetCredit)) - int256(lPre) + int256(sellerAssets), true
-            );
+        if (shortfall > 0) {
+            (uint256 amortized, uint256 netCredit) = valuation(marketId);
+            uint256 unearnedBefore = netCredit - amortized + (soldNetCredit - soldBook);
+            require(soldNetCredit >= sellerAssets, ShortfallTooHigh());
+            uint256 loss = soldNetCredit - sellerAssets;
+            uint256 remainingCap = MathLib.min(unearnedBefore, unearnedCap);
+            require(remainingCap >= loss, ShortfallTooHigh());
+            unearnedCap = (remainingCap - loss).toUint128();
+        } else if (unearnedCap != type(uint128).max) {
+            uint256 credited = _marketData.forceSellable ? soldBook : sellerAssets;
+            uint256 loss = soldNetCredit.zeroFloorSub(credited);
+            require(unearnedCap >= loss, ShortfallTooHigh());
+            unearnedCap -= loss.toUint128();
         }
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -683,43 +626,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.index = 0;
     }
 
-    function syncFloorBadDebt(uint256 storedNetCredit, uint256 liveNetCredit, uint64 netRate, uint256 ttm) internal {
-        uint256 slash = storedNetCredit.zeroFloorSub(liveNetCredit);
-        if (slash == 0) return;
-
-        uint256 discount = WAD + netRate * ttm;
-        uint256 writeDown = storedNetCredit * WAD / discount - liveNetCredit * WAD / discount;
-        updateFloor(-int256(writeDown), int256(writeDown) - int256(slash), false);
-    }
-
-    function updateFloor(int256 floorDelta, int256 headroomDelta, bool revertOnDeficit) internal {
-        int256 newFloor = int256(uint256(_floorData.floor)) + floorDelta;
-        int256 newHeadroom = int256(uint256(_floorData.headroom)) + headroomDelta;
-        if (newHeadroom < 0) {
-            if (revertOnDeficit) revert ShortfallTooHigh();
-            newFloor += newHeadroom;
-            newHeadroom = 0;
-        }
-        if (newFloor < 0) {
-            newFloor = 0;
-            newHeadroom = 0;
-        }
-        _floorData = FloorData(uint256(newFloor).toUint128(), uint256(newHeadroom).toUint128());
-    }
-
     /* VIEWS */
 
     /// @dev Returns the number of markets with a non-zero stored net credit.
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
-    }
-
-    function floor() external view returns (uint128) {
-        return _floorData.floor;
-    }
-
-    function floorHeadroom() external view returns (uint128) {
-        return _floorData.headroom;
     }
 
     /// @dev Returns the ids that the vault caps for the market: the adapter, the enter gate, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
@@ -766,47 +677,39 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    function valuation(bytes32 storedNetCreditMarketId)
-        internal
-        view
-        returns (uint256 storedValue, uint256 liveValue, uint256 storedNetCreditSum, uint256 liveNetCreditSum)
-    {
+    function valuation(bytes32 storedNetCreditMarketId) internal view returns (uint256 amortized, uint256 netCredit) {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
-            uint256 storedNetCredit = _marketData.netCredit;
+            uint128 storedNetCredit = _marketData.netCredit;
             uint64 netRate = _marketData.netRate;
             uint48 maturity = _marketData.maturity;
             uint256 liveNetCredit;
             if (marketId == inProgressBuyMarketId) {
-                storedNetCredit -= inProgressBuyBoughtNetCredit;
-                liveNetCredit = storedNetCredit;
-            } else if (marketId == storedNetCreditMarketId) {
-                liveNetCredit = storedNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
+                liveNetCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
+            } else if (marketId == storedNetCreditMarketId || IMidnight(midnight).lossFactor(marketId) == 0) {
                 liveNetCredit = storedNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 liveNetCredit = currentNetCredit(marketId);
             }
-            uint256 denominator = WAD + netRate * maturity.zeroFloorSub(block.timestamp);
             // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint64 * uint48) are << 2^256.
-            // Each iteration adds at most a uint128 net credit and there are at most MAX_MARKETS additions, so the sums do not overflow.
+            // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so sums do not overflow.
             unchecked {
-                uint256 liveMarketValue = liveNetCredit * WAD / denominator;
-                liveValue += liveMarketValue;
-                liveNetCreditSum += liveNetCredit;
-                storedNetCreditSum += storedNetCredit;
-                storedValue += liveNetCredit == storedNetCredit ? liveMarketValue : storedNetCredit * WAD / denominator;
+                amortized += liveNetCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+                netCredit += liveNetCredit;
             }
         }
     }
 
-    /// @dev Returns the sum over markets of the net credit discounted at the market's rate until maturity, after unsynced bad debt and the book floor.
+    /// @dev Returns the book value after deferring at most the configured unearned interest.
     function realAssets() external view returns (uint256) {
-        (uint256 storedValue, uint256 liveValue,, uint256 liveNetCreditSum) = valuation(bytes32(0));
-        uint256 badDebt = storedValue - liveValue;
-        uint256 floorAdjustedValue = _floorData.floor > storedValue ? _floorData.floor : storedValue;
-        return (floorAdjustedValue - badDebt).min(liveNetCreditSum);
+        (uint256 amortized, uint256 netCredit) = valuation(bytes32(0));
+        return netCredit - MathLib.min(netCredit - amortized, unearnedCap);
+    }
+
+    function remainingShortfall() external view returns (uint256) {
+        (uint256 amortized, uint256 netCredit) = valuation(bytes32(0));
+        return (netCredit - amortized).zeroFloorSub(unearnedCap);
     }
 }
