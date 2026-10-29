@@ -495,7 +495,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             removeMarket(id);
         }
 
-        // The stored net credit includes this purchase, but the vault's allocations do not yet. Funding can reenter through deallocate. Nested operations report their own allocation changes. The purchase must report its change using the local values captured before funding.
+        // Funding can reenter as stored credit already accounts for the in-progress buy.
         (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
         if (fundingAdapter == address(this)) {
             withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
