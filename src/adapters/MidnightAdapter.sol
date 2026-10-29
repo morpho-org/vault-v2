@@ -416,7 +416,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
             bool shouldAdmit =
                 enterGateFactory != address(0) && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
-            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory, marketId);
+            if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, marketId);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");

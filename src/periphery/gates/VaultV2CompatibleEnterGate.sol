@@ -4,6 +4,7 @@ pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
 import {IMidnight} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
@@ -43,7 +44,9 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev The caller must use admission only for its own sale on midnight in marketId.
     /// @dev A contract calling this function must clear the buyer immediately after the buyer's take.
     /// @dev The caller must check that the buyer holds shares in its parent vault.
-    function admit(address user, address factory, bytes32 marketId) external {
+    /// @dev The factory is read from the caller; a caller lying about its factory fails that factory's isCreated check.
+    function admit(address user, bytes32 marketId) external {
+        address factory = IMidnightAdapter(msg.sender).factory();
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;

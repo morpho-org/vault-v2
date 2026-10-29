@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import {IMidnight} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {Test} from "forge-std/Test.sol";
+import {IMidnightAdapter} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 import {IEnterSubGate} from "../../src/periphery/gates/interfaces/IEnterSubGate.sol";
 import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
@@ -38,6 +39,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         subGate.setIsWhitelister(false, address(this), true);
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsCreated(adapter, true);
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapter.factory, ()), abi.encode(address(adapterFactory)));
         wrapper = new VaultV2CompatibleEnterGate(address(subGate), address(midnight));
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(address(adapterFactory));
@@ -70,7 +72,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(depositor));
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertTrue(wrapper.canIncreaseCredit(depositor));
         vm.prank(midnight);
@@ -79,7 +81,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmissionBlockedDuringSale(bool ordinaryApproval) public {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.mockCall(midnight, abi.encodeCall(IMidnight.liquidationLocked, (marketId, adapter)), abi.encode(true));
         subGate.setIsWhitelisted(true, depositor, ordinaryApproval);
         vm.prank(midnight);
@@ -88,7 +90,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmissionBubblesLockCheckRevert() public {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.mockCallRevert(midnight, abi.encodeCall(IMidnight.liquidationLocked, (marketId, adapter)), "lock reverted");
         vm.expectRevert(bytes("lock reverted"));
         vm.prank(midnight);
@@ -99,14 +101,14 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.expectEmit();
         emit IVaultV2CompatibleEnterGate.Admit(adapter, depositor, address(adapterFactory));
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
     }
 
     function testEmptyAdmissionDoesNotAdmitZeroAddress() public {
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(address(0)));
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(address(0)));
         wrapper.unadmit();
@@ -117,26 +119,34 @@ contract VaultV2CompatibleEnterGateTest is Test {
     function testAdmitRequiresAllowedFactory() public {
         MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
         otherFactory.setIsCreated(adapter, true);
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapter.factory, ()), abi.encode(address(otherFactory)));
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
-        wrapper.admit(depositor, address(otherFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(depositor));
     }
 
-    function testAdmitRequiresFactoryMembership(address caller) public {
-        vm.assume(caller != adapter);
+    function testAdmitRequiresFactoryMembership() public {
+        address caller = makeAddr("unregisteredAdapter");
+        vm.mockCall(caller, abi.encodeCall(IMidnightAdapter.factory, ()), abi.encode(address(adapterFactory)));
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(depositor));
+    }
+
+    function testAdmitWithoutCodeRevertsWithoutData() public {
+        vm.expectRevert();
+        vm.prank(makeAddr("callerWithoutCode"));
+        wrapper.admit(depositor, marketId);
     }
 
     function testAdmissionReplacesPreviousBuyer() public {
         vm.startPrank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
-        wrapper.admit(recipient, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
+        wrapper.admit(recipient, marketId);
         vm.stopPrank();
         vm.prank(midnight);
         assertFalse(wrapper.canIncreaseCredit(depositor));
@@ -146,7 +156,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testUnadmit(address caller) public {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(caller);
         wrapper.unadmit();
         vm.prank(midnight);
@@ -162,7 +172,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function admitAndCheckUser() external {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertTrue(wrapper.canIncreaseCredit(depositor));
     }
@@ -176,7 +186,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function admitAndRevert() external {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         revert("reverted");
     }
 
@@ -185,7 +195,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
             address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (depositor)), "gate reverted"
         );
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertTrue(wrapper.canIncreaseCredit(depositor));
     }
@@ -201,7 +211,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testCreditAdmissionRequiresMidnight() public {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(depositor);
         assertFalse(wrapper.canIncreaseCredit(recipient));
         vm.prank(recipient);
@@ -218,7 +228,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testDebtForwarded(address account, bool allowed) public {
         vm.prank(adapter);
-        wrapper.admit(account, address(adapterFactory), marketId);
+        wrapper.admit(account, marketId);
         subGate.setIsWhitelisted(false, account, allowed);
         subGate.setIsWhitelisted(true, account, !allowed);
         vm.expectCall(address(subGate), abi.encodeCall(IEnterSubGate.debtIncreaseAllowed, (account)));
@@ -227,7 +237,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testDebtBubblesSubGateRevert() public {
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.mockCallRevert(
             address(subGate), abi.encodeCall(IEnterSubGate.debtIncreaseAllowed, (depositor)), "gate reverted"
         );
@@ -254,10 +264,10 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertFalse(otherWrapper.canAdmit(address(adapterFactory)));
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
-        otherWrapper.admit(depositor, address(adapterFactory), marketId);
+        otherWrapper.admit(depositor, marketId);
 
         vm.prank(adapter);
-        wrapper.admit(depositor, address(adapterFactory), marketId);
+        wrapper.admit(depositor, marketId);
         vm.prank(midnight);
         assertTrue(wrapper.canIncreaseCredit(depositor));
         vm.prank(midnight);
@@ -266,7 +276,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.prank(creditRoleSetter);
         otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(adapter);
-        otherWrapper.admit(recipient, address(adapterFactory), marketId);
+        otherWrapper.admit(recipient, marketId);
         vm.prank(midnight);
         assertTrue(wrapper.canIncreaseCredit(depositor));
         vm.prank(midnight);
