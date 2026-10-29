@@ -3661,7 +3661,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateRealVaultWithHookedAssetCannotForceDeallocateWithoutNetCredit() public {
+    function testEnterGateRealVaultWithHookedAssetCannotBuyBeforeAdmission() public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
         address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
@@ -3693,6 +3693,11 @@ contract MidnightAdapterTest is Test {
             submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
         }
+        for (uint256 i; i < allDurations.length; i++) {
+            bytes memory idData = durationIdData(hookedAdapter, allDurations[i]);
+            submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+            submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        }
         deal(address(hookedToken), address(this), 10e18);
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
@@ -3709,6 +3714,12 @@ contract MidnightAdapterTest is Test {
         gatedMarket.loanToken = address(hookedToken);
         gatedMarket.enterGate = wrapper;
         midnight.touchMarket(gatedMarket);
+        gate.setIsWhitelisted(true, address(hookedAdapter), true);
+        Offer memory gatedSellOffer = makeExternalOffer(gatedMarket, false, 1e18, MAX_TICK);
+        vm.prank(signerAllocator);
+        hookedAdapter.take(gatedSellOffer, "", gatedSellOffer.maxUnits, abi.encode(address(0), hex""));
+        assertGt(hookedAdapter.marketData(_marketId(gatedMarket)).netCredit, 0);
+
         address buyer = makeForceDeallocateBuyer(hookedAdapter);
         hookedVault.deposit(1e18, buyer);
 
@@ -3721,12 +3732,18 @@ contract MidnightAdapterTest is Test {
         hookedToken.setAttack(abi.encode(sellOffer, uint256(sellOffer.maxUnits), buyer));
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
 
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
-        hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(gatedMarket, buyer), 0, address(this));
+        deal(address(hookedToken), address(this), 1e18);
+        SafeERC20Lib.safeApprove(address(hookedToken), address(hookedAdapter), type(uint256).max);
+        vm.expectCall(
+            wrapper,
+            abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory), _marketId(gatedMarket))),
+            1
+        );
+        hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(gatedMarket, buyer), 0.5e18, address(this));
 
-        assertFalse(hookedToken.attackAttempted());
+        assertTrue(hookedToken.attackAttempted());
+        assertEq(hookedToken.attackRevert(), IMidnight.BuyerGatedFromIncreasingCredit.selector);
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0);
-        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), 0);
     }
 
     function testEnterGateFactoryDisabled(bool adapterIsMaker) public {
