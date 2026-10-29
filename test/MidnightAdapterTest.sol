@@ -3309,11 +3309,22 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(boughtOffer.market, 0.5e18);
     }
 
-    function testForceDeallocateNoNetCredit() public {
-        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+    function testForceDeallocateUntrackedGatedMarketNoOp() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        Market memory market = makeBuyOffer(30 days, 1e18, MAX_TICK).market;
+        market.enterGate = wrapper;
+        midnight.touchMarket(market);
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
 
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
-        forceDeallocate(offer.market, 0);
+        assertNotEq(adapter.enterGateFactory(), address(0));
+        assertEq(adapter.marketData(_marketId(market)).netCredit, 0);
+        vm.expectCall(wrapper, abi.encodeWithSelector(VaultV2CompatibleEnterGate.admit.selector), 0);
+        realVault.forceDeallocate(address(adapter), abi.encode(market, buyer), 0, address(this));
+        assertEq(adapter.marketData(_marketId(market)).netCredit, 0);
     }
 
     /// forge-config: default.isolate = true
@@ -3581,7 +3592,7 @@ contract MidnightAdapterTest is Test {
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (otherAdapter)));
         address buyer = makeForceDeallocateBuyer(IMidnightAdapter(otherAdapter));
         realVault.transfer(buyer, 1);
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
+        vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(otherAdapter, abi.encode(offer.market, buyer), 0.5e18, address(this));
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
         assertEq(midnight.credit(_marketId(offer.market), otherAdapter), 0);
@@ -3601,7 +3612,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(otherMarket), address(adapter)), 0);
 
         midnight.touchMarket(otherMarket);
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
+        vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0.5e18, address(this));
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
     }
@@ -3618,8 +3629,9 @@ contract MidnightAdapterTest is Test {
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
 
+        vm.expectCall(wrapper, abi.encodeWithSelector(VaultV2CompatibleEnterGate.admit.selector), 0);
+        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 0);
         midnight.touchMarket(otherMarket);
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
@@ -3652,8 +3664,10 @@ contract MidnightAdapterTest is Test {
         midnight.touchMarket(attackerMarket);
         assertTrue(VaultV2CompatibleEnterGate(attackerGate).canIncreaseDebt(address(adapter)));
 
-        vm.expectRevert(IMidnightAdapterBase.NoNetCredit.selector);
+        vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
+
+        realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
         assertEq(midnight.credit(_marketId(attackerMarket), buyer), 0);

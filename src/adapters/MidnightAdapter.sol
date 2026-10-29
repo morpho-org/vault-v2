@@ -378,7 +378,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the caller.
-    /// @dev If the market has an enter gate and the adapter has an enter gate factory, the adapter admits the taker in the gate during the sale.
+    /// @dev If the adapter holds credit in a gated market and has an enter gate factory, the adapter admits the taker in the gate during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
@@ -392,7 +392,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
-            require(marketData[marketId].netCredit > 0, NoNetCredit());
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             Offer memory offer = Offer({
                 market: market,
@@ -415,7 +414,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets + settlementFeeAssets);
-            bool shouldAdmit = market.enterGate != address(0) && enterGateFactory != address(0);
+            bool shouldAdmit =
+                marketData[marketId].netCredit > 0 && market.enterGate != address(0) && enterGateFactory != address(0);
             if (shouldAdmit) IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory, marketId);
             forceSelling = true;
             // Skip onSell since we are already in a deallocate call.
