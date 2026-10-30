@@ -8,6 +8,7 @@ import {IWhitelistEnterSubGateFactory} from "./interfaces/IWhitelistEnterSubGate
 contract WhitelistEnterSubGateFactory is IWhitelistEnterSubGateFactory {
     mapping(address subGate => bool) public isCreated;
 
+    /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
     function createWhitelistEnterSubGate(
         address creditRoleSetter,
         address debtRoleSetter,
