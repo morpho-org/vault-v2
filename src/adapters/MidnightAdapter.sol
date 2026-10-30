@@ -48,6 +48,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
 /// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
+/// @dev When trading between adapters of the same vault, caps can be transiently overfilled and make the trade revert.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
