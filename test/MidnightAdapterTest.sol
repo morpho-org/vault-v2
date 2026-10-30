@@ -2256,7 +2256,8 @@ contract MidnightAdapterTest is Test {
         uint256 otherMaturity,
         address enterGate,
         address liquidatorGate,
-        uint256 rcfThreshold
+        uint256 rcfThreshold,
+        uint256 otherRcfThreshold
     ) public view {
         collateralCount = bound(collateralCount, 0, 5);
 
@@ -2280,24 +2281,24 @@ contract MidnightAdapterTest is Test {
         assertEq(ids[1], keccak256(abi.encode("enterGate", enterGate)));
         uint256 k = liquidatorGate == address(0) ? 0 : 1;
         if (k != 0) assertEq(ids[2], keccak256(abi.encode("liquidatorGate", liquidatorGate)));
-        assertEq(ids[2 + k], keccak256(abi.encode("rcfThreshold", rcfThreshold)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            assertEq(ids[i * 2 + 3 + k], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
+            assertEq(ids[i * 2 + 2 + k], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
-                ids[i * 2 + 4 + k],
+                ids[i * 2 + 3 + k],
                 keccak256(
                     abi.encode(
                         "collateralParams",
                         market.collateralParams[i].token,
                         market.collateralParams[i].lltv,
                         market.collateralParams[i].liquidationCursor,
-                        market.collateralParams[i].oracle
+                        market.collateralParams[i].oracle,
+                        rcfThreshold
                     )
                 )
             );
         }
 
-        assertEq(ids.length, 3 + k + market.collateralParams.length * 2);
+        assertEq(ids.length, 2 + k + market.collateralParams.length * 2);
         if (k == 0) {
             bytes32 zeroLiquidatorGateId = keccak256(abi.encode("liquidatorGate", address(0)));
             for (uint256 i = 0; i < ids.length; i++) {
@@ -2308,12 +2309,21 @@ contract MidnightAdapterTest is Test {
         market.maturity = bound(otherMaturity, 1, 700 days);
         vm.assume(market.maturity != bound(maturity, 1, 700 days));
         assertEq(adapter.ids(market), ids, "ids do not depend on maturity");
+
+        vm.assume(otherRcfThreshold != rcfThreshold);
+        market.rcfThreshold = otherRcfThreshold;
+        bytes32[] memory otherIds = adapter.ids(market);
+        assertEq(otherIds.length, ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (i >= 2 + k && (i - 2 - k) % 2 == 1) assertNotEq(otherIds[i], ids[i]);
+            else assertEq(otherIds[i], ids[i]);
+        }
     }
 
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 2);
+        configField = bound(configField, 0, 3);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -2322,16 +2332,29 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         offer.maker = address(adapter);
         offer.ratifier = address(adapter);
-        if (configField == 0) offer.market.enterGate = gate;
-        else if (configField == 1) offer.market.liquidatorGate = gate;
-        else offer.market.rcfThreshold = 1e18;
-        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
+        if (configField == 0) {
+            offer.market.enterGate = gate;
+        } else if (configField == 1) {
+            offer.market.liquidatorGate = gate;
+        } else if (configField == 2) {
+            offer.market.rcfThreshold = 1e18;
+        } else {
+            offer.market.collateralParams[0].lltv /= 2;
+            midnight.enableLltv(offer.market.collateralParams[0].lltv);
+        }
+        midnight.supplyCollateral(offer.market, 0, configField == 3 ? 1e18 : 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
 
         bytes memory idData;
         if (configField == 0) idData = abi.encode("enterGate", offer.market.enterGate);
         else if (configField == 1) idData = abi.encode("liquidatorGate", offer.market.liquidatorGate);
-        else idData = abi.encode("rcfThreshold", offer.market.rcfThreshold);
+        else idData = abi.encode("collateralParams", offer.market.collateralParams[0], offer.market.rcfThreshold);
+        if (configField == 2) {
+            bytes memory otherIdData =
+                abi.encode("collateralParams", offer.market.collateralParams[1], offer.market.rcfThreshold);
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (otherIdData, type(uint128).max)));
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (otherIdData, 1e18)));
+        }
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
         this.takeWithAccrual(offer, data, taker, address(0));
@@ -4427,14 +4450,13 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         realVault.setMaxRate(1e18 / uint256(365 days));
 
-        bytes[] memory idDatas = new bytes[](7);
+        bytes[] memory idDatas = new bytes[](6);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
-        idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
+        idDatas[2] = abi.encode("collateralParams", storedCollaterals[0], uint256(0));
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
-        idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
+        idDatas[4] = abi.encode("collateralParams", storedCollaterals[1], uint256(0));
         idDatas[5] = abi.encode("enterGate", address(0));
-        idDatas[6] = abi.encode("rcfThreshold", uint256(0));
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
