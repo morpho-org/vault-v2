@@ -96,8 +96,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
-    /// @dev Set to true so forceDeallocate offers are ratified.
-    bool public transient forceSelling;
+    /// @dev Set to true so forceDeallocate unadmits in the buy callback.
+    bool public transient inForceDeallocate;
 
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
@@ -427,7 +427,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             ) {
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
             }
-            forceSelling = true;
+            inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
@@ -449,7 +449,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32) {
-        if (forceSelling) return CALLBACK_SUCCESS;
+        if (inForceDeallocate) return CALLBACK_SUCCESS;
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.midnight == midnight, NotMidnight());
@@ -476,9 +476,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes memory data
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
-        if (forceSelling) {
+        if (inForceDeallocate) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
-            forceSelling = false;
+            inForceDeallocate = false;
             if (
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
