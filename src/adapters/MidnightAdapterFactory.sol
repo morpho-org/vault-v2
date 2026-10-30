@@ -27,8 +27,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    /// @dev The salt is derived from preSalt and msg.sender. Bundles (shared msg.sender) must derive preSalt from the
-    /// initiator and a pre-preSalt, otherwise anyone using the bundle can take the address.
+    /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
     function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 preSalt)
         external
         returns (address)
