@@ -635,7 +635,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
-            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i], market.rcfThreshold));
+            idsArray[j++] = keccak256(
+                abi.encode("collateralParamsAndRcfThreshold", market.collateralParams[i], market.rcfThreshold)
+            );
         }
 
         return idsArray;
