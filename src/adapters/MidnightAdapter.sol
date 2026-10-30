@@ -622,21 +622,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the enter gate, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (market without maturity), and each collateral token.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray =
-            new bytes32[](3 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] = keccak256(abi.encode("enterGate", market.enterGate));
-        if (market.liquidatorGate != address(0)) {
-            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
-        }
-        idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
+        idsArray[j++] = keccak256(
+            abi.encode(
+                "family",
+                market.chainId,
+                market.midnight,
+                market.loanToken,
+                market.collateralParams,
+                market.rcfThreshold,
+                market.enterGate,
+                market.liquidatorGate
+            )
+        );
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
-            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
 
         return idsArray;

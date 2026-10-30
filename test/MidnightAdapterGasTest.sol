@@ -173,10 +173,6 @@ contract MidnightAdapterGasTest is BaseTest {
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
-        _increaseCaps(abi.encode("collateralParams", collateralParams));
-        _increaseCaps(abi.encode("enterGate", address(0)));
-        _increaseCaps(abi.encode("liquidatorGate", address(0)));
-        _increaseCaps(abi.encode("rcfThreshold", uint256(0)));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         vm.startPrank(address(this));
@@ -190,7 +186,6 @@ contract MidnightAdapterGasTest is BaseTest {
         for (uint256 i; i < soldCollaterals.length; i++) {
             if (soldCollaterals[i].token != address(collateralToken)) {
                 _increaseCaps(abi.encode("collateralToken", soldCollaterals[i].token));
-                _increaseCaps(abi.encode("collateralParams", soldCollaterals[i]));
             }
         }
 
@@ -204,6 +199,8 @@ contract MidnightAdapterGasTest is BaseTest {
         uint256[] memory purchasedUnits = new uint256[](maxMarkets);
         CollateralParams[] memory singleCollateral = new CollateralParams[](1);
         singleCollateral[0] = collateralParams;
+        _increaseCaps(_familyIdData(_market(0, soldCollaterals)));
+        _increaseCaps(_familyIdData(_market(0, singleCollateral)));
         Market memory soldMarket;
         for (uint256 i; i < maxMarkets; i++) {
             Market memory market;
@@ -251,6 +248,9 @@ contract MidnightAdapterGasTest is BaseTest {
         soldMarketId = adapter.marketIds(0);
         soldMarket = midnight.toMarket(soldMarketId);
         _assertCollateralSetup(soldMarket.collateralParams);
+        bytes32 familyId = keccak256(_familyIdData(soldMarket));
+        assertEq(vault.absoluteCap(familyId), type(uint128).max, "absolute family cap");
+        assertEq(vault.relativeCap(familyId), WAD, "relative family cap");
         _assertMarketSetup(soldMarketId, maxMarkets);
 
         (uint128 currentCredit, uint128 pendingFee,) =
@@ -396,11 +396,8 @@ contract MidnightAdapterGasTest is BaseTest {
         }
         for (uint256 i; i < collaterals.length; i++) {
             bytes32 tokenId = keccak256(abi.encode("collateralToken", collaterals[i].token));
-            bytes32 paramsId = keccak256(abi.encode("collateralParams", collaterals[i]));
             assertEq(vault.absoluteCap(tokenId), type(uint128).max, "absolute token cap");
             assertEq(vault.relativeCap(tokenId), WAD, "relative token cap");
-            assertEq(vault.absoluteCap(paramsId), type(uint128).max, "absolute collateral cap");
-            assertEq(vault.relativeCap(paramsId), WAD, "relative collateral cap");
         }
     }
 
@@ -506,6 +503,19 @@ contract MidnightAdapterGasTest is BaseTest {
                 revert(add(returnData, 32), mload(returnData))
             }
         }
+    }
+
+    function _familyIdData(Market memory market) internal pure returns (bytes memory) {
+        return abi.encode(
+            "family",
+            market.chainId,
+            market.midnight,
+            market.loanToken,
+            market.collateralParams,
+            market.rcfThreshold,
+            market.enterGate,
+            market.liquidatorGate
+        );
     }
 
     function _increaseCaps(bytes memory idData) internal {
