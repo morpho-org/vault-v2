@@ -7,13 +7,16 @@ import {IVaultV2CompatibleEnterGateFactory} from "./interfaces/IVaultV2Compatibl
 
 contract VaultV2CompatibleEnterGateFactory is IVaultV2CompatibleEnterGateFactory {
     mapping(address account => bool) public isCreated;
+
+    /// @dev salt is keccak256(abi.encode(preSalt, caller)).
     mapping(address subGate => mapping(bytes32 salt => address)) public vaultV2CompatibleEnterGate;
 
-    function createVaultV2CompatibleEnterGate(address subGate, bytes32 salt) external returns (address) {
+    function createVaultV2CompatibleEnterGate(address subGate, bytes32 preSalt) external returns (address) {
+        bytes32 salt = keccak256(abi.encode(preSalt, msg.sender));
         address gate = address(new VaultV2CompatibleEnterGate{salt: salt}(subGate));
         vaultV2CompatibleEnterGate[subGate][salt] = gate;
         isCreated[gate] = true;
-        emit CreateVaultV2CompatibleEnterGate(gate, subGate);
+        emit CreateVaultV2CompatibleEnterGate(msg.sender, gate, subGate, preSalt);
         return gate;
     }
 }

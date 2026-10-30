@@ -7,9 +7,10 @@ interface IMidnightAdapterFactory {
 
     event CreateMidnightAdapterFactory(address indexed midnight);
     event CreateMidnightAdapter(
+        address indexed caller,
         address indexed parentVault,
         uint256[] durations,
-        bytes32 salt,
+        bytes32 preSalt,
         address indexed midnightAdapter,
         address enterGateFactory
     );
@@ -26,6 +27,6 @@ interface IMidnightAdapterFactory {
         address parentVault,
         uint256[] memory durations,
         address enterGateFactory,
-        bytes32 salt
+        bytes32 preSalt
     ) external returns (address);
 }

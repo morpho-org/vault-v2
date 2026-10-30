@@ -13,6 +13,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* STORAGE */
 
     /// @dev durationsHash is keccak256(abi.encode(durations)).
+    /// @dev salt is keccak256(abi.encode(preSalt, caller)).
     mapping(
         address parentVault
             => mapping(bytes32 durationsHash => mapping(address enterGateFactory => mapping(bytes32 salt => address)))
@@ -34,14 +35,14 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         address parentVault,
         uint256[] memory durations,
         address enterGateFactory,
-        bytes32 salt
+        bytes32 preSalt
     ) external returns (address) {
-        address _midnightAdapter = address(
-            new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory)
-        );
+        bytes32 salt = keccak256(abi.encode(preSalt, msg.sender));
+        address _midnightAdapter =
+            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory));
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][enterGateFactory][salt] = _midnightAdapter;
         isCreated[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, durations, salt, _midnightAdapter, enterGateFactory);
+        emit CreateMidnightAdapter(msg.sender, parentVault, durations, preSalt, _midnightAdapter, enterGateFactory);
         return _midnightAdapter;
     }
 }

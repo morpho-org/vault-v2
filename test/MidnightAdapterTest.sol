@@ -1753,7 +1753,7 @@ contract MidnightAdapterTest is Test {
 
     /* FACTORY */
 
-    function testFactoryCreateMidnightAdapter(bytes32 salt) public {
+    function testFactoryCreateMidnightAdapter(bytes32 preSalt) public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         bytes32 initCodeHash = keccak256(
@@ -1762,11 +1762,14 @@ contract MidnightAdapterTest is Test {
                 abi.encode(address(newVault), address(midnight), allDurations, address(0))
             )
         );
+        bytes32 salt = keccak256(abi.encode(preSalt, address(this)));
         address expected =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), salt, initCodeHash)))));
         vm.expectEmit(address(factory));
-        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), allDurations, salt, expected, address(0));
-        address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), salt);
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(
+            address(this), address(newVault), allDurations, preSalt, expected, address(0)
+        );
+        address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
         assertEq(newAdapter, expected, "expected address");
         assertEq(
@@ -1781,29 +1784,45 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
-        bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
         vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault), allDurations, address(0), salt);
+        factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
-        address otherAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), differentSalt);
-        assertTrue(otherAdapter != newAdapter, "different salts create different adapters");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "first adapter mapping"
-        );
+        bytes32 differentPreSalt = bytes32(uint256(preSalt) ^ 1);
+        bytes32 differentSalt = keccak256(abi.encode(differentPreSalt, address(this)));
+        address otherAdapter =
+            factory.createMidnightAdapter(address(newVault), allDurations, address(0), differentPreSalt);
+        assertTrue(otherAdapter != newAdapter, "different preSalts create different adapters");
         assertEq(
             factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), differentSalt),
             otherAdapter,
-            "second adapter mapping"
+            "different preSalt adapter mapping"
         );
         assertTrue(factory.isCreated(newAdapter), "first adapter registered");
-        assertTrue(factory.isCreated(otherAdapter), "second adapter registered");
+        assertTrue(factory.isCreated(otherAdapter), "different preSalt adapter registered");
+
+        address otherCaller = makeAddr("other");
+        vm.prank(otherCaller);
+        address otherCallerAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
+        bytes32 otherCallerSalt = keccak256(abi.encode(preSalt, otherCaller));
+        assertTrue(otherCallerAdapter != newAdapter, "different callers create different adapters");
+        assertEq(
+            factory.midnightAdapter(
+                address(newVault), keccak256(abi.encode(allDurations)), address(0), otherCallerSalt
+            ),
+            otherCallerAdapter,
+            "other caller adapter mapping"
+        );
+        assertTrue(factory.isCreated(otherCallerAdapter), "other caller adapter registered");
+        assertEq(
+            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
+            newAdapter,
+            "first adapter mapping unchanged"
+        );
 
         uint256[] memory singleDuration = new uint256[](1);
         singleDuration[0] = allDurations[0];
         address otherDurationsAdapter =
-            factory.createMidnightAdapter(address(newVault), singleDuration, address(0), salt);
+            factory.createMidnightAdapter(address(newVault), singleDuration, address(0), preSalt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
         assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
         assertEq(
@@ -1834,7 +1853,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(created).enterGateFactory(), address(0));
     }
 
-    function testFactoryUsesPassedGateFactory(bytes32 salt) public {
+    function testFactoryUsesPassedGateFactory(bytes32 preSalt) public {
         address gateFactory = address(new VaultV2CompatibleEnterGateFactory());
         MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         assertGt(gateFactory.code.length, 0);
@@ -1845,12 +1864,13 @@ contract MidnightAdapterTest is Test {
                 abi.encode(address(parentVault), address(midnight), allDurations, gateFactory)
             )
         );
+        bytes32 salt = keccak256(abi.encode(preSalt, address(this)));
         address expectedAdapter = vm.computeCreate2Address(salt, initCodeHash, address(newFactory));
         vm.expectEmit(address(newFactory));
         emit IMidnightAdapterFactory.CreateMidnightAdapter(
-            address(parentVault), allDurations, salt, expectedAdapter, gateFactory
+            address(this), address(parentVault), allDurations, preSalt, expectedAdapter, gateFactory
         );
-        address created = newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, salt);
+        address created = newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, preSalt);
 
         assertEq(created, expectedAdapter);
         assertEq(IMidnightAdapter(created).enterGateFactory(), gateFactory);
@@ -1862,7 +1882,7 @@ contract MidnightAdapterTest is Test {
 
         address otherGateFactory = address(new VaultV2CompatibleEnterGateFactory());
         address otherCreated =
-            newFactory.createMidnightAdapter(address(parentVault), allDurations, otherGateFactory, salt);
+            newFactory.createMidnightAdapter(address(parentVault), allDurations, otherGateFactory, preSalt);
         assertNotEq(otherCreated, created);
         assertEq(IMidnightAdapter(otherCreated).enterGateFactory(), otherGateFactory);
         assertTrue(newFactory.isCreated(otherCreated));
@@ -1874,14 +1894,16 @@ contract MidnightAdapterTest is Test {
         );
 
         vm.expectRevert();
-        newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, salt);
+        newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, preSalt);
     }
 
-    function testFactoryDifferentSalts(bytes32 firstSalt, bytes32 secondSalt) public {
-        vm.assume(firstSalt != secondSalt);
+    function testFactoryDifferentSalts(bytes32 firstPreSalt, bytes32 secondPreSalt) public {
+        vm.assume(firstPreSalt != secondPreSalt);
         MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
-        address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), firstSalt);
-        address second = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), secondSalt);
+        bytes32 firstSalt = keccak256(abi.encode(firstPreSalt, address(this)));
+        bytes32 secondSalt = keccak256(abi.encode(secondPreSalt, address(this)));
+        address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), firstPreSalt);
+        address second = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), secondPreSalt);
 
         assertNotEq(first, second);
         assertTrue(newFactory.isCreated(first));
