@@ -83,9 +83,19 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
-        _increaseCaps(abi.encode("collateralParams", collateralParams));
-        _increaseCaps(abi.encode("enterGate", address(0)));
-        _increaseCaps(abi.encode("rcfThreshold", uint256(0)));
+        Market memory market = _market(0);
+        _increaseCaps(
+            abi.encode(
+                "family",
+                market.chainId,
+                market.midnight,
+                market.loanToken,
+                market.collateralParams,
+                market.rcfThreshold,
+                market.enterGate,
+                market.liquidatorGate
+            )
+        );
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         deal(address(underlyingToken), depositor, initialAssets);
