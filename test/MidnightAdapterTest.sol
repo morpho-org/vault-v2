@@ -560,7 +560,7 @@ contract MidnightAdapterTest is Test {
         }
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UnsetForceSellable(marketId);
+        emit IMidnightAdapterBase.UnsetForceSellable(authorizedCaller, marketId);
         vm.recordLogs();
         vm.prank(authorizedCaller);
         adapter.unsetForceSellable(marketId);
@@ -3267,6 +3267,8 @@ contract MidnightAdapterTest is Test {
 
         Market memory market = makeBuyOffer(30 days, 1e18, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, 1e18, MAX_TICK);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Take(signerAllocator);
         vm.prank(signerAllocator);
         adapter.take(offer, "", offer.maxUnits, abi.encode(address(fundingAdapter), bytes("")));
 

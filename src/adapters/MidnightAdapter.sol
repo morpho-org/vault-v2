@@ -254,7 +254,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         marketData[marketId].forceSellable = false;
-        emit UnsetForceSellable(marketId);
+        emit UnsetForceSellable(msg.sender, marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -318,6 +318,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        emit Take(msg.sender);
         IMidnight(midnight)
             .take(
                 offer,
