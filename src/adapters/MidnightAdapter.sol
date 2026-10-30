@@ -487,7 +487,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         } else {
             require(buyer == address(this), NotSelf());
-            bool gated = market.enterGate != address(0) && enterGateFactory != address(0);
             require(block.timestamp < market.maturity, BuyPostMaturity());
             uint256 ttm = market.maturity - block.timestamp;
             require(ttm <= maxTtm, BuyTtmTooHigh());
@@ -512,7 +511,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
 
             if (newNetCredit > 0 && oldNetCredit == 0) {
-                if (gated) {
+                if (market.enterGate != address(0) && enterGateFactory != address(0)) {
                     require(
                         IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
                             && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
