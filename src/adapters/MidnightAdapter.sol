@@ -338,6 +338,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
+        require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -374,7 +375,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback or a withdraw.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender, or removes the market without moving its Midnight credit when assets is 0, forceSellable is true, and minForceSellPrice is 0.
+    /// @dev Removed markets cannot be added back.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
@@ -389,34 +391,38 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            Offer memory offer = Offer({
-                market: market,
-                buy: false,
-                maker: address(this),
-                start: 0,
-                expiry: type(uint256).max,
-                tick: 0,
-                group: bytes32(0),
-                callback: address(0),
-                callbackData: hex"",
-                receiverIfMakerIsSeller: address(this),
-                ratifier: address(this),
-                reduceOnly: true,
-                maxUnits: 0,
-                maxAssets: type(uint128).max,
-                continuousFeeCap: type(uint256).max
-            });
-            uint256 settlementFeeAssets = assets.mulDivUp(
-                IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
-            );
-            SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
-            forceSelling = true;
-            // Skip onSell since we are already in a deallocate call.
-            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
-            forceSelling = false;
+            uint128 newNetCredit = 0;
+            if (assets > 0 || !marketData[marketId].forceSellable || marketData[marketId].minForceSellPrice > 0) {
+                Offer memory offer = Offer({
+                    market: market,
+                    buy: false,
+                    maker: address(this),
+                    start: 0,
+                    expiry: type(uint256).max,
+                    tick: 0,
+                    group: bytes32(0),
+                    callback: address(0),
+                    callbackData: hex"",
+                    receiverIfMakerIsSeller: address(this),
+                    ratifier: address(this),
+                    reduceOnly: true,
+                    maxUnits: 0,
+                    maxAssets: type(uint128).max,
+                    continuousFeeCap: type(uint256).max
+                });
+                uint256 settlementFeeAssets = assets.mulDivUp(
+                    IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
+                );
+                SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
+                forceSelling = true;
+                // Skip onSell since we are already in a deallocate call.
+                IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(0), hex"");
+                forceSelling = false;
+                newNetCredit = currentNetCredit(marketId);
+            }
 
-            uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
+            require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
             marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -471,6 +477,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0 || newNetCredit == boughtNetCredit, UntrackedCredit());
         _marketData.netCredit = newNetCredit;
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
@@ -564,6 +571,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.

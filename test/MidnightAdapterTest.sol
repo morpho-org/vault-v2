@@ -3380,7 +3380,7 @@ contract MidnightAdapterTest is Test {
         adapter.allocate("", 0, bytes4(0), caller);
     }
 
-    /// @dev Only the adapter can allocate and deallocate through the vault, so it cannot be a liquidity adapter.
+    /// @dev Only the adapter can allocate or deallocate through the vault, except for forceDeallocate.
     function testVaultAllocateAndDeallocateRevert() public {
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
         parentVault.allocate(address(adapter), "", 0);
@@ -3789,6 +3789,130 @@ contract MidnightAdapterTest is Test {
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
+    }
+
+    /* FORCE REMOVE */
+
+    function testForceRemoveGuards(uint256 minPrice) public {
+        minPrice = bound(minPrice, 1, type(uint256).max);
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        Market memory market = boughtOffer.market;
+        bytes32 marketId = _marketId(market);
+
+        // Without forceSellable, 0-asset forceDeallocate takes 0 units on Midnight and leaves netCredit intact.
+        forceDeallocate(market, 0);
+        assertEq(adapter.marketData(marketId).netCredit, 1e18);
+        assertEq(adapter.marketIdsLength(), 1);
+
+        // With minForceSellPrice > 0, 0-asset forceDeallocate still takes 0 units and leaves netCredit intact.
+        setForceSellable(marketId);
+        vm.prank(curator);
+        adapter.setMinForceSellPrice(marketId, minPrice);
+        forceDeallocate(market, 0);
+        assertEq(adapter.marketData(marketId).netCredit, 1e18);
+        assertEq(adapter.marketIdsLength(), 1);
+
+        // With forceSellable && minForceSellPrice == 0, 0-asset forceDeallocate writes off the market.
+        vm.prank(curator);
+        adapter.setMinForceSellPrice(marketId, 0);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ForceDeallocate(marketId, 0, 0);
+        forceDeallocate(market, 0);
+        assertEq(adapter.marketData(marketId).netCredit, 0);
+        assertEq(adapter.marketIdsLength(), 0);
+    }
+
+    /// forge-config: default.isolate = true
+    function testForceRemoveBrokenGatedMarket() public {
+        setUpRealVault();
+        address gate = makeAddr("closedMarketGate");
+        vm.mockCall(gate, abi.encodeWithSignature("canIncreaseCredit(address)", address(adapter)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeWithSignature("canIncreaseDebt(address)"), abi.encode(true));
+        storedOffer.market.enterGate = gate;
+        bytes memory idData = abi.encode("enterGate", gate);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        vm.mockCall(gate, abi.encodeWithSignature("canIncreaseCredit(address)"), abi.encode(false));
+        vm.mockCallRevert(storedCollaterals[0].oracle, abi.encodeWithSignature("price()"), bytes("dead oracle"));
+        vm.expectRevert();
+        adapter.withdrawToVault(boughtOffer.market, 1e18);
+        vm.expectRevert(bytes("dead oracle"));
+        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, true, address(this), address(0), "");
+
+        setForceSellable(marketId);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ForceDeallocate(marketId, 0, 0);
+        forceDeallocateOnRealVault(boughtOffer.market, 0);
+
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "Midnight credit not moved");
+        assertEq(adapter.marketData(marketId).netCredit, 0);
+        assertEq(adapter.marketIdsLength(), 0);
+        assertEq(adapter.realAssets(), 0);
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        assertEq(loanToken.balanceOf(address(realVault)), 9e18, "no assets moved");
+        bytes32[] memory ids_ = adapter.ids(boughtOffer.market);
+        for (uint256 i; i < ids_.length; i++) {
+            assertEq(realVault.allocation(ids_[i]), 0);
+        }
+        uint256[] memory allocations = adapter.durationAllocations(allDurations.length);
+        for (uint256 i; i < allocations.length; i++) {
+            assertEq(allocations[i], 0);
+        }
+    }
+
+    function testForceRemoveCannotResyncRemovedCredit() public {
+        Offer memory first = buy(7 days, 1e18);
+        Offer memory second = buy(30 days, 1e18);
+        bytes32 firstId = _marketId(first.market);
+        bytes32 secondId = _marketId(second.market);
+        setForceSellable(firstId);
+        forceDeallocate(first.market, 0);
+        assertMarketIndex(secondId, 0);
+        assertEq(adapter.marketIdsLength(), 1);
+
+        // Permissionless withdrawToVault(0) reverts with UntrackedCredit.
+        vm.expectRevert(IMidnightAdapterBase.UntrackedCredit.selector);
+        adapter.withdrawToVault(first.market, 0);
+
+        // Partial sale also reverts with UntrackedCredit.
+        Offer memory buyOffer = makeExternalOffer(first.market, true, 0.25e18, MAX_TICK);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapterBase.UntrackedCredit.selector);
+        adapter.take(buyOffer, "", 0.25e18, "");
+
+        // Even if forceSellable is unset, 0-asset forceDeallocate and onBuy revert with UntrackedCredit.
+        vm.prank(curator);
+        adapter.unsetForceSellable(firstId);
+        vm.expectRevert(IMidnightAdapterBase.UntrackedCredit.selector);
+        forceDeallocate(first.market, 0);
+
+        Offer memory sellOffer = makeExternalOffer(first.market, false, 0.25e18, MAX_TICK);
+        midnight.supplyCollateral(first.market, 0, 0.25e18, taker);
+        midnight.supplyCollateral(first.market, 1, 0.25e18, taker);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapterBase.UntrackedCredit.selector);
+        adapter.take(sellOffer, "", 0.25e18, abi.encode(address(0), bytes("")));
+
+        assertMarketIndex(secondId, 0);
+        assertEq(adapter.marketIdsLength(), 1);
+    }
+
+    function testForceRemoveDuringSaleReverts() public {
+        Offer memory offer = freshPosition(MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        setForceSellable(marketId);
+        bytes memory data = abi.encodeCall(
+            IVaultV2.forceDeallocate, (address(adapter), abi.encode(offer.market, address(this)), 0, address(this))
+        );
+        SaleCallback callback = newCallback();
+        midnight.setIsAuthorized(address(callback), true, address(this));
+        callback.push(address(realVault), data, IMidnightAdapterBase.SellInProgress.selector);
+        callbackSale(makeSellOffer(offer.market, 1e18, MAX_TICK), callback);
+        assertEq(adapter.marketData(marketId).netCredit, 7e18);
+        forceDeallocateOnRealVault(offer.market, 0);
+        assertEq(adapter.marketIdsLength(), 0);
     }
 
     /* WITHDRAW TO VAULT */
