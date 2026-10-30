@@ -1170,8 +1170,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMaxNetSellRateDefault() public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
         MidnightAdapter newAdapter =
-            MidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32("default")));
+            MidnightAdapter(factory.createMidnightAdapter(address(newVault), allDurations, bytes32(0)));
         assertEq(newAdapter.maxNetSellRate(), 0, "sales below face value blocked by default");
     }
 
@@ -1714,7 +1715,7 @@ contract MidnightAdapterTest is Test {
 
     /* FACTORY */
 
-    function testFactoryCreateMidnightAdapter(bytes32 salt) public {
+    function testFactoryCreateMidnightAdapter(bytes32 preSalt) public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         bytes32 initCodeHash = keccak256(
@@ -1722,18 +1723,18 @@ contract MidnightAdapterTest is Test {
                 type(MidnightAdapter).creationCode, abi.encode(address(newVault), address(midnight), allDurations)
             )
         );
+        bytes32 salt = keccak256(abi.encode(preSalt, address(this)));
+        bytes32 durationsHash = keccak256(abi.encode(allDurations));
         address expected =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), salt, initCodeHash)))));
         vm.expectEmit(address(factory));
-        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), allDurations, salt, expected);
-        address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, salt);
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(
+            address(this), address(newVault), allDurations, preSalt, expected
+        );
+        address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, preSalt);
 
         assertEq(newAdapter, expected, "expected address");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), salt),
-            newAdapter,
-            "midnightAdapter"
-        );
+        assertEq(factory.midnightAdapter(address(newVault), durationsHash, salt), newAdapter, "midnightAdapter");
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
@@ -1741,29 +1742,38 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
-        bytes32 differentSalt = bytes32(uint256(salt) ^ 1);
         vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault), allDurations, salt);
+        factory.createMidnightAdapter(address(newVault), allDurations, preSalt);
 
-        address otherAdapter = factory.createMidnightAdapter(address(newVault), allDurations, differentSalt);
-        assertTrue(otherAdapter != newAdapter, "different salts create different adapters");
+        bytes32 differentPreSalt = bytes32(uint256(preSalt) ^ 1);
+        bytes32 differentSalt = keccak256(abi.encode(differentPreSalt, address(this)));
+        address otherAdapter = factory.createMidnightAdapter(address(newVault), allDurations, differentPreSalt);
+        assertTrue(otherAdapter != newAdapter, "different preSalts create different adapters");
         assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), salt),
-            newAdapter,
-            "first adapter mapping"
-        );
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), differentSalt),
+            factory.midnightAdapter(address(newVault), durationsHash, differentSalt),
             otherAdapter,
-            "second adapter mapping"
+            "different preSalt adapter mapping"
         );
-        assertTrue(factory.isMidnightAdapter(newAdapter), "first adapter registered");
-        assertTrue(factory.isMidnightAdapter(otherAdapter), "second adapter registered");
+        assertTrue(factory.isMidnightAdapter(otherAdapter), "different preSalt adapter registered");
+
+        address otherCaller = makeAddr("other");
+        vm.prank(otherCaller);
+        address otherCallerAdapter = factory.createMidnightAdapter(address(newVault), allDurations, preSalt);
+        bytes32 otherCallerSalt = keccak256(abi.encode(preSalt, otherCaller));
+        assertTrue(otherCallerAdapter != newAdapter, "different callers create different adapters");
+        assertEq(
+            factory.midnightAdapter(address(newVault), durationsHash, otherCallerSalt),
+            otherCallerAdapter,
+            "other caller adapter mapping"
+        );
+        assertTrue(factory.isMidnightAdapter(otherCallerAdapter), "other caller adapter registered");
+        assertEq(factory.midnightAdapter(address(newVault), durationsHash, salt), newAdapter, "first adapter unchanged");
 
         uint256[] memory singleDuration = new uint256[](1);
         singleDuration[0] = allDurations[0];
-        address otherDurationsAdapter = factory.createMidnightAdapter(address(newVault), singleDuration, salt);
+        address otherDurationsAdapter = factory.createMidnightAdapter(address(newVault), singleDuration, preSalt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
+        assertTrue(factory.isMidnightAdapter(otherDurationsAdapter), "other durations adapter registered");
         assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
         assertEq(
             factory.midnightAdapter(address(newVault), keccak256(abi.encode(singleDuration)), salt),
@@ -1771,7 +1781,7 @@ contract MidnightAdapterTest is Test {
             "other durations adapter mapping"
         );
         assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), salt),
+            factory.midnightAdapter(address(newVault), durationsHash, salt),
             newAdapter,
             "first adapter mapping unchanged"
         );

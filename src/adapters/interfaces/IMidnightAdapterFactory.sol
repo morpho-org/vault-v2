@@ -7,7 +7,11 @@ interface IMidnightAdapterFactory {
 
     event CreateMidnightAdapterFactory(address indexed midnight);
     event CreateMidnightAdapter(
-        address indexed parentVault, uint256[] durations, bytes32 salt, address indexed midnightAdapter
+        address indexed caller,
+        address indexed parentVault,
+        uint256[] durations,
+        bytes32 preSalt,
+        address indexed midnightAdapter
     );
 
     /* FUNCTIONS */
@@ -15,7 +19,7 @@ interface IMidnightAdapterFactory {
     function midnight() external view returns (address);
     function midnightAdapter(address parentVault, bytes32 durationsHash, bytes32 salt) external view returns (address);
     function isMidnightAdapter(address account) external view returns (bool);
-    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 salt)
+    function createMidnightAdapter(address parentVault, uint256[] memory durations, bytes32 preSalt)
         external
         returns (address);
 }
