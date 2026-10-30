@@ -17,7 +17,6 @@ import {
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IMidnightAdapterRateRatifierV1} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterRateRatifierV1.sol";
 import {IMidnightAdapter, IMidnightAdapterBase} from "../src/adapters/interfaces/IMidnightAdapter.sol";
-import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
@@ -567,8 +566,12 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), address(this), address(this), address(this), address(0));
         uint256[] memory durations = new uint256[](1);
         durations[0] = 1 days;
-        IMidnightAdapter adapter =
-            IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight), durations)));
+        IMidnightAdapter adapter = IMidnightAdapter(
+            deployCode(
+                "MidnightAdapter.sol:MidnightAdapter",
+                abi.encode(address(vault), address(midnight), durations, address(0))
+            )
+        );
         bytes32 durationId = keccak256(abi.encode("this/duration", address(adapter), durations[0]));
         vault.setRelativeCap(durationId, 1e18);
         vault.setAbsoluteCap(durationId, type(uint128).max);

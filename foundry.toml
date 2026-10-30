@@ -64,13 +64,14 @@ paths = "src/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "cancun"
 
+# The adapter's initcode is embedded in its factory, so it is compiled for size.
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 800
+optimizer_runs = 1
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
-paths = "src/adapters/ratifiers/**"
+paths = "src/adapters/ratifiers/MidnightAdapter*.sol"
 optimizer_runs = 800
 evm_version = "osaka"
 
@@ -106,6 +107,11 @@ evm_version = "cancun"
 [[profile.default.additional_compiler_profiles]]
 name = "800-osaka"
 optimizer_runs = 800
+evm_version = "osaka"
+
+[[profile.default.additional_compiler_profiles]]
+name = "1-osaka"
+optimizer_runs = 1
 evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]
