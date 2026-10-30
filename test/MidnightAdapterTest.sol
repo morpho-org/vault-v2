@@ -560,7 +560,7 @@ contract MidnightAdapterTest is Test {
         }
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.UnsetForceSellable(marketId);
+        emit IMidnightAdapterBase.UnsetForceSellable(authorizedCaller, marketId);
         vm.recordLogs();
         vm.prank(authorizedCaller);
         adapter.unsetForceSellable(marketId);

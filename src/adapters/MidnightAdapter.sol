@@ -254,7 +254,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         marketData[marketId].forceSellable = false;
-        emit UnsetForceSellable(marketId);
+        emit UnsetForceSellable(msg.sender, marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
