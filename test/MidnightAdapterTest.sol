@@ -1170,9 +1170,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMaxNetSellRateDefault() public {
-        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
         MidnightAdapter newAdapter =
-            MidnightAdapter(factory.createMidnightAdapter(address(newVault), allDurations, bytes32(0)));
+            MidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32("default")));
         assertEq(newAdapter.maxNetSellRate(), 0, "sales below face value blocked by default");
     }
 
