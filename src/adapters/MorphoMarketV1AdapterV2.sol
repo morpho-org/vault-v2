@@ -21,7 +21,7 @@ import {
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams", address(this), marketParams)).
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
-/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
 /// @dev Donated shares are lost forever.
 /// @dev Shouldn't be used with a token whose max allowance is small and decreases on transfers, because the adapter only approves type(uint256).max once, in the constructor.
 ///

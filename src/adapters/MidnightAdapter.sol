@@ -59,7 +59,7 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// TIMELOCKS
-/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
 /// MISC
