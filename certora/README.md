@@ -54,6 +54,10 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
 - [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
+- [`MarketIdsMidnightAdapter.spec`](specs/MarketIdsMidnightAdapter.spec) checks the Midnight adapter's market list.
+  It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
+  These hold whatever the adapter's net credit in Midnight is.
+- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
 
@@ -81,6 +85,7 @@ Privileged actions enforce their roles, while authorized accounts retain the ope
 - [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
 - [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Blue position can be fully deallocated and removed.
   Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
+- [`LivenessMidnightAdapter.spec`](specs/LivenessMidnightAdapter.spec) checks that the Midnight adapter's `realAssets` doesn't revert outside of a buy or a sale, assuming Midnight's invariants that a position's pending fee is at most its credit and that its last loss factor is at most the market's.
 
 ## Gates and token transfers
 
@@ -125,7 +130,7 @@ Verification is performed according to the following modeling conventions:
 Install the `certora-cli` package with `pip install certora-cli`.
 To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`.
 This requires a valid Certora key in the `CERTORAKEY` environment variable.
-The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, and `solc-0.8.28`; the compiler versions required by a particular job are listed in its configuration.
+The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, `solc-0.8.28`, and `solc-0.8.37`; the compiler versions required by a particular job are listed in its configuration.
 
 Additional arguments can select a specific rule. For example, from the repository root:
 

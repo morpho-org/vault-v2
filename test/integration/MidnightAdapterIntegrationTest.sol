@@ -85,7 +85,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
         _increaseCaps(abi.encode("collateralParams", collateralParams));
         _increaseCaps(abi.encode("enterGate", address(0)));
-        _increaseCaps(abi.encode("liquidatorGate", address(0)));
         _increaseCaps(abi.encode("rcfThreshold", uint256(0)));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
@@ -302,38 +301,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         Market memory market = _market(7 days);
 
         uint256 units = 1000 * oneToken;
-        Offer memory offer = Offer({
-            market: market,
-            buy: true,
-            maker: lender,
-            start: block.timestamp,
-            expiry: market.maturity,
-            tick: TICK,
-            group: keccak256(abi.encode("external", market.maturity, units, true)),
-            callback: address(0),
-            callbackData: "",
-            receiverIfMakerIsSeller: address(0),
-            ratifier: address(setterRatifier),
-            reduceOnly: false,
-            maxUnits: uint128(units),
-            maxAssets: 0,
-            continuousFeeCap: type(uint256).max
-        });
-        deal(address(underlyingToken), lender, units);
-        bytes32 root = HashLib.hashOffer(offer);
-        bytes32[] memory proof = new bytes32[](0);
-        bytes memory ratifierData = abi.encode(root, uint256(0), proof);
-        vm.startPrank(lender);
-        SafeERC20Lib.safeApprove(address(underlyingToken), address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(address(setterRatifier), true, lender);
-        setterRatifier.setIsRootRatified(lender, root, true);
-        vm.stopPrank();
-
-        uint256 sellerAssets = units * TickLib.tickToPrice(TICK) / WAD;
-        deal(address(underlyingToken), depositor, units - sellerAssets);
+        deal(address(underlyingToken), depositor, units);
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
-        vault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData), units, depositor);
+        midnight.setIsAuthorized(address(adapter), true, depositor);
+        vault.forceDeallocate(address(adapter), abi.encode(market, depositor), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }
