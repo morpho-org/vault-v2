@@ -14,7 +14,7 @@ struct MarketData {
     uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
+    /// @dev When activated, sales do not update the floor, so their shortfall is realized immediately.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -51,7 +51,11 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
-        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
+        bytes32 indexed marketId,
+        uint256 sellerAssets,
+        uint256 soldNetCredit,
+        uint256 newNetCredit,
+        uint256 newMaxDiscount
     );
 
     /* ERRORS */
@@ -109,9 +113,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
+    function maxDiscount() external view returns (uint256);
     function noSalesWithShortfall() external view returns (bool);
     function inProgressBuyMarketId() external view returns (bytes32);
-    function inProgressBuyBoughtNetCredit() external view returns (uint256);
+    function inProgressBuyNetCredit() external view returns (uint256);
     function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
