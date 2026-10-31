@@ -4,11 +4,13 @@ pragma solidity 0.8.37;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
+import {IVaultV2Factory} from "../interfaces/IVaultV2Factory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
     address public immutable midnight;
+    address public immutable vaultV2Factory;
 
     /* STORAGE */
 
@@ -19,9 +21,10 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* CONSTRUCTOR */
 
-    constructor(address _midnight) {
+    constructor(address _midnight, address _vaultV2Factory) {
         midnight = _midnight;
-        emit CreateMidnightAdapterFactory(_midnight);
+        vaultV2Factory = _vaultV2Factory;
+        emit CreateMidnightAdapterFactory(_midnight, _vaultV2Factory);
     }
 
     /* FUNCTIONS */
@@ -32,6 +35,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         external
         returns (address)
     {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(parentVault), NotVaultV2());
         address _midnightAdapter = address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations));
         midnightAdapter[parentVault][keccak256(abi.encode(durations))][salt] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;

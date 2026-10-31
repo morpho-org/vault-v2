@@ -63,6 +63,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
@@ -73,8 +74,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
-    bytes32 transient overriddenMarketId;
-    uint256 transient overriddenMarketNetCredit;
+    bytes32 public transient overriddenMarketId;
+    uint256 public transient overriddenMarketNetCredit;
 
     /* TIMELOCKS STORAGE */
 
@@ -100,6 +101,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+        factory = msg.sender;
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
@@ -326,6 +328,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* VAULT INTERFACE */
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
+    /// @dev The vault also calls allocate on entry (deposit and mint), but the adapter never enters the vault, so caller == address(this) implies that messageSig is IVaultV2.allocate.selector.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
     function allocate(bytes memory data, uint256, bytes4, address caller)
         external

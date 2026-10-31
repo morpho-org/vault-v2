@@ -20,6 +20,7 @@ import {
     IMidnightAdapterPriceRatifierV1
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
@@ -170,6 +171,7 @@ contract MidnightAdapterTest is Test {
 
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
+    IVaultV2Factory internal vaultV2Factory;
     IMidnightAdapter internal adapter;
     MidnightAdapterPriceRatifierV1 internal priceRatifier;
     VaultV2Mock internal parentVault;
@@ -216,7 +218,12 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(address(midnight));
+        vaultV2Factory = IVaultV2Factory(deployCode("VaultV2Factory.sol:VaultV2Factory"));
+        // The mock vaults are not created by the VaultV2Factory.
+        vm.mockCall(
+            address(vaultV2Factory), abi.encodeWithSelector(IVaultV2Factory.isVaultV2.selector), abi.encode(true)
+        );
+        factory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, bytes32(0)));
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
@@ -1857,6 +1864,7 @@ contract MidnightAdapterTest is Test {
             "midnightAdapter"
         );
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
+        assertEq(IMidnightAdapter(newAdapter).factory(), address(factory), "factory");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
@@ -1899,16 +1907,28 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testFactoryCreateMidnightAdapterNotVaultV2() public {
+        vm.clearMockedCalls();
+        vm.expectRevert(IMidnightAdapterFactory.NotVaultV2.selector);
+        factory.createMidnightAdapter(address(parentVault), allDurations, bytes32(uint256(1)));
+
+        address vault = vaultV2Factory.createVaultV2(owner, address(loanToken), bytes32(0));
+        address newAdapter = factory.createMidnightAdapter(vault, allDurations, bytes32(0));
+        assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
+    }
+
     function testFactoryConstructor() public {
         vm.expectEmit();
-        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight));
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
+        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
         assertEq(newFactory.midnight(), address(midnight), "midnight");
+        assertEq(newFactory.vaultV2Factory(), address(vaultV2Factory), "vaultV2Factory");
     }
 
     /* DURATIONS */
 
     function testConstructorGetters() public view {
+        assertEq(adapter.factory(), address(factory), "factory");
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
