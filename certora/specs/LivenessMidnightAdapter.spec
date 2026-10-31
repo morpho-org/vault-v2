@@ -18,7 +18,7 @@ ghost liquidationLockedGhost(bytes32, address) returns bool;
 // For longer lists, marketIdsLengthBounded in MarketIdsMidnightAdapter.spec bounds the length to MAX_MARKETS = 250, so assets < 2^136 and cannot overflow.
 rule livenessRealAssets(env e) {
     require e.msg.value == 0, "realAssets is not payable";
-    require inProgressBuyMarketId() == 0, "no buy in progress, see onBuy";
+    require inProgressBuyMarketId() == to_bytes32(0), "no buy in progress, see onBuy";
     require forall bytes32 id. !liquidationLockedGhost(id, currentContract), "no sale in progress, Midnight sets this lock only during a sale";
     require forall bytes32 id. Midnight.position[id][currentContract].pendingFee <= Midnight.position[id][currentContract].credit, "see pendingContinuousFeeBoundedByCredit in Midnight's Midnight.spec";
     require forall bytes32 id. Midnight.position[id][currentContract].lastLossFactor <= Midnight.marketState[id].lossFactor, "see lastLossFactorLeqMarketLossFactor in Midnight's Midnight.spec";
