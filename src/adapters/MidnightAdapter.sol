@@ -337,7 +337,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
-        require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
+        require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -350,8 +350,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
     }
 
-    /// @dev Removes a force sellable market without moving its Midnight credit.
-    /// @dev The credit of a removed market can only be added back by buying in the market.
+    /// @dev Irreversibly removes a force sellable market without moving its Midnight credit.
     function forceRemove(Market memory market) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         bytes32 marketId = IdLib.toId(market);
@@ -431,7 +430,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
-            require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
+            require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
             marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -486,6 +485,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0 || newNetCredit == boughtNetCredit, ForceRemoved());
         _marketData.netCredit = newNetCredit;
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
@@ -579,7 +579,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
-        require(oldNetCredit > 0 || newNetCredit == 0, UntrackedCredit());
+        require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
