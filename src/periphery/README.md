@@ -5,6 +5,10 @@ Blue public allocator contracts are in [blue-public-allocator](./blue-public-all
 Gate contracts are in [gates](./gates/).
 Adapter registry contracts are in [registries](./registries/).
 
+## Revoker
+
+`Revoker` lets vault sentinels cancel pending vault or adapter actions whose data is too large to send in a transaction. It builds the data onchain and must also be a vault sentinel.
+
 ## Blue Public Allocator
 
 `BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `MorphoMarketV1AdapterV2`, within the vault's caps, and the public allocator's own limits.
