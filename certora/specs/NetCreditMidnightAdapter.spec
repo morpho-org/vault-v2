@@ -42,13 +42,9 @@ strong invariant nonZeroNetCreditIsListed()
     forall bytes32 marketId. currentContract.marketData[marketId].netCredit != 0 => currentContract.marketData[marketId].index < currentContract.marketIds.length && currentContract.marketIds[currentContract.marketData[marketId].index] == marketId
     {
         preserved {
-            requireInvariant marketIdsLengthBounded();
-            requireInvariant marketIdsIndex();
             requireInvariant midnightNetCreditBelowStoredNetCredit();
         }
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            requireInvariant marketIdsLengthBounded();
-            requireInvariant marketIdsIndex();
             requireInvariant midnightNetCreditBelowStoredNetCredit();
             increaseMidnightNetCredit(marketId);
         }
