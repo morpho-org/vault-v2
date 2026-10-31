@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-import "Invariants.spec";
+import "./Invariants.spec";
 
 rule livenessDecreaseAbsoluteCapZero(env e, bytes idData) {
     require e.msg.sender == curator() || isSentinel(e.msg.sender);
