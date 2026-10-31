@@ -22,7 +22,8 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault and to sell (except through forceDeallocate).
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate) and to self-fund buys.
+/// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
@@ -330,26 +331,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
     }
 
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
-        bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
-        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-
-        uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                withdrawnAssets
-            );
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
-    }
-
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
@@ -373,10 +354,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by this adapter from a sell callback or a withdraw.
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
+    /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
+    /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
+    function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
         external
         returns (bytes32[] memory, int256)
     {
@@ -422,8 +404,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+        } else if (sender != address(this)) {
+            return withdrawToVault(abi.decode(data, (Market)), assets);
         } else {
-            require(sender == address(this), SelfAllocationOnly());
             returnExactBytes(data);
         }
     }
@@ -495,7 +478,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
         if (fundingAdapter == address(this)) {
-            withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
+            (bytes32[] memory _ids, int256 change) = withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(_ids, change), buyerAssets);
         } else if (fundingAdapter != address(0)) {
             IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, buyerAssets);
         }
@@ -579,6 +563,26 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
+    /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
+    function withdrawToVault(Market memory market, uint256 withdrawnAssets)
+        internal
+        returns (bytes32[] memory, int256)
+    {
+        bytes32 marketId = IdLib.toId(market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
+
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+    }
 
     /// @dev Ends the external call, returning data without ABI encoding.
     function returnExactBytes(bytes memory data) internal pure {
