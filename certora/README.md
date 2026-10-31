@@ -59,6 +59,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   These hold whatever the adapter's net credit in Midnight is.
 - [`NetCreditMidnightAdapter.spec`](specs/NetCreditMidnightAdapter.spec) checks that the adapter's net credit in Midnight never exceeds its stored net credit.
   It follows that a market with a non-zero stored net credit is listed.
+- [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
 
@@ -86,6 +87,7 @@ Privileged actions enforce their roles, while authorized accounts retain the ope
 - [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
 - [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Blue position can be fully deallocated and removed.
   Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
+- [`LivenessMidnightAdapter.spec`](specs/LivenessMidnightAdapter.spec) checks that the Midnight adapter's `realAssets` doesn't revert outside of a buy or a sale, assuming Midnight's invariants that a position's pending fee is at most its credit and that its last loss factor is at most the market's.
 
 ## Gates and token transfers
 
