@@ -335,9 +335,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
+        require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -348,6 +348,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 withdrawnAssets
             );
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
+    }
+
+    /// @dev Irreversibly removes a force sellable market without moving its Midnight credit.
+    function forceRemove(Market memory market) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        bytes32 marketId = IdLib.toId(market);
+        require(marketData[marketId].forceSellable, NotForceSellable());
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        emit ForceRemove(marketId, oldNetCredit);
+        marketData[marketId].netCredit = 0;
+        if (oldNetCredit > 0) removeMarket(marketId);
+        // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -417,6 +430,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = marketData[marketId].netCredit;
+            require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
             marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -471,6 +485,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0 || newNetCredit == boughtNetCredit, ForceRemoved());
         _marketData.netCredit = newNetCredit;
         (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
         // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
@@ -564,6 +579,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0 || newNetCredit == 0, ForceRemoved());
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
