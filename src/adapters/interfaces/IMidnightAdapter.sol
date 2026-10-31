@@ -48,7 +48,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event Buy(
-        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
+        bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
         bytes32 indexed marketId,
