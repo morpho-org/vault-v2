@@ -34,6 +34,8 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev Shortfalls pause reported growth instead of reducing rates. Sales revert if remaining interest is insufficient.
+/// @dev The deferred loss is realAssets() minus the amortized value. After a sale with a shortfall it is at most maxDeferredLossRatio of the remaining net credit.
+/// @dev It is not checked elsewhere, so the ratio can drift above maxDeferredLossRatio when net credit shrinks (fair sales, force sales, bad debt). It never exceeds the share of net credit that is unearned interest.
 /// @dev The floor is total net credit minus maxDiscount. Only sales with a shortfall tighten maxDiscount to the current discount.
 /// @dev forceSellable sales leave maxDiscount unchanged and realize losses immediately.
 /// @dev Visible bad debt is applied before the shortfall.
@@ -44,9 +46,9 @@ import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
+/// @dev minNetBuyRate, maxNetSellRate, maxDeferredLossRatio and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and maxDeferredLossRatio, and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
@@ -122,8 +124,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
+    /// @dev Maximum deferred loss after a sale with a shortfall, relative to the remaining net credit (WAD-scaled). Zero disables sales with a shortfall.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    bool public noSalesWithShortfall;
+    uint64 public maxDeferredLossRatio;
 
     /* CONSTRUCTOR */
 
@@ -277,10 +280,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
-    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
+    function setMaxDeferredLossRatio(uint256 newMaxDeferredLossRatio) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesWithShortfall = newNoSalesWithShortfall;
-        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
+        maxDeferredLossRatio = newMaxDeferredLossRatio.toUint64();
+        emit SetMaxDeferredLossRatio(newMaxDeferredLossRatio);
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
@@ -560,16 +563,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             bool hasShortfall = sellerAssets < soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm);
-            uint256 availableDiscount;
             if (hasShortfall) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                (, uint256 totalDiscount) = valuation(marketId, newNetCredit + soldNetCredit);
-                availableDiscount = MathLib.min(totalDiscount, maxDiscount);
+                (uint256 totalNetCredit, uint256 totalDiscount) = valuation(marketId, newNetCredit + soldNetCredit);
+                uint256 availableDiscount = MathLib.min(totalDiscount, maxDiscount);
+                require(availableDiscount + sellerAssets >= soldNetCredit, MaxDiscountExceeded());
+                maxDiscount = availableDiscount + sellerAssets - soldNetCredit;
+
+                // Deferred loss after the sale: the remaining discount that realAssets() does not apply.
+                // The sold discount is rounded up like in valuation, so it is at most the sold market's share of totalDiscount.
+                uint256 soldDiscount = soldNetCredit - soldNetCredit.mulDivDown(WAD, WAD + _marketData.netRate * ttm);
+                uint256 deferredLoss = totalDiscount.zeroFloorSub(soldDiscount + maxDiscount);
+                require(
+                    deferredLoss <= (totalNetCredit - soldNetCredit).mulDivDown(maxDeferredLossRatio, WAD),
+                    DeferredLossTooHigh()
+                );
             } else {
-                availableDiscount = maxDiscount;
+                require(maxDiscount + sellerAssets >= soldNetCredit, MaxDiscountExceeded());
+                maxDiscount = maxDiscount + sellerAssets - soldNetCredit;
             }
-            require(availableDiscount + sellerAssets >= soldNetCredit, MaxDiscountExceeded());
-            maxDiscount = availableDiscount + sellerAssets - soldNetCredit;
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
