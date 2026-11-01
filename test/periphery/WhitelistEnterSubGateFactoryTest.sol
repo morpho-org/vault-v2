@@ -43,6 +43,10 @@ contract WhitelistEnterSubGateFactoryTest is Test {
         bytes32 preSalt
     ) public {
         address expected = _expectedGate(_creditRoleSetter, _debtRoleSetter, creditOpen, debtOpen, preSalt, caller);
+        bytes32 salt = keccak256(abi.encode(preSalt, caller));
+        assertEq(
+            factory.whitelistEnterSubGate(_creditRoleSetter, _debtRoleSetter, creditOpen, debtOpen, salt), address(0)
+        );
 
         vm.expectEmit();
         emit IWhitelistEnterSubGateFactory.CreateWhitelistEnterSubGate(
@@ -54,6 +58,9 @@ contract WhitelistEnterSubGateFactoryTest is Test {
 
         assertEq(gateAddress, expected);
         assertTrue(factory.isCreated(gateAddress));
+        assertEq(
+            factory.whitelistEnterSubGate(_creditRoleSetter, _debtRoleSetter, creditOpen, debtOpen, salt), gateAddress
+        );
         WhitelistEnterSubGate gate = WhitelistEnterSubGate(gateAddress);
         assertEq(gate.roleSetter(true), _creditRoleSetter);
         assertEq(gate.roleSetter(false), _debtRoleSetter);
@@ -81,6 +88,18 @@ contract WhitelistEnterSubGateFactoryTest is Test {
         assertTrue(gate1 != gate2);
         assertTrue(factory.isCreated(gate1));
         assertTrue(factory.isCreated(gate2));
+        assertEq(
+            factory.whitelistEnterSubGate(
+                creditRoleSetter, debtRoleSetter, false, false, keccak256(abi.encode(preSalt, caller1))
+            ),
+            gate1
+        );
+        assertEq(
+            factory.whitelistEnterSubGate(
+                creditRoleSetter, debtRoleSetter, false, false, keccak256(abi.encode(preSalt, caller2))
+            ),
+            gate2
+        );
     }
 
     function testCreateWhitelistEnterSubGateDifferentPreSalts(bytes32 preSalt1, bytes32 preSalt2) public {
@@ -92,15 +111,43 @@ contract WhitelistEnterSubGateFactoryTest is Test {
         assertTrue(gate1 != gate2);
         assertTrue(factory.isCreated(gate1));
         assertTrue(factory.isCreated(gate2));
+        assertEq(
+            factory.whitelistEnterSubGate(
+                creditRoleSetter, debtRoleSetter, false, false, keccak256(abi.encode(preSalt1, address(this)))
+            ),
+            gate1
+        );
+        assertEq(
+            factory.whitelistEnterSubGate(
+                creditRoleSetter, debtRoleSetter, false, false, keccak256(abi.encode(preSalt2, address(this)))
+            ),
+            gate2
+        );
     }
 
     function testCreateWhitelistEnterSubGateDifferentArgs(bytes32 preSalt) public {
+        bytes32 salt = keccak256(abi.encode(preSalt, address(this)));
+        address otherCreditRoleSetter = makeAddr("otherCreditRoleSetter");
+        address otherDebtRoleSetter = makeAddr("otherDebtRoleSetter");
         address gate1 = factory.createWhitelistEnterSubGate(creditRoleSetter, debtRoleSetter, false, false, preSalt);
         address gate2 = factory.createWhitelistEnterSubGate(creditRoleSetter, debtRoleSetter, true, false, preSalt);
+        address gate3 = factory.createWhitelistEnterSubGate(creditRoleSetter, debtRoleSetter, false, true, preSalt);
+        address gate4 =
+            factory.createWhitelistEnterSubGate(otherCreditRoleSetter, debtRoleSetter, false, false, preSalt);
+        address gate5 =
+            factory.createWhitelistEnterSubGate(creditRoleSetter, otherDebtRoleSetter, false, false, preSalt);
 
         assertTrue(gate1 != gate2);
         assertTrue(factory.isCreated(gate1));
         assertTrue(factory.isCreated(gate2));
+        assertTrue(factory.isCreated(gate3));
+        assertTrue(factory.isCreated(gate4));
+        assertTrue(factory.isCreated(gate5));
+        assertEq(factory.whitelistEnterSubGate(creditRoleSetter, debtRoleSetter, false, false, salt), gate1);
+        assertEq(factory.whitelistEnterSubGate(creditRoleSetter, debtRoleSetter, true, false, salt), gate2);
+        assertEq(factory.whitelistEnterSubGate(creditRoleSetter, debtRoleSetter, false, true, salt), gate3);
+        assertEq(factory.whitelistEnterSubGate(otherCreditRoleSetter, debtRoleSetter, false, false, salt), gate4);
+        assertEq(factory.whitelistEnterSubGate(creditRoleSetter, otherDebtRoleSetter, false, false, salt), gate5);
     }
 
     function testIsCreatedFalseForUnknownAddress(address account) public view {

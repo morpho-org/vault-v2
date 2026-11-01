@@ -6,7 +6,7 @@ import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
-/// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate
+/// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
