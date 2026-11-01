@@ -18,8 +18,7 @@ import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IMorpho} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {IMorphoFlashLoanCallback} from "../../lib/morpho-blue/src/interfaces/IMorphoCallbacks.sol";
+import {IFlashLoanCallback} from "../../lib/midnight/src/interfaces/ICallbacks.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
@@ -401,11 +400,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             units - units * (WAD - midnight.settlementFee(marketId, market.maturity - block.timestamp)) / WAD;
         deal(address(underlyingToken), depositor, settlementFeeAssets);
 
-        // Morpho Blue provides the flashloan. No external maker buys the credit.
-        // Midnight starts with no loan tokens. The depositor funds only the settlement fee.
-        IMorpho morpho = IMorpho(deployCode("Morpho.sol:Morpho", abi.encode(owner)));
-        deal(address(underlyingToken), address(morpho), units);
-        MidnightAdapterExitRouter router = new MidnightAdapterExitRouter(address(morpho), address(gatedAdapter));
+        // Midnight provides the flashloan. The depositor funds only the settlement fee.
+        deal(address(underlyingToken), address(midnight), units);
+        MidnightAdapterExitRouter router = new MidnightAdapterExitRouter(address(gatedAdapter));
 
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(router), settlementFeeAssets);
@@ -448,20 +445,18 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 }
 
-/// @dev Exchanges the caller's vault shares for credit with a fee-free Morpho Blue flashloan.
+/// @dev Exchanges the caller's vault shares for credit with a fee-free Midnight flashloan.
 /// @dev Use with a genuine MidnightAdapter and its parent vault.
 /// @dev The caller must approve this router for vault shares and the settlement fee, and Midnight for the principal.
-contract MidnightAdapterExitRouter is IMorphoFlashLoanCallback {
+contract MidnightAdapterExitRouter is IFlashLoanCallback {
     error Unauthorized();
 
-    address public immutable morpho;
     address public immutable adapter;
     address public immutable parentVault;
     address public immutable midnight;
     address public immutable asset;
 
-    constructor(address _morpho, address _adapter) {
-        morpho = _morpho;
+    constructor(address _adapter) {
         adapter = _adapter;
         parentVault = IMidnightAdapter(_adapter).parentVault();
         midnight = IMidnightAdapter(_adapter).midnight();
@@ -476,17 +471,26 @@ contract MidnightAdapterExitRouter is IMorphoFlashLoanCallback {
         if (settlementFeeAssets > 0) {
             SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
         }
-        IMorpho(morpho).flashLoan(asset, assets, abi.encode(market, msg.sender, settlementFeeAssets));
+        address[] memory tokens = new address[](1);
+        tokens[0] = asset;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = assets;
+        IMidnight(midnight)
+            .flashLoan(tokens, amounts, address(this), abi.encode(market, msg.sender, settlementFeeAssets));
     }
 
-    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
-        require(msg.sender == morpho, Unauthorized());
+    function onFlashLoan(address caller, address[] memory, uint256[] memory assets, bytes memory data)
+        external
+        returns (bytes32)
+    {
+        require(msg.sender == midnight && caller == address(this), Unauthorized());
         (Market memory market, address taker, uint256 settlementFeeAssets) =
             abi.decode(data, (Market, address, uint256));
-        SafeERC20Lib.safeApprove(asset, adapter, assets + settlementFeeAssets);
-        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(market, taker), assets, taker);
+        SafeERC20Lib.safeApprove(asset, adapter, assets[0] + settlementFeeAssets);
+        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(market, taker), assets[0], taker);
         // The taker keeps the credit. The vault withdrawal repays the flashloan.
-        IVaultV2(parentVault).withdraw(assets, address(this), taker);
-        SafeERC20Lib.safeApprove(asset, morpho, assets);
+        IVaultV2(parentVault).withdraw(assets[0], address(this), taker);
+        SafeERC20Lib.safeApprove(asset, midnight, assets[0]);
+        return keccak256("morpho.midnight.callbackSuccess");
     }
 }
