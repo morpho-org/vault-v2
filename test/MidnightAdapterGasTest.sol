@@ -508,8 +508,6 @@ contract MidnightAdapterGasTest is BaseTest {
     function _familyIdData(Market memory market) internal pure returns (bytes memory) {
         return abi.encode(
             "family",
-            market.chainId,
-            market.midnight,
             market.loanToken,
             market.collateralParams,
             market.rcfThreshold,

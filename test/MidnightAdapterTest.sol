@@ -2293,28 +2293,24 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFamilyIdDependsOnMarketConfig(uint256 configField, uint160 delta) public view {
-        configField = bound(configField, 0, 9);
+        configField = bound(configField, 0, 7);
         delta = uint160(bound(delta, 1, type(uint160).max));
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
 
         if (configField == 0) {
-            market.chainId ^= delta;
-        } else if (configField == 1) {
-            market.midnight = address(uint160(market.midnight) ^ delta);
-        } else if (configField == 2) {
             market.loanToken = address(uint160(market.loanToken) ^ delta);
-        } else if (configField == 3) {
+        } else if (configField == 1) {
             market.rcfThreshold ^= delta;
-        } else if (configField == 4) {
+        } else if (configField == 2) {
             market.enterGate = address(delta);
-        } else if (configField == 5) {
+        } else if (configField == 3) {
             market.liquidatorGate = address(delta);
-        } else if (configField == 6) {
+        } else if (configField == 4) {
             market.collateralParams[0].token = address(uint160(market.collateralParams[0].token) ^ delta);
-        } else if (configField == 7) {
+        } else if (configField == 5) {
             market.collateralParams[0].lltv ^= delta;
-        } else if (configField == 8) {
+        } else if (configField == 6) {
             market.collateralParams[0].liquidationCursor ^= delta;
         } else {
             market.collateralParams[0].oracle = address(uint160(market.collateralParams[0].oracle) ^ delta);
@@ -2323,10 +2319,19 @@ contract MidnightAdapterTest is Test {
         bytes32[] memory changedIds = adapter.ids(market);
         assertEq(changedIds.length, originalIds.length);
         assertEq(changedIds[0], originalIds[0], "adapter id unchanged");
-        assertNotEq(changedIds[1], originalIds[1], "family includes every non-maturity field");
-        if (configField == 6) assertNotEq(changedIds[2], originalIds[2], "collateral token changed");
+        assertNotEq(changedIds[1], originalIds[1], "family includes every risk configuration field");
+        if (configField == 4) assertNotEq(changedIds[2], originalIds[2], "collateral token changed");
         else assertEq(changedIds[2], originalIds[2], "collateral token unchanged");
         assertEq(changedIds[3], originalIds[3], "other collateral token unchanged");
+    }
+
+    function testIdsIgnoreChainIdAndMidnight(uint256 chainId, address midnightAddress) public view {
+        Market memory market = storedOffer.market;
+        bytes32[] memory originalIds = adapter.ids(market);
+        market.chainId = chainId;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on chainId");
+        market.midnight = midnightAddress;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on midnight");
     }
 
     function testFamilyIdDependsOnCollateralSet() public view {
@@ -4546,8 +4551,6 @@ contract MidnightAdapterTest is Test {
     function familyIdData(Market memory market) internal pure returns (bytes memory) {
         return abi.encode(
             "family",
-            market.chainId,
-            market.midnight,
             market.loanToken,
             market.collateralParams,
             market.rcfThreshold,

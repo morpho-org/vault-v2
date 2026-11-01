@@ -622,7 +622,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (market without maturity), and each collateral token.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (market without maturity, chainId or midnight), and each collateral token.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
@@ -631,8 +631,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         idsArray[j++] = keccak256(
             abi.encode(
                 "family",
-                market.chainId,
-                market.midnight,
                 market.loanToken,
                 market.collateralParams,
                 market.rcfThreshold,

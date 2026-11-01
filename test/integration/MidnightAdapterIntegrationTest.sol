@@ -87,8 +87,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         _increaseCaps(
             abi.encode(
                 "family",
-                market.chainId,
-                market.midnight,
                 market.loanToken,
                 market.collateralParams,
                 market.rcfThreshold,
