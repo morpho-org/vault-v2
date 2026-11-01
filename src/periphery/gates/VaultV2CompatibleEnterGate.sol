@@ -32,7 +32,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
 
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
-    function admit(address user, address factory) external {
+    function temporarilyAdmit(address user, address factory) external {
         require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
 
         admitted = user;
