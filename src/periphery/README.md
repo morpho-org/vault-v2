@@ -7,7 +7,7 @@ Adapter registry contracts are in [registries](./registries/).
 
 ## Revoker
 
-`Revoker` lets vault sentinels cancel pending vault or adapter actions whose data is too large to send in a transaction. It builds the data onchain and must also be a vault sentinel.
+`Revoker` lets vault sentinels cancel pending vault or adapter actions whose data is too large to send in a transaction. It is recommended to add it as a vault sentinel.
 
 ## Blue Public Allocator
 
