@@ -672,7 +672,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(boughtOffer.market);
         uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
         uint256 rate = adapter.marketData(marketId).netRate;
-        uint256 maxDiscountBefore = adapter.maxDiscount();
+        uint256 maxUnrecognizedInterestBefore = adapter.maxUnrecognizedInterest();
 
         uint256 soldUnits = 0.5e18;
         uint256 tick = TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING);
@@ -698,7 +698,7 @@ contract MidnightAdapterTest is Test {
             assetsBefore - adapter.realAssets() - proceeds, shortfall, 1, "shortfall realized immediately"
         );
         assertEq(adapter.marketData(marketId).netRate, rate, "rate unchanged");
-        assertEq(adapter.maxDiscount(), maxDiscountBefore, "floor not updated");
+        assertEq(adapter.maxUnrecognizedInterest(), maxUnrecognizedInterestBefore, "floor not updated");
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - soldUnits, "position partially sold");
         assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
     }
@@ -869,7 +869,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(stdError.arithmeticError);
         sellUnits(offer.market, 2 * unearned + 2, MAX_TICK / 2);
         sellUnits(offer.market, 2 * unearned, MAX_TICK / 2);
-        assertEq(adapter.maxDiscount(), 0, "all remaining interest is used");
+        assertEq(adapter.maxUnrecognizedInterest(), 0, "all remaining interest is used");
         assertEq(adapter.realAssets(), adapter.marketData(marketId).netCredit, "carried at par");
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
@@ -962,7 +962,7 @@ contract MidnightAdapterTest is Test {
         buyAtDiscount(30 days, 100e18);
         uint256 paid = balanceBefore - loanToken.balanceOf(address(parentVault));
 
-        assertEq(adapter.maxDiscount(), 100e18 - paid, "discount recorded");
+        assertEq(adapter.maxUnrecognizedInterest(), 100e18 - paid, "discount recorded");
         assertGe(adapter.realAssets(), paid, "worth its cost");
         skip(1 days);
         assertGt(adapter.realAssets(), paid, "accrues above the floor");
@@ -2603,7 +2603,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 5);
         assertEq(loanToken.balanceOf(address(parentVault)), 5, "4 received for 5 units");
         assertEq(adapter.realAssets(), 5, "remaining units carried at the floor");
-        assertEq(adapter.maxDiscount(), 0);
+        assertEq(adapter.maxUnrecognizedInterest(), 0);
     }
 
     function testTakeFullSaleAtAmortizedValue() public {
@@ -2624,7 +2624,7 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 10, "");
         assertEq(adapter.realAssets(), 0);
         assertEq(loanToken.balanceOf(address(parentVault)), 10, "9 received for 10 units");
-        assertEq(adapter.maxDiscount(), 0);
+        assertEq(adapter.maxUnrecognizedInterest(), 0);
     }
 
     function testBuyRoundsCarriedValueUp() public {
@@ -4117,10 +4117,10 @@ contract MidnightAdapterTest is Test {
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore);
         } else {
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
-            uint256 maxDiscount = netCredit - assetsBefore + proceeds - sold;
-            assertEq(adapter.maxDiscount(), maxDiscount, "floor discount");
+            uint256 maxUnrecognizedInterest = netCredit - assetsBefore + proceeds - sold;
+            assertEq(adapter.maxUnrecognizedInterest(), maxUnrecognizedInterest, "floor discount");
             uint256 amortized = (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm);
-            uint256 floor = (netCredit - sold).zeroFloorSub(maxDiscount);
+            uint256 floor = (netCredit - sold).zeroFloorSub(maxUnrecognizedInterest);
             assertEq(adapter.realAssets(), amortized > floor ? amortized : floor, "max of amortized value and floor");
         }
     }
@@ -4212,11 +4212,11 @@ contract MidnightAdapterTest is Test {
         adapter.realAssets();
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         bytes32 marketIdsLengthSlot = bytes32(uint256(5));
-        bytes32 maxDiscountSlot = bytes32(uint256(7));
+        bytes32 maxUnrecognizedInterestSlot = bytes32(uint256(7));
         uint256 marketIdsDataSlot = uint256(keccak256(abi.encode(uint256(5))));
         uint256 marketDataReads;
         for (uint256 i; i < reads.length; i++) {
-            if (reads[i] == marketIdsLengthSlot || reads[i] == maxDiscountSlot) continue;
+            if (reads[i] == marketIdsLengthSlot || reads[i] == maxUnrecognizedInterestSlot) continue;
             bool isMarketId;
             for (uint256 j; j < marketCount; j++) {
                 if (reads[i] == bytes32(marketIdsDataSlot + j)) {
