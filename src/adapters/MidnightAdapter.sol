@@ -499,7 +499,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
-            // Exclude the unpaid purchase from realAssets during the following accrueInterest call.
+            // Cache the unpaid purchase to exclude it from realAssets during the following accrueInterest call.
             // If firstTotalAssets != 0, later accruals in this transaction use the vault's cached valuation.
             (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
