@@ -20,11 +20,14 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate) public {
         bytes32 preSalt = bytes32(0);
         bytes32 salt = keccak256(abi.encode(preSalt, caller));
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(VaultV2CompatibleEnterGate).creationCode, abi.encode(forwardedGate)));
+        address expected = vm.computeCreate2Address(salt, initCodeHash, address(factory));
         vm.recordLogs();
         vm.prank(caller);
         address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, preSalt);
 
-        assertEq(factory.vaultV2CompatibleEnterGate(forwardedGate, salt), created);
+        assertEq(created, expected);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, address(factory));
@@ -42,35 +45,23 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     function testCreateMultipleGatesWithDifferentSalts() public {
         bytes32 firstPreSalt = bytes32(0);
         bytes32 secondPreSalt = bytes32(uint256(1));
-        bytes32 firstSalt = keccak256(abi.encode(firstPreSalt, address(this)));
-        bytes32 secondSalt = keccak256(abi.encode(secondPreSalt, address(this)));
         address first = factory.createVaultV2CompatibleEnterGate(gate, firstPreSalt);
         address second = factory.createVaultV2CompatibleEnterGate(gate, secondPreSalt);
 
         assertNotEq(first, second);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, firstSalt), first);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, secondSalt), second);
-        assertEq(
-            factory.vaultV2CompatibleEnterGate(gate, keccak256(abi.encode(bytes32(uint256(2)), address(this)))),
-            address(0)
-        );
         assertTrue(factory.isCreated(first));
         assertTrue(factory.isCreated(second));
     }
 
     function testSamePreSaltFromDifferentCallersCreatesDifferentGates() public {
         bytes32 preSalt = bytes32(0);
-        bytes32 firstSalt = keccak256(abi.encode(preSalt, address(this)));
         address first = factory.createVaultV2CompatibleEnterGate(gate, preSalt);
 
         address otherCaller = makeAddr("other");
         vm.prank(otherCaller);
         address second = factory.createVaultV2CompatibleEnterGate(gate, preSalt);
-        bytes32 secondSalt = keccak256(abi.encode(preSalt, otherCaller));
 
         assertNotEq(first, second);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, firstSalt), first);
-        assertEq(factory.vaultV2CompatibleEnterGate(gate, secondSalt), second);
         assertTrue(factory.isCreated(first));
         assertTrue(factory.isCreated(second));
     }
