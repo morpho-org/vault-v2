@@ -173,7 +173,9 @@ contract MidnightAdapterGasTest is BaseTest {
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
-        _increaseCaps(abi.encode("collateralParamsAndRcfThreshold", collateralParams, uint256(0)));
+        _increaseCaps(
+            abi.encode("collateralParamsRcfThresholdAndLiquidatorGate", collateralParams, uint256(0), address(0))
+        );
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         vm.startPrank(address(this));
@@ -187,7 +189,11 @@ contract MidnightAdapterGasTest is BaseTest {
         for (uint256 i; i < soldCollaterals.length; i++) {
             if (soldCollaterals[i].token != address(collateralToken)) {
                 _increaseCaps(abi.encode("collateralToken", soldCollaterals[i].token));
-                _increaseCaps(abi.encode("collateralParamsAndRcfThreshold", soldCollaterals[i], uint256(0)));
+                _increaseCaps(
+                    abi.encode(
+                        "collateralParamsRcfThresholdAndLiquidatorGate", soldCollaterals[i], uint256(0), address(0)
+                    )
+                );
             }
         }
 
@@ -393,7 +399,9 @@ contract MidnightAdapterGasTest is BaseTest {
         }
         for (uint256 i; i < collaterals.length; i++) {
             bytes32 tokenId = keccak256(abi.encode("collateralToken", collaterals[i].token));
-            bytes32 paramsId = keccak256(abi.encode("collateralParamsAndRcfThreshold", collaterals[i], uint256(0)));
+            bytes32 paramsId = keccak256(
+                abi.encode("collateralParamsRcfThresholdAndLiquidatorGate", collaterals[i], uint256(0), address(0))
+            );
             assertEq(vault.absoluteCap(tokenId), type(uint128).max, "absolute token cap");
             assertEq(vault.relativeCap(tokenId), WAD, "relative token cap");
             assertEq(vault.absoluteCap(paramsId), type(uint128).max, "absolute collateral cap");

@@ -658,20 +658,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate (if non-zero), and each collateral token and collateral params combined with the RCF threshold.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, and each collateral token and collateral params combined with the RCF threshold and the liquidator gate.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray =
-            new bytes32[](1 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](1 + market.collateralParams.length * 2);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        if (market.liquidatorGate != address(0)) {
-            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
-        }
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(
-                abi.encode("collateralParamsAndRcfThreshold", market.collateralParams[i], market.rcfThreshold)
+                abi.encode(
+                    "collateralParamsRcfThresholdAndLiquidatorGate",
+                    market.collateralParams[i],
+                    market.rcfThreshold,
+                    market.liquidatorGate
+                )
             );
         }
 
