@@ -155,7 +155,7 @@ contract MidnightAdapterGasTest is BaseTest {
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, bytes32(0)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, address(0), bytes32(0)));
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );
@@ -174,8 +174,6 @@ contract MidnightAdapterGasTest is BaseTest {
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
         _increaseCaps(abi.encode("collateralParamsAndRcfThreshold", collateralParams, uint256(0)));
-        _increaseCaps(abi.encode("enterGate", address(0)));
-        _increaseCaps(abi.encode("liquidatorGate", address(0)));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         vm.startPrank(address(this));
