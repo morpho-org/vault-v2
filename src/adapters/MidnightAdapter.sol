@@ -600,13 +600,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 unrecognizedInterest = maxUnrecognizedInterest;
+            uint256 unrecognizedInterest;
             if (sellerAssets < soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm)) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 (, uint256 futureInterest) = valuation(id, newNetCredit + soldNetCredit);
-                if (futureInterest < unrecognizedInterest) unrecognizedInterest = futureInterest;
+                unrecognizedInterest = MathLib.min(futureInterest, maxUnrecognizedInterest);
+            } else {
+                unrecognizedInterest = maxUnrecognizedInterest;
             }
-            require(unrecognizedInterest + sellerAssets >= soldNetCredit, SellLossTooHigh());
+            require(unrecognizedInterest + sellerAssets >= soldNetCredit, SaleRealizesLoss());
             maxUnrecognizedInterest = unrecognizedInterest + sellerAssets - soldNetCredit;
         }
 
