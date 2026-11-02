@@ -439,6 +439,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else {
             require(sender == address(this), SelfAllocationOnly());
+            // The data is a zero word (decoded as false) followed by ABI-encoded return values, which are returned as-is.
             returnExactBytesAfterFirstWord(data);
         }
     }
