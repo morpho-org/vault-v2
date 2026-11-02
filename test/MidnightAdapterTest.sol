@@ -542,7 +542,7 @@ contract MidnightAdapterTest is Test {
         uint256 sold = 10e18;
         uint256 tick = TickLib.priceToTick(0.8e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
+        uint256 shortfall = sold.mulDivDown(1e18, 1e18 + rate * ttm) - proceeds;
         assertGt(shortfall, 0, "sale has a shortfall");
         deal(address(loanToken), taker, sold);
         uint256 assetsBefore = adapter.realAssets();
@@ -4154,7 +4154,7 @@ contract MidnightAdapterTest is Test {
         uint256 ttm = offer.market.maturity - block.timestamp;
         uint256 rate = adapter.marketData(marketId).netRate;
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        bool shortfall = proceeds < sold.mulDivUp(1e18, 1e18 + rate * ttm);
+        bool shortfall = proceeds < sold.mulDivDown(1e18, 1e18 + rate * ttm);
         uint256 maxDiscountBefore = adapter.maxDiscount();
         // The floor after the sale, assetsBefore - proceeds, must not exceed the remaining net credit.
         bool interestExhausted = netCredit - assetsBefore + proceeds < sold;

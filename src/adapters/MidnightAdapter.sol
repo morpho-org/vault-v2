@@ -562,17 +562,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            bool hasShortfall = sellerAssets < soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm);
-            if (hasShortfall) {
+            uint256 soldBookValue = soldNetCredit.mulDivDown(WAD, WAD + _marketData.netRate * ttm);
+            if (sellerAssets < soldBookValue) {
                 (uint256 totalNetCredit, uint256 totalDiscount) = valuation(marketId, newNetCredit + soldNetCredit);
                 uint256 availableDiscount = MathLib.min(totalDiscount, maxDiscount);
                 require(availableDiscount + sellerAssets >= soldNetCredit, MaxDiscountExceeded());
                 maxDiscount = availableDiscount + sellerAssets - soldNetCredit;
 
                 // Deferred loss after the sale: the remaining discount that realAssets() does not apply.
-                // The sold discount is rounded up like in valuation, so it is at most the sold market's share of totalDiscount.
-                uint256 soldDiscount = soldNetCredit - soldNetCredit.mulDivDown(WAD, WAD + _marketData.netRate * ttm);
-                uint256 deferredLoss = totalDiscount.zeroFloorSub(soldDiscount + maxDiscount);
+                // Derived from the pre-sale total, so it can be one wei below the value realAssets() will see; harmless.
+                uint256 deferredLoss = totalDiscount.zeroFloorSub(soldNetCredit - soldBookValue + maxDiscount);
                 require(
                     deferredLoss <= (totalNetCredit - soldNetCredit).mulDivDown(maxDeferredLossRatio, WAD),
                     DeferredLossTooHigh()

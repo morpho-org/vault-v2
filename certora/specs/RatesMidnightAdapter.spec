@@ -71,7 +71,8 @@ rule saleRevertsIfShortfallDisabled(env e, bytes32 marketId, MidnightAdapter.Mar
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
     require maxDeferredLossRatio() == 0, "assume maxDeferredLossRatio is zero";
-    require sellerAssets * (WAD() + currentContract.marketData[marketId].netRate * ttm) < soldNetCredit * WAD(), "assume the sale has a shortfall";
+    // Proceeds below the book value rounded down, as in onSell.
+    require (sellerAssets + 1) * (WAD() + currentContract.marketData[marketId].netRate * ttm) <= soldNetCredit * WAD(), "assume the sale has a shortfall";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
