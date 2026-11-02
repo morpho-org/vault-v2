@@ -2462,8 +2462,8 @@ contract MidnightAdapterTest is Test {
     function testIdsIgnoreFixedFieldsAndEnterGate(
         uint256 chainId,
         address midnightAddress,
-        address loanToken,
-        address enterGate
+        address otherLoanToken,
+        address otherEnterGate
     ) public view {
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
@@ -2471,9 +2471,9 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.ids(market), originalIds, "ids do not depend on chainId");
         market.midnight = midnightAddress;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on midnight");
-        market.loanToken = loanToken;
+        market.loanToken = otherLoanToken;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on loanToken");
-        market.enterGate = enterGate;
+        market.enterGate = otherEnterGate;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on enterGate");
     }
 
