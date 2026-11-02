@@ -147,7 +147,6 @@ contract MidnightAdapterTest is Test {
 
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
-    IVaultV2Factory internal vaultV2Factory;
     IMidnightAdapter internal adapter;
     IMidnightAdapterPriceRatifierV1 internal priceRatifier;
     VaultV2Mock internal parentVault;
@@ -194,12 +193,7 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        vaultV2Factory = IVaultV2Factory(deployCode("out/VaultV2Factory.sol/VaultV2Factory.json"));
-        // The mock vaults are not created by the VaultV2Factory.
-        vm.mockCall(
-            address(vaultV2Factory), abi.encodeWithSelector(IVaultV2Factory.isVaultV2.selector), abi.encode(true)
-        );
-        factory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        factory = new MidnightAdapterFactory(address(midnight));
         adapter =
             IMidnightAdapter(factory.createMidnightAdapter(address(parentVault), allDurations, address(0), bytes32(0)));
         disableDurationCaps(adapter);
@@ -1844,28 +1838,17 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    function testFactoryCreateMidnightAdapterNotVaultV2() public {
-        vm.clearMockedCalls();
-        vm.expectRevert(IMidnightAdapterFactory.NotVaultV2.selector);
-        factory.createMidnightAdapter(address(parentVault), allDurations, address(0), bytes32(uint256(1)));
-
-        address vault = vaultV2Factory.createVaultV2(owner, address(loanToken), bytes32(0));
-        address newAdapter = factory.createMidnightAdapter(vault, allDurations, address(0), bytes32(0));
-        assertTrue(factory.isCreated(newAdapter), "isCreated");
-    }
-
     function testFactoryConstructor() public {
         address expectedFactory = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         vm.expectEmit();
-        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight), address(vaultV2Factory));
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         assertEq(address(newFactory), expectedFactory);
         assertEq(newFactory.midnight(), address(midnight), "midnight");
-        assertEq(newFactory.vaultV2Factory(), address(vaultV2Factory), "vaultV2Factory");
     }
 
     function testFactoryAllowsZeroEnterGateFactory() public {
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
 
         address created = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), bytes32(0));
         assertEq(IMidnightAdapter(created).enterGateFactory(), address(0));
@@ -1873,7 +1856,7 @@ contract MidnightAdapterTest is Test {
 
     function testFactoryUsesPassedGateFactory(bytes32 preSalt) public {
         address gateFactory = address(new VaultV2CompatibleEnterGateFactory());
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         assertGt(gateFactory.code.length, 0);
 
         bytes32 initCodeHash = keccak256(
@@ -1917,7 +1900,7 @@ contract MidnightAdapterTest is Test {
 
     function testFactoryDifferentSalts(bytes32 firstPreSalt, bytes32 secondPreSalt) public {
         vm.assume(firstPreSalt != secondPreSalt);
-        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
         bytes32 firstSalt = keccak256(abi.encode(firstPreSalt, address(this)));
         bytes32 secondSalt = keccak256(abi.encode(secondPreSalt, address(this)));
         address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), firstPreSalt);
@@ -3529,7 +3512,7 @@ contract MidnightAdapterTest is Test {
     function testEnterGateDifferentAdapterFactory(bool adapterIsMaker) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
         address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
-        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(midnight));
         address otherEnterGateFactory = address(new VaultV2CompatibleEnterGateFactory());
         adapter = IMidnightAdapter(
             otherFactory.createMidnightAdapter(address(realVault), allDurations, otherEnterGateFactory, bytes32(0))
@@ -4901,7 +4884,7 @@ contract MidnightAdapterTest is Test {
         gate.setIsWhitelister(true, address(this), true);
         gate.setIsWhitelister(false, address(this), true);
         gateFactory = new VaultV2CompatibleEnterGateFactory();
-        factory = new MidnightAdapterFactory(address(midnight), address(vaultV2Factory));
+        factory = new MidnightAdapterFactory(address(midnight));
         adapter = IMidnightAdapter(
             factory.createMidnightAdapter(
                 address(realVault), allDurations, configureGateFactory ? address(gateFactory) : address(0), bytes32(0)

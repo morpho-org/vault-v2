@@ -5,7 +5,7 @@ pragma solidity >=0.8.4;
 interface IMidnightAdapterFactory {
     /* EVENTS */
 
-    event CreateMidnightAdapterFactory(address indexed midnight, address indexed vaultV2Factory);
+    event CreateMidnightAdapterFactory(address indexed midnight);
     event CreateMidnightAdapter(
         address indexed caller,
         address indexed parentVault,
@@ -15,14 +15,9 @@ interface IMidnightAdapterFactory {
         address enterGateFactory
     );
 
-    /* ERRORS */
-
-    error NotVaultV2();
-
     /* FUNCTIONS */
 
     function midnight() external view returns (address);
-    function vaultV2Factory() external view returns (address);
     function midnightAdapter(address parentVault, bytes32 durationsHash, address enterGateFactory, bytes32 salt)
         external
         view
