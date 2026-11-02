@@ -3642,9 +3642,8 @@ contract MidnightAdapterTest is Test {
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
 
-        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
-        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 1);
         midnight.touchMarket(otherMarket);
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
@@ -3680,6 +3679,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
@@ -3725,18 +3725,16 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
 
-        // A buy in an ungated market gives every id of the gated market below a positive allocation in the attacker's vault.
-        Market memory ungatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
-        ungatedMarket.loanToken = address(hookedToken);
-        Offer memory ungatedSellOffer = makeExternalOffer(ungatedMarket, false, 1e18, MAX_TICK);
-        vm.prank(signerAllocator);
-        hookedAdapter.take(ungatedSellOffer, "", ungatedSellOffer.maxUnits, abi.encode(address(0), hex""));
-        assertGt(midnight.credit(_marketId(ungatedMarket), address(hookedAdapter)), 0);
-
-        Market memory gatedMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
+        // The attacker's adapter is whitelisted in the gated market and holds credit there, so its force deallocations reach the funding transfer.
+        Market memory gatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
         gatedMarket.loanToken = address(hookedToken);
         gatedMarket.enterGate = wrapper;
-        midnight.touchMarket(gatedMarket);
+        gate.setIsWhitelisted(true, address(hookedAdapter), true);
+        Offer memory gatedSellOffer = makeExternalOffer(gatedMarket, false, 1e18, MAX_TICK);
+        vm.prank(signerAllocator);
+        hookedAdapter.take(gatedSellOffer, "", gatedSellOffer.maxUnits, abi.encode(address(0), hex""));
+        uint256 heldCredit = midnight.credit(_marketId(gatedMarket), address(hookedAdapter));
+        assertGt(heldCredit, 0);
         address buyer = makeForceDeallocateBuyer(hookedAdapter);
         hookedVault.deposit(1e18, buyer);
 
@@ -3756,7 +3754,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(hookedToken.attackAttempted());
         assertEq(hookedToken.attackRevert(), IMidnight.BuyerGatedFromIncreasingCredit.selector);
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0);
-        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), 0);
+        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), heldCredit);
     }
 
     function testEnterGateFactoryDisabled(bool adapterIsMaker) public {

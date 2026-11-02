@@ -346,7 +346,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = updateNetCredit(marketId, marketData[marketId], newNetCredit);
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0, ForceRemoved());
+        _marketData.netCredit = newNetCredit;
+        if (newNetCredit == 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -358,6 +362,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Irreversibly removes a force sellable market without moving its Midnight credit.
+    /// @dev Withdrawals, sales and force deallocations of the market then revert. Unless bad debt lowers the net credit to zero, buys also revert.
     function forceRemove(Market memory market) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         bytes32 marketId = IdLib.toId(market);
@@ -444,7 +449,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = updateNetCredit(marketId, marketData[marketId], newNetCredit);
+            MarketData storage _marketData = marketData[marketId];
+            uint256 oldNetCredit = _marketData.netCredit;
+            require(oldNetCredit > 0, ForceRemoved());
+            _marketData.netCredit = newNetCredit;
+            if (newNetCredit == 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
@@ -608,7 +617,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        uint256 oldNetCredit = updateNetCredit(id, _marketData, newNetCredit);
+        uint256 oldNetCredit = _marketData.netCredit;
+        require(oldNetCredit > 0, ForceRemoved());
+        _marketData.netCredit = newNetCredit;
+        if (newNetCredit == 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -622,19 +634,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
-
-    function updateNetCredit(bytes32 marketId, MarketData storage _marketData, uint128 newNetCredit)
-        internal
-        returns (uint256 oldNetCredit)
-    {
-        oldNetCredit = _marketData.netCredit;
-        if (oldNetCredit == 0) {
-            require(newNetCredit == 0, ForceRemoved());
-        } else {
-            _marketData.netCredit = newNetCredit;
-            if (newNetCredit == 0) removeMarket(marketId);
-        }
-    }
 
     /// @dev Ends the external call, returning data without ABI encoding.
     function returnExactBytes(bytes memory data) internal pure {
