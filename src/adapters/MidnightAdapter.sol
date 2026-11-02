@@ -530,7 +530,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 removeMarket(id);
             }
 
-            // Funding can reenter as stored credit already accounts for the in-progress buy.
+            // Funding reentering this adapter is safe because the stored credit already accounts for the in-progress buy.
             (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
             if (fundingAdapter == address(this)) {
                 withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
