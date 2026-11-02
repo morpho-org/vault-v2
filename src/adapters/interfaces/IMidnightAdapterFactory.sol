@@ -18,10 +18,6 @@ interface IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     function midnight() external view returns (address);
-    function midnightAdapter(address parentVault, bytes32 durationsHash, address enterGateFactory, bytes32 salt)
-        external
-        view
-        returns (address);
     function isCreated(address account) external view returns (bool);
     function createMidnightAdapter(
         address parentVault,

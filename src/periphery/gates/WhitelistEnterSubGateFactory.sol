@@ -7,13 +7,6 @@ import {IWhitelistEnterSubGateFactory} from "./interfaces/IWhitelistEnterSubGate
 
 contract WhitelistEnterSubGateFactory is IWhitelistEnterSubGateFactory {
     mapping(address subGate => bool) public isCreated;
-    mapping(
-        address creditRoleSetter
-            => mapping(
-            address debtRoleSetter
-                => mapping(bool creditOpen => mapping(bool debtOpen => mapping(bytes32 salt => address)))
-        )
-    ) public whitelistEnterSubGate;
 
     /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
     function createWhitelistEnterSubGate(
@@ -26,7 +19,6 @@ contract WhitelistEnterSubGateFactory is IWhitelistEnterSubGateFactory {
         bytes32 salt = keccak256(abi.encode(preSalt, msg.sender));
         address subGate =
             address(new WhitelistEnterSubGate{salt: salt}(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen));
-        whitelistEnterSubGate[creditRoleSetter][debtRoleSetter][creditOpen][debtOpen][salt] = subGate;
         isCreated[subGate] = true;
 
         emit CreateWhitelistEnterSubGate(
