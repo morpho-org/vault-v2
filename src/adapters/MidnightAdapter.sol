@@ -61,7 +61,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `temporarilyAdmit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
+/// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 /// @dev The gate's unadmit function must be a noop if nobody is currently admitted.
 ///
 /// TIMELOCKS
@@ -425,7 +425,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
-                IVaultV2CompatibleEnterGate(market.enterGate).temporarilyAdmit(taker, factory);
+                IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.

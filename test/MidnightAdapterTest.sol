@@ -3587,9 +3587,7 @@ contract MidnightAdapterTest is Test {
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
 
-        vm.expectCall(
-            wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.temporarilyAdmit, (buyer, address(factory))), 1
-        );
+        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
         vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 1);
         midnight.touchMarket(otherMarket);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
@@ -3697,9 +3695,7 @@ contract MidnightAdapterTest is Test {
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
 
         // The funding transfer runs before admission. The vault's own checks pass.
-        vm.expectCall(
-            wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.temporarilyAdmit, (buyer, address(factory))), 1
-        );
+        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
         hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(gatedMarket, buyer), 0, address(this));
 
         assertTrue(hookedToken.attackAttempted());
@@ -3732,7 +3728,7 @@ contract MidnightAdapterTest is Test {
         address borrower = adapterIsMaker ? taker : offer.maker;
         realVault.transfer(borrower, 1);
         vm.prank(address(adapter));
-        VaultV2CompatibleEnterGate(wrapper).temporarilyAdmit(borrower, address(factory));
+        VaultV2CompatibleEnterGate(wrapper).admit(borrower, address(factory));
         gate.setIsWhitelisted(false, borrower, false);
         vm.prank(address(midnight));
         assertTrue(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(borrower));
