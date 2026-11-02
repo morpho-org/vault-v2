@@ -16,7 +16,8 @@ These callbacks then call `allocate` and `deallocate` on the parent vault.
 Because of this flow:
 
 - The adapter must have the **allocator** role on the parent vault to buy on Midnight.
-- The adapter must have either the **allocator** or the **sentinel** role on the parent vault to sell on Midnight.
+- To sell on Midnight, the adapter must have the **allocator** or **sentinel** role on the parent vault.
+  Sales through `forceDeallocate` do not require these roles.
 - The Midnight adapter must not be set as the liquidity adapter of the parent vault. `allocate` accepts only calls from the adapter itself, so vault deposits revert.
 
 The adapter trades in three ways:
@@ -123,30 +124,33 @@ To do this, a caller calls `forceDeallocate` on the parent vault with `data` tha
 The `taker` must hold at least one share of the parent vault.
 The `taker` must authorize the adapter on Midnight.
 The caller of `forceDeallocate` must be `taker` or an address that `taker` authorizes on Midnight.
-During `forceDeallocate`, the adapter makes and self-ratifies a reduce-only sell offer at tick `0` (face value) and takes it for `taker`.
-The caller pays `assets` plus the Midnight settlement fee to the adapter.
+During `forceDeallocate`, the adapter transfers `assets` plus the Midnight settlement fee from the caller to itself.
+The adapter then takes its own reduce-only sell offer for `taker` at tick `0` (zero price).
+During this trade, the adapter ratifies the offer itself.
 The `taker` receives `assets` of credit in the market.
 The adapter moves `assets` to the idle assets of the vault.
 The vault then charges its `forceDeallocate` penalty: it burns shares of the `onBehalf` address of the `forceDeallocate` call.
 
 A Midnight market can use an `enterGate` to restrict who can increase credit.
 During `forceDeallocate`, such a gate can stop a vault shareholder who wants to receive the credit.
-`MidnightAdapterFactory` has the option to use `useGateFactory`.
-This option keeps in-kind redemptions possible in gated markets:
+`MidnightAdapterFactory.createMidnightAdapter` accepts an `enterGateFactory` address.
+You can use [VaultV2CompatibleEnterGateFactory](../periphery/gates/VaultV2CompatibleEnterGateFactory.sol) for this parameter.
 
-- If `useGateFactory` is `true`, the adapter enters a gated market only when all these conditions are true:
-  - [VaultV2CompatibleEnterGateFactory](../periphery/gates/VaultV2CompatibleEnterGateFactory.sol) deployed the `enterGate` of the market.
+- If `enterGateFactory != address(0)`, the adapter enters a gated market only when all these conditions are true:
+  - `enterGateFactory.isCreated(market.enterGate)` returns `true`.
   - The gate authorizes the adapter factory.
   - The `subGate` of the gate allows the adapter to increase credit.
-- During `forceDeallocate`, the [VaultV2CompatibleEnterGate](../periphery/gates/VaultV2CompatibleEnterGate.sol) of the market lets `taker` receive the credit, even if the underlying `subGate` does not allow `taker`.
-- If `useGateFactory` is `false`, the adapter can enter any gated market. In such a market, `forceDeallocate` works only for takers that the `enterGate` of the market allows.
+- During `forceDeallocate`, the adapter calls `admit` on the gate if the configured factory created it.
+  The [VaultV2CompatibleEnterGate](../periphery/gates/VaultV2CompatibleEnterGate.sol) then lets `taker` receive credit even if `subGate` does not allow `taker`.
+- If `enterGateFactory == address(0)`, the adapter does not check which factory created the gate.
+  `forceDeallocate` then works only if the market's `enterGate` allows `taker`.
 
 ### Allocator Operational Constraints and Force-sellable Markets
 
 The curator can set non-timelocked operational constraints on the adapter to limit allocator trades:
 
 - **Min net buy rate** (`minNetBuyRate`): Minimum simple net interest rate on buys, relative to paid assets.
-- **Max net sell rate** (`maxNetSellRate`): Maximum simple discount rate on sales, relative to sold net credit.
+- **Max net sell rate** (`maxNetSellRate`): Maximum simple net interest rate on sales. The rate is relative to the assets that the adapter receives.
 - **No sales with shortfall** (`noSalesWithShortfall`): If `true`, forbids sales with a shortfall.
 
 The curator can set `forceSellable` on a market (timelocked).
@@ -163,6 +167,8 @@ The adapter has its own timelock system (`submit`, `revoke`, `increaseTimelock`,
 This system works like the timelock system in [VaultV2](../VaultV2.sol).
 After the timelock of a submitted change expires, anyone can execute the change.
 Before the curator adds a `MidnightAdapter` to a vault, it must set the adapter timelocks to match the non-custodial guarantees of the vault.
+The curator must also check that no unsafe actions are pending.
+Calling `increaseTimelock` does not change the adapter's `executableAt` values for pending actions.
 
 The timelocked curator functions on the adapter are `increaseTimelock`, `decreaseTimelock`, `abdicate`, `increaseMaxTtm`, `setForceSellable`, and `setSkimRecipient`.
 The setters of the operational constraints (`setMinNetBuyRate`, `setMaxNetSellRate`, `setNoSalesWithShortfall`, `setMinForceSellPrice`) are not timelocked.
