@@ -141,7 +141,11 @@ contract MorphoVaultV1AdapterTest is Test {
         assertEq(IMorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
         assertEq(IMorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
         assertEq(IMorphoVaultV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
-        assertEq(newAdapter, expectedNewAdapter, "Incorrect adapter address");
+        assertEq(
+            factory.morphoVaultV1Adapter(address(newParentVault), address(newVault)),
+            newAdapter,
+            "Adapter not tracked correctly"
+        );
         assertTrue(factory.isMorphoVaultV1Adapter(newAdapter), "Adapter not tracked correctly");
     }
 

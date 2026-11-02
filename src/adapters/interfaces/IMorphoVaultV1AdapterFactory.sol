@@ -11,6 +11,7 @@ interface IMorphoVaultV1AdapterFactory {
 
     /* FUNCTIONS */
 
+    function morphoVaultV1Adapter(address parentVault, address morphoVaultV1) external view returns (address);
     function isMorphoVaultV1Adapter(address account) external view returns (bool);
     function createMorphoVaultV1Adapter(address parentVault, address morphoVaultV1)
         external

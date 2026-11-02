@@ -10,5 +10,6 @@ interface IVaultV2Factory {
     /* FUNCTIONS */
 
     function isVaultV2(address account) external view returns (bool);
+    function vaultV2(address owner, address asset, bytes32 salt) external view returns (address);
     function createVaultV2(address owner, address asset, bytes32 salt) external returns (address newVaultV2);
 }

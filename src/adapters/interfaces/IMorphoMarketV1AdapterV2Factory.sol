@@ -12,6 +12,7 @@ interface IMorphoMarketV1AdapterV2Factory {
 
     function morpho() external view returns (address);
     function adaptiveCurveIrm() external view returns (address);
+    function morphoMarketV1AdapterV2(address parentVault) external view returns (address);
     function isMorphoMarketV1AdapterV2(address account) external view returns (bool);
 
     /* NON-VIEW FUNCTIONS */
