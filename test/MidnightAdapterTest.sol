@@ -3725,7 +3725,7 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
 
-        // The attacker's adapter is whitelisted in the gated market and holds credit there, so its force deallocations reach the funding transfer.
+        // The attack needs the adapter to manage to get whitelisted: only then can it hold credit in the gated market, and only force deallocations of held markets reach the funding transfer.
         Market memory gatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
         gatedMarket.loanToken = address(hookedToken);
         gatedMarket.enterGate = wrapper;
