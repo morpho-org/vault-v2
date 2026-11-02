@@ -35,7 +35,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev Local interest reduces the market's net rate before remaining shortfalls are absorbed by portfolio interest.
+/// @dev Shortfalls are absorbed by portfolio interest without changing market net rates.
 /// @dev Bad debt visible in onSell is applied before setting the book floor.
 ///
 /// FORCE DEALLOCATE
@@ -635,7 +635,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
         uint256 lPre = uint256(newNetCredit) + soldNetCredit;
         uint256 shortfall;
-        uint256 residualShortfall;
         bool floorActive = _floorData.floor != 0;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
@@ -644,16 +643,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                if (amortizedValue <= newNetCredit) {
-                    _marketData.netRate =
-                        (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
-                } else {
-                    _marketData.netRate = 0;
-                }
-                uint256 oldMarketValue = newNetCredit.mulDivDown(WAD, WAD + netRate * ttm);
-                uint256 newMarketValue = newNetCredit.mulDivDown(WAD, WAD + _marketData.netRate * ttm);
-                residualShortfall = shortfall.zeroFloorSub(newMarketValue - oldMarketValue);
             }
         }
 
@@ -667,11 +656,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 soldBookValue = soldNetCredit.mulDivUp(WAD, WAD + netRate * ttm);
                 updateFloor(-int256(soldBookValue), int256(soldBookValue) - int256(soldNetCredit), false);
             }
-        } else if (shortfall > 0 && (residualShortfall > 0 || floorActive)) {
+        } else if (shortfall > 0) {
             {
                 uint128 floorAfterBadDebt = _floorData.floor;
                 (uint256 storedValue,, uint256 storedNetCreditSum, uint256 liveNetCreditSum) = valuation(id);
-                uint256 newFloor = storedValue + residualShortfall;
+                uint256 newFloor = storedValue + shortfall;
                 uint256 floorAfterProceeds = uint256(floorAfterBadDebt).zeroFloorSub(sellerAssets);
                 if (floorAfterProceeds > newFloor) newFloor = floorAfterProceeds;
                 require(newFloor <= liveNetCreditSum, ShortfallTooHigh());
