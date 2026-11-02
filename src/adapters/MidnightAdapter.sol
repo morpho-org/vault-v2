@@ -600,15 +600,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            // Only a shortfall can push the cap below the interest left to earn, so only then is the cap clipped to it.
+            uint256 unrecognizedInterest = maxUnrecognizedInterest;
             if (sellerAssets < soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm)) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 (, uint256 futureInterest) = valuation(id, newNetCredit + soldNetCredit);
-                maxUnrecognizedInterest =
-                    MathLib.min(futureInterest, maxUnrecognizedInterest) + sellerAssets - soldNetCredit;
-            } else {
-                maxUnrecognizedInterest = maxUnrecognizedInterest + sellerAssets - soldNetCredit;
+                if (futureInterest < unrecognizedInterest) unrecognizedInterest = futureInterest;
             }
+            require(unrecognizedInterest + sellerAssets >= soldNetCredit, SellLossTooHigh());
+            maxUnrecognizedInterest = unrecognizedInterest + sellerAssets - soldNetCredit;
         }
 
         uint256 oldNetCredit = _marketData.netCredit;
