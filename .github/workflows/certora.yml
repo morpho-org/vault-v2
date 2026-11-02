@@ -81,6 +81,13 @@ jobs:
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
 
+      - name: Install solc (0.8.34)
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.34/solc-static-linux
+          echo "d40adc6f9fdbb22a97d32a02fa05688bf2ee7886affc48c9851b0afd4a726b39  solc-static-linux" | sha256sum --check
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc-0.8.34
+
       - name: Install solc (0.8.37)
         run: |
           wget https://github.com/ethereum/solidity/releases/download/v0.8.37/solc-static-linux
