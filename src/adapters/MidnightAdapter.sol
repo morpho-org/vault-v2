@@ -65,7 +65,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev The gate's unadmit function must be a noop if nobody is currently admitted.
 ///
 /// TIMELOCKS
-/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
 /// MISC
@@ -271,7 +271,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         marketData[marketId].forceSellable = false;
-        emit UnsetForceSellable(marketId);
+        emit UnsetForceSellable(msg.sender, marketId);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -335,6 +335,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        emit Take(msg.sender);
         IMidnight(midnight)
             .take(
                 offer,
