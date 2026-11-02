@@ -113,7 +113,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    /// @dev Caps the interest not yet recognized in realAssets(). Interest above it is recognized because it covers deferred sale losses.
+    /// @dev Caps the interest not yet recognized in realAssets(). Interest above the cap is recognized early to offset sale losses.
     /// @dev Equals the sum of net credits minus realAssets() right after a sale with a shortfall.
     uint256 public maxUnrecognizedInterest;
 
@@ -571,7 +571,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             } else {
                 availableInterest = maxUnrecognizedInterest;
             }
-            require(availableInterest + sellerAssets >= soldNetCredit, MaxUnrecognizedInterestExceeded());
+            require(availableInterest + sellerAssets >= soldNetCredit, UnrecognizedInterestExceeded());
             maxUnrecognizedInterest = availableInterest + sellerAssets - soldNetCredit;
         }
 
@@ -616,7 +616,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the sums over markets of net credit and of uncapped discount, using the supplied credit for overrideMarketId.
+    /// @dev Returns the sums over markets of net credit and of future interest, using the supplied credit for overrideMarketId.
     function valuation(bytes32 overrideMarketId, uint256 overrideNetCredit) internal view returns (uint256, uint256) {
         uint256 totalNetCredit;
         uint256 futureInterest;

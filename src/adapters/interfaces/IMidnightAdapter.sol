@@ -94,7 +94,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error OtherSellInProgress();
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
-    error MaxUnrecognizedInterestExceeded();
+    error UnrecognizedInterestExceeded();
     error SelfAllocationOnly();
     error SellInProgress();
     error ForceSellPriceTooLow();

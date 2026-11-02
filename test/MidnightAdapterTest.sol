@@ -746,13 +746,13 @@ contract MidnightAdapterTest is Test {
         setForceSellable(firstMarketId);
 
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
         assertFalse(adapter.marketData(secondMarketId).forceSellable, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
 
         unsetForceSellable(firstMarketId);
-        vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         assertFalse(adapter.marketData(firstMarketId).forceSellable, "override disabled");
         assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
@@ -805,7 +805,7 @@ contract MidnightAdapterTest is Test {
         bool interestExhausted = 100e18 - assetsBefore + proceeds < sold;
 
         if (interestExhausted) {
-            vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+            vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
             sellUnits(offer.market, sold, tick);
         } else {
             sellUnits(offer.market, sold, tick);
@@ -867,7 +867,7 @@ contract MidnightAdapterTest is Test {
         // Selling at half price, the floor exceeds the remaining net credit once half the sold units exceed the interest left to earn.
         uint256 unearned = 100e18 - adapter.realAssets();
 
-        vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         sellUnits(offer.market, 2 * unearned + 2, MAX_TICK / 2);
         sellUnits(offer.market, 2 * unearned, MAX_TICK / 2);
         assertEq(adapter.maxUnrecognizedInterest(), 0, "all remaining interest is used");
@@ -880,7 +880,7 @@ contract MidnightAdapterTest is Test {
         elapsed = bound(elapsed, 0, 30 days);
         skip(elapsed);
         if (elapsed == 30 days) vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
-        else vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        else vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - DEFAULT_TICK_SPACING);
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 99e18);
@@ -2616,7 +2616,7 @@ contract MidnightAdapterTest is Test {
 
         Offer memory buyOffer =
             makeExternalOffer(offer.market, true, 10, TickLib.priceToTick(0.85e18, DEFAULT_TICK_SPACING));
-        vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 10, "");
 
@@ -4062,7 +4062,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 200e18);
         assertGt(adapter.realAssets(), 100e18);
 
-        vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         sellUnits(offer.market, 200e18, MAX_TICK / 2);
 
         uint256 tick = TickLib.priceToTick(0.6e18, DEFAULT_TICK_SPACING);
@@ -4117,7 +4117,7 @@ contract MidnightAdapterTest is Test {
         bool interestExhausted = netCredit - assetsBefore + proceeds < sold;
 
         if (interestExhausted) {
-            vm.expectRevert(IMidnightAdapterBase.MaxUnrecognizedInterestExceeded.selector);
+            vm.expectRevert(IMidnightAdapterBase.UnrecognizedInterestExceeded.selector);
         }
         sellUnits(offer.market, sold, tick);
 
