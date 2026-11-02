@@ -2431,24 +2431,20 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFamilyIdDependsOnMarketConfig(uint256 configField, uint160 delta) public view {
-        configField = bound(configField, 0, 7);
+        configField = bound(configField, 0, 5);
         delta = uint160(bound(delta, 1, type(uint160).max));
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
 
         if (configField == 0) {
-            market.loanToken = address(uint160(market.loanToken) ^ delta);
-        } else if (configField == 1) {
             market.rcfThreshold ^= delta;
-        } else if (configField == 2) {
-            market.enterGate = address(delta);
-        } else if (configField == 3) {
+        } else if (configField == 1) {
             market.liquidatorGate = address(delta);
-        } else if (configField == 4) {
+        } else if (configField == 2) {
             market.collateralParams[0].token = address(uint160(market.collateralParams[0].token) ^ delta);
-        } else if (configField == 5) {
+        } else if (configField == 3) {
             market.collateralParams[0].lltv ^= delta;
-        } else if (configField == 6) {
+        } else if (configField == 4) {
             market.collateralParams[0].liquidationCursor ^= delta;
         } else {
             market.collateralParams[0].oracle = address(uint160(market.collateralParams[0].oracle) ^ delta);
@@ -2458,18 +2454,27 @@ contract MidnightAdapterTest is Test {
         assertEq(changedIds.length, originalIds.length);
         assertEq(changedIds[0], originalIds[0], "adapter id unchanged");
         assertNotEq(changedIds[1], originalIds[1], "family includes every risk configuration field");
-        if (configField == 4) assertNotEq(changedIds[2], originalIds[2], "collateral token changed");
+        if (configField == 2) assertNotEq(changedIds[2], originalIds[2], "collateral token changed");
         else assertEq(changedIds[2], originalIds[2], "collateral token unchanged");
         assertEq(changedIds[3], originalIds[3], "other collateral token unchanged");
     }
 
-    function testIdsIgnoreChainIdAndMidnight(uint256 chainId, address midnightAddress) public view {
+    function testIdsIgnoreFixedFieldsAndEnterGate(
+        uint256 chainId,
+        address midnightAddress,
+        address loanToken,
+        address enterGate
+    ) public view {
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
         market.chainId = chainId;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on chainId");
         market.midnight = midnightAddress;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on midnight");
+        market.loanToken = loanToken;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on loanToken");
+        market.enterGate = enterGate;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on enterGate");
     }
 
     function testFamilyIdDependsOnCollateralSet() public view {
@@ -2485,7 +2490,7 @@ contract MidnightAdapterTest is Test {
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 5);
+        configField = bound(configField, 0, 4);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -2495,15 +2500,13 @@ contract MidnightAdapterTest is Test {
         offer.maker = address(adapter);
         offer.ratifier = address(adapter);
         if (configField == 0) {
-            offer.market.enterGate = gate;
-        } else if (configField == 1) {
             offer.market.liquidatorGate = gate;
-        } else if (configField == 2) {
+        } else if (configField == 1) {
             offer.market.rcfThreshold = 1e18;
-        } else if (configField == 3) {
+        } else if (configField == 2) {
             offer.market.collateralParams[0].lltv = 0.9e18;
             midnight.enableLltv(0.9e18);
-        } else if (configField == 4) {
+        } else if (configField == 3) {
             offer.market.collateralParams[0].liquidationCursor = 0.5e18;
             midnight.enableLiquidationCursor(0.5e18);
         } else {
@@ -3730,7 +3733,6 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
-        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
@@ -5342,14 +5344,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function familyIdData(Market memory market) internal pure returns (bytes memory) {
-        return abi.encode(
-            "family",
-            market.loanToken,
-            market.collateralParams,
-            market.rcfThreshold,
-            market.enterGate,
-            market.liquidatorGate
-        );
+        return abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate);
     }
 
     function increaseFamilyCap(IVaultV2 vault, Market memory market) internal {
