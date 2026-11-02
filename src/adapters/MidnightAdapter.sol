@@ -18,7 +18,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev Rates are rounded down on buys and on sales that absorb a shortfall. This realizes interest slightly earlier.
+/// @dev Rates are rounded down on buys and on sales that absorb a shortfall. Any rounding gain is included in the amortized value immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
