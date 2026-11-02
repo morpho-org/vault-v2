@@ -45,7 +45,7 @@ During `forceDeallocate`, a Midnight adapter from a registered factory can tempo
 ### `VaultV2CompatibleEnterGateFactory`
 
 Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
-The factory records each gate in `isCreated[gate]`. Discover gates from `CreateVaultV2CompatibleEnterGate` events or compute their CREATE2 addresses using the subgate and the salt derived from `keccak256(abi.encode(preSalt, caller))`.
+The factory records each gate in `isCreated[gate]`.
 
 ### `WhitelistEnterSubGate`
 
