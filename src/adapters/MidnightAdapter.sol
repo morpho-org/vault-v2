@@ -371,7 +371,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* VAULT INTERFACE */
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
-    /// @dev The vault also calls allocate on entry (deposit and mint), but the adapter never enters the vault, so sender == address(this) implies that messageSig is IVaultV2.allocate.selector.
+    /// @dev sender == address(this) implies that messageSig is IVaultV2.allocate.selector.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
     function allocate(bytes memory data, uint256, bytes4, address sender)
         external
