@@ -34,7 +34,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall is absorbed by future interest through a rate decrease, except in forceSellable markets, where it is realized as a loss.
+/// @dev A shortfall is absorbed by future interest through a rate decrease, except in forceSellable markets, where it is realized as an instant loss.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
