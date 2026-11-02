@@ -103,7 +103,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-
     /// @dev Pre-buy credit used by realAssets during vault accrual.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;

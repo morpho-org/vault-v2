@@ -1831,6 +1831,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(newAdapter, expected, "expected address");
         assertTrue(factory.isCreated(newAdapter), "isCreated");
+        assertEq(IMidnightAdapter(newAdapter).factory(), address(factory), "factory");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
@@ -1975,6 +1976,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testConstructorGetters() public view {
+        assertEq(adapter.factory(), address(factory), "factory");
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
