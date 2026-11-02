@@ -9,8 +9,6 @@ import {ERC20USDTMock} from "./ERC20USDTMock.sol";
 import {ERC20RevertToZeroMock} from "./ERC20RevertToZeroMock.sol";
 import {ERC20NoReturnMock} from "./ERC20NoReturnMock.sol";
 
-library TokenMocks {}
-
 // TOKEN_TYPE values: 0 standard, 1 no-revert, 2 usdt, 3 revert-to-zero, 4 no-return.
 function newTokenOfType(uint256 tokenType, uint8 decimals) returns (IERC20) {
     if (tokenType == 1) return IERC20(address(new ERC20NoRevertMock(decimals)));
