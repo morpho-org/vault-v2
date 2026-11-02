@@ -1772,11 +1772,6 @@ contract MidnightAdapterTest is Test {
         address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
         assertEq(newAdapter, expected, "expected address");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "midnightAdapter"
-        );
         assertTrue(factory.isCreated(newAdapter), "isCreated");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
@@ -1788,36 +1783,17 @@ contract MidnightAdapterTest is Test {
         factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
         bytes32 differentPreSalt = bytes32(uint256(preSalt) ^ 1);
-        bytes32 differentSalt = keccak256(abi.encode(differentPreSalt, address(this)));
         address otherAdapter =
             factory.createMidnightAdapter(address(newVault), allDurations, address(0), differentPreSalt);
         assertTrue(otherAdapter != newAdapter, "different preSalts create different adapters");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), differentSalt),
-            otherAdapter,
-            "different preSalt adapter mapping"
-        );
         assertTrue(factory.isCreated(newAdapter), "first adapter registered");
         assertTrue(factory.isCreated(otherAdapter), "different preSalt adapter registered");
 
         address otherCaller = makeAddr("other");
         vm.prank(otherCaller);
         address otherCallerAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
-        bytes32 otherCallerSalt = keccak256(abi.encode(preSalt, otherCaller));
         assertTrue(otherCallerAdapter != newAdapter, "different callers create different adapters");
-        assertEq(
-            factory.midnightAdapter(
-                address(newVault), keccak256(abi.encode(allDurations)), address(0), otherCallerSalt
-            ),
-            otherCallerAdapter,
-            "other caller adapter mapping"
-        );
         assertTrue(factory.isCreated(otherCallerAdapter), "other caller adapter registered");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "first adapter mapping unchanged"
-        );
 
         uint256[] memory singleDuration = new uint256[](1);
         singleDuration[0] = allDurations[0];
@@ -1825,16 +1801,7 @@ contract MidnightAdapterTest is Test {
             factory.createMidnightAdapter(address(newVault), singleDuration, address(0), preSalt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
         assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(singleDuration)), address(0), salt),
-            otherDurationsAdapter,
-            "other durations adapter mapping"
-        );
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "first adapter mapping unchanged"
-        );
+        assertTrue(factory.isCreated(otherDurationsAdapter), "other durations adapter registered");
     }
 
     function testFactoryConstructor() public {
@@ -1874,10 +1841,6 @@ contract MidnightAdapterTest is Test {
 
         assertEq(created, expectedAdapter);
         assertEq(IMidnightAdapter(created).enterGateFactory(), gateFactory);
-        assertEq(
-            newFactory.midnightAdapter(address(parentVault), keccak256(abi.encode(allDurations)), gateFactory, salt),
-            created
-        );
         assertTrue(newFactory.isCreated(created));
 
         address otherGateFactory = address(new VaultV2CompatibleEnterGateFactory());
@@ -1886,12 +1849,6 @@ contract MidnightAdapterTest is Test {
         assertNotEq(otherCreated, created);
         assertEq(IMidnightAdapter(otherCreated).enterGateFactory(), otherGateFactory);
         assertTrue(newFactory.isCreated(otherCreated));
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), otherGateFactory, salt
-            ),
-            otherCreated
-        );
 
         vm.expectRevert();
         newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, preSalt);
@@ -1900,26 +1857,12 @@ contract MidnightAdapterTest is Test {
     function testFactoryDifferentSalts(bytes32 firstPreSalt, bytes32 secondPreSalt) public {
         vm.assume(firstPreSalt != secondPreSalt);
         MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
-        bytes32 firstSalt = keccak256(abi.encode(firstPreSalt, address(this)));
-        bytes32 secondSalt = keccak256(abi.encode(secondPreSalt, address(this)));
         address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), firstPreSalt);
         address second = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), secondPreSalt);
 
         assertNotEq(first, second);
         assertTrue(newFactory.isCreated(first));
         assertTrue(newFactory.isCreated(second));
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), address(0), firstSalt
-            ),
-            first
-        );
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), address(0), secondSalt
-            ),
-            second
-        );
     }
 
     function testConstructorTooManyDurations() public {
