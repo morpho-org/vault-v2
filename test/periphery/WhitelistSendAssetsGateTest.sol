@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {WhitelistSendAssetsGate} from "../../src/periphery/gates/WhitelistSendAssetsGate.sol";
