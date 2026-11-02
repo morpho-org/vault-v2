@@ -98,7 +98,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
