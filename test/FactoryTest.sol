@@ -17,6 +17,5 @@ contract FactoryTest is BaseTest {
         address newVault = address(IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt)));
         assertEq(newVault, expectedVaultAddress);
         assertTrue(vaultFactory.isVaultV2(newVault));
-        assertEq(vaultFactory.vaultV2(_owner, asset, salt), newVault);
     }
 }

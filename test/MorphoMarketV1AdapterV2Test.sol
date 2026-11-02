@@ -211,7 +211,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).asset(), address(loanToken), "Incorrect asset");
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
-        assertEq(factory.morphoMarketV1AdapterV2(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+        assertEq(newAdapter, expectedNewAdapter, "Incorrect adapter address");
         assertTrue(factory.isMorphoMarketV1AdapterV2(newAdapter), "Adapter not tracked correctly");
     }
 
