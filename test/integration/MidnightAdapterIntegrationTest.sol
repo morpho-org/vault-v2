@@ -26,6 +26,7 @@ import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhit
 import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
+import {DEFAULT_TICK_SPACING} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
@@ -202,7 +203,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             maker: lender,
             start: block.timestamp,
             expiry: market.maturity,
-            tick: TICK,
+            tick: TICK + DEFAULT_TICK_SPACING,
             group: keccak256(abi.encode("external", market.maturity, units, true)),
             callback: address(0),
             callbackData: "",
@@ -225,7 +226,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         vm.prank(allocator);
         adapter.take(offer, ratifierData, units, "");
-        // Only the sale's proceeds (price ~0.994) are idle.
+        // Only the sale's proceeds are idle.
         vm.prank(depositor);
         vault.withdraw(units * 99 / 100, depositor, depositor);
     }
