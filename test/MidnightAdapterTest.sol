@@ -705,6 +705,41 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "buy allowed after disabling");
     }
 
+    function testForceSellableRealizesShortfall(bool takerSale) public {
+        Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
+        uint256 rate = adapter.marketData(marketId).netRate;
+
+        uint256 soldUnits = 0.5e18;
+        uint256 tick = TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING);
+        Offer memory offer = takerSale
+            ? makeExternalOffer(boughtOffer.market, true, soldUnits, MAX_TICK)
+            : makeSellOffer(boughtOffer.market, soldUnits, tick);
+        offer.tick = tick;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 assetsBefore = adapter.realAssets();
+
+        setForceSellable(marketId);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", soldUnits, "");
+        } else {
+            take(offer);
+        }
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - vaultBalanceBefore;
+        uint256 shortfall = soldUnits.mulDivUp(1e18, 1e18 + rate * 30 days) - proceeds;
+        assertGt(shortfall, 0, "sale with shortfall");
+        assertApproxEqAbs(
+            assetsBefore - adapter.realAssets() - proceeds, shortfall, 1, "shortfall realized immediately"
+        );
+        assertEq(adapter.marketData(marketId).netRate, rate, "rate unchanged");
+        assertEq(adapter.shortfallShare(), 0, "shortfall not deferred");
+        assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - soldUnits, "position partially sold");
+        assertEq(adapter.marketData(marketId).forceSellable, true, "setting retained");
+    }
+
     function testForceSellableOverridesNoSalesWithShortfall(bool takerSale) public {
         Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -748,13 +783,13 @@ contract MidnightAdapterTest is Test {
         setForceSellable(firstMarketId);
 
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
         assertFalse(adapter.marketData(secondMarketId).forceSellable, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
 
         unsetForceSellable(firstMarketId);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         assertFalse(adapter.marketData(firstMarketId).forceSellable, "override disabled");
         assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
@@ -765,7 +800,7 @@ contract MidnightAdapterTest is Test {
 
     /* SALES BELOW AMORTIZED VALUE */
 
-    function testLossSaleLowersRate(uint256 elapsed, uint256 sold, uint256 price) public {
+    function testLossSaleKeepsValue(uint256 elapsed, uint256 sold, uint256 price) public {
         elapsed = bound(elapsed, 0, 20 days);
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
@@ -774,24 +809,26 @@ contract MidnightAdapterTest is Test {
         uint256 rate = adapter.marketData(marketId).netRate;
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
         uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
-        sold = bound(sold, 1, maxSold);
+        sold = bound(sold, 1e18, maxSold);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
-        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
-        uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
+        uint256 futureInterest = (100e18 - sold) - (100e18 - sold).mulDivDown(1e18, 1e18 + rate * ttm);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, proceeds, sold, 100e18 - sold, newRate);
+        emit IMidnightAdapterBase.Sell(marketId, proceeds, sold, 100e18 - sold, shortfall * 1e18 / futureInterest);
         sellUnits(offer.market, sold, tick);
 
         MarketData memory data = adapter.marketData(marketId);
         assertEq(data.netCredit, 100e18 - sold);
-        assertEq(data.netRate, newRate, "rate decreases");
+        assertEq(data.netRate, rate, "rate unchanged");
         assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
-        assertGe(adapter.realAssets(), assetsBefore - proceeds, "amortized value decreases by the proceeds");
-        assertLe(adapter.realAssets() - (assetsBefore - proceeds), (100e18 - sold) * ttm / 1e18 + 2, "rounding");
+        assertEq(adapter.shortfallShare(), shortfall * 1e18 / futureInterest, "shortfall deferred");
+        assertApproxEqAbs(
+            adapter.realAssets(), assetsBefore - proceeds, shareRounding(), "value decreases by the proceeds"
+        );
+        assertLe(adapter.realAssets(), assetsBefore - proceeds + 1, "rounding");
         skip(ttm);
         assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
     }
@@ -808,18 +845,14 @@ contract MidnightAdapterTest is Test {
         uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
-        bool remainingRateTooLow = newAmortizedValue > 100e18 - sold;
-        uint256 newRate = shortfall == 0
-            ? rate
-            : remainingRateTooLow ? 0 : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
+        uint256 futureInterest = (100e18 - sold) - (100e18 - sold).mulDivDown(1e18, 1e18 + rate * ttm);
 
-        if (remainingRateTooLow) {
-            vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        if (shortfall > futureInterest) {
+            vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
             sellUnits(offer.market, sold, tick);
         } else {
             sellUnits(offer.market, sold, tick);
-            assertEq(adapter.marketData(marketId).netRate, newRate, "rate decreases");
+            assertEq(adapter.marketData(marketId).netRate, rate, "rate unchanged");
         }
     }
 
@@ -846,7 +879,7 @@ contract MidnightAdapterTest is Test {
         uint256 newRate = sold == 100e18 ? 0 : rate;
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, newRate);
+        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, 0);
         sellUnits(offer.market, sold, MAX_TICK);
 
         assertEq(adapter.marketData(marketId).netRate, newRate, "rate unchanged");
@@ -868,30 +901,22 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, sold, tick);
 
         assertEq(adapter.marketData(marketId).netRate, sold == 100e18 ? 0 : rate, "rate unchanged");
+        assertEq(adapter.shortfallShare(), 0, "no shortfall");
     }
 
     function testLossSaleCanUseAllRemainingInterest() public {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
-        setMinNetBuyRate(0);
-        uint256 rate = adapter.marketData(marketId).netRate;
-        uint256 low;
-        uint256 high = 100e18 - adapter.realAssets();
-        // Largest shortfall that the interest remaining after the sale can absorb.
-        while (high - low > 1) {
-            uint256 mid = (low + high) / 2;
-            uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
-                + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
-            if (newAmortizedValue <= 100e18 - units) low = mid;
-            else high = mid;
-        }
+        // Selling at half price, the shortfall exceeds the interest left after the sale once half the sold units exceed the unearned interest.
+        uint256 unearned = 100e18 - adapter.realAssets();
 
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
-        this.sellWithShortfall(offer.market, low + 1);
-        this.sellWithShortfall(offer.market, low);
-        assertEq(adapter.marketData(marketId).netRate, 0, "all remaining interest is used");
-        assertEq(adapter.realAssets(), adapter.marketData(marketId).netCredit, "carried at par");
+        vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
+        sellUnits(offer.market, 2 * unearned + 2, MAX_TICK / 2);
+        sellUnits(offer.market, 2 * unearned, MAX_TICK / 2);
+        assertApproxEqAbs(adapter.shortfallShare(), 1e18, 1, "all remaining interest is used");
+        assertApproxEqAbs(adapter.realAssets(), adapter.marketData(marketId).netCredit, 1, "carried at par");
+        skip(1 days);
+        assertApproxEqAbs(adapter.realAssets(), adapter.marketData(marketId).netCredit, 1, "no growth left");
         sellUnits(offer.market, 1e18, MAX_TICK);
     }
 
@@ -900,25 +925,28 @@ contract MidnightAdapterTest is Test {
         elapsed = bound(elapsed, 0, 30 days);
         skip(elapsed);
         if (elapsed == 30 days) vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
-        else vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        else vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - DEFAULT_TICK_SPACING);
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 99e18);
     }
 
-    function testLossSaleIsPerMarket() public {
+    function testLossSaleDoesNotChangeRates() public {
         Offer memory first = buyAtDiscount(30 days, 100e18);
         Offer memory second = buyAtDiscount(31 days, 100e18);
+        bytes32 firstMarketId = _marketId(first.market);
         bytes32 secondMarketId = _marketId(second.market);
+        uint256 firstRate = adapter.marketData(firstMarketId).netRate;
         uint256 secondRate = adapter.marketData(secondMarketId).netRate;
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         this.sellWithShortfall(first.market, 1e18);
+        assertEq(adapter.marketData(firstMarketId).netRate, firstRate, "sold market unchanged");
         assertEq(adapter.marketData(secondMarketId).netRate, secondRate, "other market unchanged");
         assertEq(adapter.marketData(secondMarketId).netCredit, 100e18);
         uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
-        assertGe(adapter.realAssets() + proceeds, assetsBefore);
+        assertApproxEqAbs(adapter.realAssets() + proceeds, assetsBefore, shareRounding(), "sale is neutral");
     }
 
     /// forge-config: default.isolate = true
@@ -926,8 +954,7 @@ contract MidnightAdapterTest is Test {
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         uint256 backingBefore = backing();
         this.sellWithShortfall(initial.market, 0.1e18);
-        assertGe(backing(), backingBefore, "loss is deferred");
-        assertLe(backing() - backingBefore, realVault.allocation(adapter.adapterId()) * 7 days / 1e18 + 2, "rounding");
+        assertApproxEqAbs(backing(), backingBefore, shareRounding(), "loss is deferred");
         assertEq(realVault.totalAssets(), 10e18);
     }
 
@@ -936,6 +963,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         this.sellWithShortfall(offer.market, 1e18);
         MarketData memory before = adapter.marketData(marketId);
+        uint256 shareBefore = adapter.shortfallShare();
         uint256 assetsBefore = adapter.realAssets();
 
         buyAdditionalCredit(offer.market, 50e18);
@@ -946,7 +974,233 @@ contract MidnightAdapterTest is Test {
         assertEq(
             after_.netRate, (after_.netCredit - amortizedValue) * 1e18 / (amortizedValue * 30 days), "rate is diluted"
         );
-        assertGe(adapter.realAssets(), assetsBefore + 50e18, "purchase adds its cost");
+        // A purchase at par adds no interest, so the share is left untouched.
+        assertEq(adapter.shortfallShare(), shareBefore, "share unchanged");
+        assertGe(adapter.realAssets() + shareRounding(), assetsBefore + 50e18, "purchase adds its cost");
+        assertLe(adapter.realAssets(), assetsBefore + 50e18 + after_.netCredit * 30 days / 1e18 + 2, "rate rounding");
+    }
+
+    /* DEFERRED SHORTFALL */
+
+    /// @dev Sums over markets of the amortized value and of the interest left to earn, as valued by the adapter.
+    function expectedValuation() internal view returns (uint256 amortizedValue, uint256 futureInterest) {
+        for (uint256 i; i < adapter.marketIdsLength(); i++) {
+            MarketData memory data = adapter.marketData(adapter.marketIds(i));
+            uint256 ttm = uint256(data.maturity).zeroFloorSub(block.timestamp);
+            uint256 marketAmortizedValue = uint256(data.netCredit).mulDivDown(1e18, 1e18 + data.netRate * ttm);
+            amortizedValue += marketAmortizedValue;
+            futureInterest += data.netCredit - marketAmortizedValue;
+        }
+    }
+
+    /// @dev Expected realAssets: amortized value plus the deferred share of the interest left to earn.
+    function expectedRealAssets() internal view returns (uint256) {
+        (uint256 amortizedValue, uint256 futureInterest) = expectedValuation();
+        return amortizedValue + futureInterest.mulDivDown(adapter.shortfallShare(), 1e18);
+    }
+
+    /// @dev The share is rounded down, so realAssets can be below the exact value by the interest left to earn / WAD, plus 1 wei per rounding.
+    function shareRounding() internal view returns (uint256) {
+        (, uint256 futureInterest) = expectedValuation();
+        return futureInterest / 1e18 + 2;
+    }
+
+    function testDeferredShortfallSlowsAllMarkets() public {
+        Offer memory first = buyAtDiscount(7 days, 100e18);
+        buyAtDiscount(30 days, 100e18);
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 assetsBefore = adapter.realAssets();
+
+        this.sellWithShortfall(first.market, 2e18);
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        uint256 share = adapter.shortfallShare();
+        assertGt(share, 0, "shortfall deferred");
+        assertLt(share, 1e18, "interest remains");
+        assertApproxEqAbs(adapter.realAssets(), assetsBefore - proceeds, shareRounding(), "sale is neutral");
+
+        // Growth is slowed by the same factor for every market: realAssets tracks (1 - share) of the amortized growth.
+        uint256 previous = adapter.realAssets();
+        (uint256 amortizedBefore,) = expectedValuation();
+        for (uint256 i; i < 10; i++) {
+            skip(3 days);
+            uint256 current = adapter.realAssets();
+            assertEq(current, expectedRealAssets(), "formula");
+            assertGe(current, previous, "never decreases");
+            previous = current;
+        }
+        (uint256 amortizedAfter,) = expectedValuation();
+        assertApproxEqRel(
+            previous - (assetsBefore - proceeds),
+            (amortizedAfter - amortizedBefore) * (1e18 - share) / 1e18,
+            1e12,
+            "reduced growth"
+        );
+        (, uint256 futureInterest) = expectedValuation();
+        assertEq(futureInterest, 0, "all matured");
+        assertEq(previous, amortizedAfter, "net credit at the last maturity");
+    }
+
+    function testShortfallCarriedByOtherMarket() public {
+        Offer memory parOffer = buy(7 days, 100e18);
+        buyAtDiscount(30 days, 100e18);
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+
+        // The par market has no interest, so the shortfall is carried by the interest of the discount market.
+        sellUnits(parOffer.market, 40e18, TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        assertApproxEqAbs(adapter.realAssets(), assetsBefore - proceeds, shareRounding(), "sale is neutral");
+
+        // The discount market keeps earning the part of its interest that is not deferred.
+        skip(7 days);
+        assertGt(adapter.realAssets(), assetsBefore - proceeds, "still growing");
+        assertEq(adapter.realAssets(), expectedRealAssets(), "formula");
+
+        // Withdrawing the par market at maturity is neutral.
+        vm.prank(taker);
+        midnight.repay(parOffer.market, 60e18, taker, address(0), "");
+        uint256 before = adapter.realAssets();
+        adapter.withdrawToVault(parOffer.market, 60e18);
+        assertEq(adapter.realAssets(), before - 60e18, "withdrawal is neutral");
+
+        // The shortfall is fully paid by the last maturity.
+        skip(23 days);
+        assertEq(adapter.realAssets(), 100e18, "discount market at face value");
+    }
+
+    function testBuyWhileDeferredAddsItsCost(uint256 assets) public {
+        assets = bound(assets, 1e18, 100e18);
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        this.sellWithShortfall(first.market, 2e18);
+        uint256 shareBefore = adapter.shortfallShare();
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+
+        Offer memory second = makeBuyOffer(60 days, assets, discountTick);
+        midnight.supplyCollateral(second.market, 0, second.maxUnits, taker);
+        midnight.supplyCollateral(second.market, 1, second.maxUnits, taker);
+        take(second);
+
+        uint256 paid = balanceBefore - loanToken.balanceOf(address(parentVault));
+        assertLt(adapter.shortfallShare(), shareBefore, "share diluted by the bought interest");
+        assertEq(adapter.realAssets(), expectedRealAssets(), "formula");
+        assertGe(adapter.realAssets() + shareRounding(), assetsBefore + paid, "purchase adds its cost");
+        assertLe(adapter.realAssets(), assetsBefore + paid + second.maxUnits * 60 days / 1e18 + 2, "rate rounding");
+    }
+
+    function testFairSaleWhileDeferredIsNeutral(uint256 sold) public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        Offer memory second = buyAtDiscount(60 days, 100e18);
+        this.sellWithShortfall(first.market, 2e18);
+        sold = bound(sold, 1e18, 50e18);
+        uint256 rate = adapter.marketData(_marketId(second.market)).netRate;
+        uint256 shareBefore = adapter.shortfallShare();
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        deal(address(loanToken), taker, 100e18);
+        // Lowest tick above the amortized value of one unit.
+        uint256 tick = TickLib.priceToTick(1e36 / (1e18 + rate * 60 days) + 1, DEFAULT_TICK_SPACING);
+
+        sellUnits(second.market, sold, tick);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        assertGt(adapter.shortfallShare(), shareBefore, "deferred shortfall carried by less interest");
+        assertApproxEqAbs(adapter.realAssets() + proceeds, assetsBefore, shareRounding(), "sale is neutral");
+        assertLe(adapter.realAssets() + proceeds, assetsBefore + 1, "rounding");
+    }
+
+    function testGainSaleWhileDeferredPaysShortfall() public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        Offer memory second = buyAtDiscount(60 days, 100e18);
+        this.sellWithShortfall(first.market, 2e18);
+        uint256 shareBefore = adapter.shortfallShare();
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        deal(address(loanToken), taker, 200e18);
+
+        // A sale at par of a small amount gains less than the deferred shortfall, so it only pays it down.
+        sellUnits(second.market, 1e18, MAX_TICK);
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        assertLt(adapter.shortfallShare(), shareBefore, "shortfall paid down");
+        assertGt(adapter.shortfallShare(), 0, "shortfall remains");
+        assertApproxEqAbs(adapter.realAssets() + proceeds, assetsBefore, shareRounding(), "gain pays the shortfall");
+
+        // A larger gain clears the deferred shortfall and the rest is realized.
+        balanceBefore = loanToken.balanceOf(address(parentVault));
+        assetsBefore = adapter.realAssets();
+        sellUnits(second.market, 99e18, MAX_TICK);
+        proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        assertEq(adapter.shortfallShare(), 0, "shortfall cleared");
+        assertGt(adapter.realAssets() + proceeds, assetsBefore, "gain realized");
+        assertEq(adapter.realAssets(), expectedRealAssets(), "formula");
+    }
+
+    function testForceSaleWhileDeferredRealizesShare() public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        Offer memory second = buyAtDiscount(60 days, 100e18);
+        bytes32 secondMarketId = _marketId(second.market);
+        this.sellWithShortfall(first.market, 2e18);
+        uint256 share = adapter.shortfallShare();
+        uint256 rate = adapter.marketData(secondMarketId).netRate;
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        setForceSellable(secondMarketId);
+
+        sellUnits(second.market, 10e18, MAX_TICK / 2);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        uint256 soldAmortizedValue = uint256(10e18).mulDivDown(1e18, 1e18 + rate * 60 days);
+        uint256 soldBookValue = soldAmortizedValue + (10e18 - soldAmortizedValue).mulDivDown(share, 1e18);
+        assertEq(adapter.shortfallShare(), share, "share unchanged");
+        assertApproxEqAbs(
+            assetsBefore - adapter.realAssets(),
+            soldBookValue,
+            shareRounding(),
+            "sold credit realized at its book value"
+        );
+        assertGt(soldBookValue, proceeds, "loss realized");
+    }
+
+    function testBadDebtWhileDeferredIsWrittenDownAtBookValue() public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        Offer memory second = buyAtDiscount(60 days, 100e18);
+        bytes32 secondMarketId = _marketId(second.market);
+        this.sellWithShortfall(first.market, 2e18);
+        uint256 share = adapter.shortfallShare();
+        uint256 rate = adapter.marketData(secondMarketId).netRate;
+        uint256 assetsBefore = adapter.realAssets();
+
+        this.realizeDefault(second.market, ORACLE_PRICE_SCALE / 4);
+
+        assertGt(midnight.lossFactor(secondMarketId), 0, "bad debt");
+        (uint128 credit, uint128 pendingFee,) =
+            midnight.updatePositionView(second.market, secondMarketId, address(adapter));
+        uint256 lost = 100e18 - (credit - pendingFee);
+        assertGt(lost, 0, "credit lost");
+        uint256 lostAmortizedValue = lost.mulDivDown(1e18, 1e18 + rate * 60 days);
+        uint256 lostBookValue = lostAmortizedValue + (lost - lostAmortizedValue).mulDivDown(share, 1e18);
+        assertEq(adapter.shortfallShare(), share, "share unchanged");
+        assertApproxEqAbs(
+            assetsBefore - adapter.realAssets(), lostBookValue, shareRounding(), "written down at book value"
+        );
+        assertLt(lostBookValue, lost, "below face value");
+        assertGt(lostBookValue, lostAmortizedValue, "above amortized value");
+    }
+
+    function testDeferredShortfallAccumulates() public {
+        Offer memory first = buyAtDiscount(30 days, 100e18);
+        Offer memory second = buyAtDiscount(60 days, 100e18);
+        this.sellWithShortfall(first.market, 1e18);
+        uint256 firstShare = adapter.shortfallShare();
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+
+        this.sellWithShortfall(second.market, 1e18);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        assertGt(adapter.shortfallShare(), firstShare, "shortfall added");
+        assertApproxEqAbs(adapter.realAssets() + proceeds, assetsBefore, shareRounding(), "sale is neutral");
+        assertEq(adapter.realAssets(), expectedRealAssets(), "formula");
     }
 
     /* MIN RATE */
@@ -2565,7 +2819,7 @@ contract MidnightAdapterTest is Test {
             offer.group = bytes32("zero buy");
             bytes memory data = ratify([offer], signerAllocator);
             vm.expectEmit(address(adapter));
-            emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0);
+            emit IMidnightAdapterBase.Buy(marketId, 0, 0, 0, 0, 0);
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
@@ -2723,7 +2977,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, liveNetCredit + units);
     }
 
-    function testTakeRoundingShortfallRevertsWhenRemainingInterestRoundsAway() public {
+    function testTakeRoundingShortfallCarriedByRemainingInterest() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
@@ -2731,12 +2985,12 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
-        assertEq(adapter.realAssets(), 9);
-        assertEq(loanToken.balanceOf(address(parentVault)), 1);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 5);
+        assertEq(loanToken.balanceOf(address(parentVault)), 5, "4 received for 5 units");
+        assertEq(adapter.shortfallShare(), 1e18, "the remaining interest carries the shortfall");
+        assertEq(adapter.realAssets(), 5, "remaining units carried at par");
     }
 
     function testTakeSaleRoundsValueUp() public {
@@ -2886,7 +3140,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 1e18, 1e18, 1e18, 0, 0);
         take(offer);
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
         assertEq(loanToken.allowance(address(adapter), address(parentVault)), 0);
@@ -4682,7 +4936,7 @@ contract MidnightAdapterTest is Test {
         offer.maxUnits = uint128(boughtNetCredit);
         offer.group = bytes32("second buy");
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit, 0);
+        emit IMidnightAdapterBase.Buy(marketId, boughtNetCredit, boughtNetCredit, expectedNetCredit, 0, 0);
         take(offer);
 
         assertEq(adapter.marketData(marketId).netCredit, expectedNetCredit, "market netCredit");
@@ -4759,14 +5013,17 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 200e18);
         assertGt(adapter.realAssets(), 100e18);
 
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
         sellUnits(offer.market, 200e18, MAX_TICK / 2);
 
         uint256 tick = TickLib.priceToTick(0.6e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = uint256(200e18).mulDivUp(TickLib.tickToPrice(tick), 1e18);
+        // Above the amortized value, so there is no shortfall to defer.
+        assertGt(proceeds, adapter.realAssets());
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
+        assertEq(adapter.realAssets(), 0);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
     }
@@ -4784,8 +5041,9 @@ contract MidnightAdapterTest is Test {
         assertGt(shortfall, 0);
 
         sellUnits(offer.market, 10e18, tick);
-        assertGe(adapter.realAssets(), assetsBefore - proceeds, "amortized value decreases by the proceeds");
-        assertLe(adapter.realAssets() - (assetsBefore - proceeds), 190e18 * 29 days / 1e18 + 2, "rounding");
+        assertApproxEqAbs(
+            adapter.realAssets(), assetsBefore - proceeds, shareRounding(), "value decreases by the proceeds"
+        );
         assertEq(adapter.marketData(marketId).netCredit, 190e18);
     }
 
@@ -4805,23 +5063,32 @@ contract MidnightAdapterTest is Test {
         uint256 rate = adapter.marketData(marketId).netRate;
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm).zeroFloorSub(proceeds);
-        uint256 newAmortizedValue = (netCredit - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
-        bool interestExhausted = shortfall > 0 && newAmortizedValue > netCredit - sold;
+        uint256 amortized = (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm);
+        uint256 futureInterest = netCredit - sold - amortized;
+        bool interestExhausted = shortfall > futureInterest;
 
         if (interestExhausted) {
-            vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+            vm.expectRevert(IMidnightAdapterBase.SaleRealizesLoss.selector);
         }
         sellUnits(offer.market, sold, tick);
 
         if (interestExhausted) {
             assertEq(adapter.realAssets(), assetsBefore);
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore);
+            assertEq(adapter.shortfallShare(), 0);
         } else {
             assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
-            uint256 expected =
-                shortfall == 0 ? (netCredit - sold).mulDivDown(1e18, 1e18 + rate * ttm) : assetsBefore - proceeds;
-            assertGe(adapter.realAssets(), expected);
-            assertLe(adapter.realAssets() - expected, shortfall == 0 ? 0 : (netCredit - sold) * ttm / 1e18 + 2);
+            assertEq(
+                adapter.shortfallShare(), futureInterest == 0 ? 0 : shortfall * 1e18 / futureInterest, "deferred share"
+            );
+            if (shortfall == 0) {
+                assertEq(adapter.realAssets(), amortized, "amortized value");
+            } else {
+                assertApproxEqAbs(
+                    adapter.realAssets(), assetsBefore - proceeds, shareRounding(), "value decreases by the proceeds"
+                );
+                assertLe(adapter.realAssets(), assetsBefore - proceeds + 1, "rounding");
+            }
         }
     }
 
@@ -4830,7 +5097,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18, 0);
+        emit IMidnightAdapterBase.Buy(_marketId(offer.market), 100e18, 100e18, 100e18, 0, 0);
         take(offer);
 
         skip(12 hours);
@@ -4865,7 +5132,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0);
+        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0, 0);
         take(roll);
 
         assertEq(adapter.marketData(marketId).netCredit, 100e18);
@@ -4912,10 +5179,11 @@ contract MidnightAdapterTest is Test {
         adapter.realAssets();
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         bytes32 marketIdsLengthSlot = bytes32(uint256(5));
+        bytes32 shortfallShareSlot = bytes32(uint256(7));
         uint256 marketIdsDataSlot = uint256(keccak256(abi.encode(uint256(5))));
         uint256 marketDataReads;
         for (uint256 i; i < reads.length; i++) {
-            if (reads[i] == marketIdsLengthSlot) continue;
+            if (reads[i] == marketIdsLengthSlot || reads[i] == shortfallShareSlot) continue;
             bool isMarketId;
             for (uint256 j; j < marketCount; j++) {
                 if (reads[i] == bytes32(marketIdsDataSlot + j)) {
@@ -5547,7 +5815,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(realVault), 10e18 - adapter.realAssets());
         directTake(makeSellOffer(initial.market, 0.08e18, MAX_TICK / 2));
         assertEq(realVault._totalAssets(), 10e18);
-        assertGe(backing(), 10e18);
+        assertApproxEqAbs(backing(), 10e18, shareRounding(), "covered up to the share rounding");
     }
 
     /// forge-config: default.isolate = true
