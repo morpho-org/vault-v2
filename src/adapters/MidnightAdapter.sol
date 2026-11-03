@@ -610,7 +610,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 ? 0
                 : MathLib.min(
                         (unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, newWeighted),
-                        WAD / MathLib.max(otherMaxTtm, ttm)
+                        WAD / MathLib.max(otherMaxTtm, newNetCredit > 0 ? ttm : 0)
                     )
                     .toUint72();
         }
@@ -745,7 +745,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 }
                 uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
                 netCreditSum += netCredit;
-                maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
+                if (netCredit > 0) {
+                    maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
+                }
                 // Each term is at most uint128 * uint40, and there are fewer than 2**8 markets.
                 unchecked {
                     weightedNetCreditSum += netCredit * ttm;

@@ -844,6 +844,54 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), longMarket.maxUnits);
     }
 
+    function testFullSaleOfLongestMarketDoesNotCapRemainingRate() public {
+        uint256 longDiscountTick = TickLib.priceToTick(0.5e18, DEFAULT_TICK_SPACING);
+        Offer memory longMarket = buy(300 days, 100e18, longDiscountTick);
+        Offer memory shortMarket = buy(30 days, 100e18, discountTick);
+        uint256 longTtm = longMarket.market.maturity - block.timestamp;
+        uint256 shortTtm = shortMarket.market.maturity - block.timestamp;
+        uint256 rateBefore = adapter.netRate();
+        uint256 soldBookValue =
+            longMarket.maxUnits - (uint256(longMarket.maxUnits) * longTtm).mulDivDown(rateBefore, 1e18);
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 sellTick = TickLib.priceToTick(0.75e18, DEFAULT_TICK_SPACING);
+        deal(address(loanToken), taker, longMarket.maxUnits);
+
+        sellUnits(longMarket.market, longMarket.maxUnits, sellTick);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        uint256 newWeighted = uint256(shortMarket.maxUnits) * shortTtm;
+        assertGe(proceeds, soldBookValue, "sale price covers book value");
+        assertApproxEqAbs(adapter.realAssets(), assetsBefore - proceeds, newWeighted / 1e18 + 2);
+        assertGt(adapter.netRate(), 1e18 / longTtm, "sold market does not constrain rate cap");
+    }
+
+    function testTotalLossMarketDoesNotConstrainRateOnLaterBuy() public {
+        Offer memory longMarket = buyAtDiscount(300 days, 100e18);
+        bytes32 longMarketId = _marketId(longMarket.market);
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(longMarket.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        (uint128 credit, uint128 pendingFee,) =
+            midnight.updatePositionView(longMarket.market, longMarketId, address(adapter));
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        uint256 longTtm = longMarket.market.maturity - block.timestamp;
+        assertEq(credit - pendingFee, 0, "long market has no current net credit");
+        assertEq(adapter.marketIdsLength(), 1, "loss position remains tracked");
+
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        Offer memory shortMarket = buyAtDiscount(7 days, 100e18);
+        uint256 buyerAssets = balanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 shortTtm = shortMarket.market.maturity - block.timestamp;
+        uint256 expectedRate =
+            (uint256(shortMarket.maxUnits) - buyerAssets).mulDivDown(1e18, uint256(shortMarket.maxUnits) * shortTtm);
+
+        assertEq(adapter.netRate(), expectedRate, "zero-credit market does not constrain the cap");
+        assertGt(adapter.netRate(), 1e18 / longTtm);
+    }
+
     function testGlobalRateAccrualAndBuyBounds(uint256 elapsed, uint256 units) public {
         elapsed = bound(elapsed, 0, 20 days);
         units = bound(units, 1e18, 50e18);
