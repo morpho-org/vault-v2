@@ -19,7 +19,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev Rates are rounded down on buys. Interest excluded from the rate is realized immediately.
+/// @dev Rates are rounded down on buys. This increases amortized value compared to no rounding.
 /// @dev Loss sales preserve market rates and only proceed when the vault's real assets remain at least its recorded total assets, so the loss is absorbed by value not yet reflected in the share price.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -37,7 +37,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall sale preserves rates and must be covered by real assets not yet reflected in the vault's recorded total assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
-/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback).
 /// @dev ForceSellable sales are not subject to the vault buffer check.
 ///
 /// FORCE DEALLOCATE
