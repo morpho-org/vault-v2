@@ -36,7 +36,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMinNetBuyRate(uint256 newMinNetBuyRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
-    event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
@@ -77,13 +76,13 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
+    error NetRateTooHigh();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
     error NetBuyRateTooLow();
-    error SalesWithShortfallDisabled();
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
@@ -104,7 +103,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
-    function MAX_TTM() external view returns (uint256);
+    function MAX_MAX_TTM() external view returns (uint256);
     function MAX_NET_RATE() external view returns (uint256);
     function midnight() external view returns (address);
     function enterGateFactory() external view returns (address);
@@ -113,7 +112,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
-    function noSalesWithShortfall() external view returns (bool);
     function netRate() external view returns (uint72);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyBoughtNetCredit() external view returns (uint256);
@@ -130,7 +128,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
-    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;

@@ -18,8 +18,8 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting aggregate net credit at a constant simple rate until each market's maturity.
-/// @dev The rate is rounded down on buys and sales, so excess interest is realized immediately.
-/// @dev With maxTtm capped at MAX_TTM, MAX_NET_RATE keeps every held market's book value nonnegative.
+/// @dev Rates are rounded down on buys and sales. A buy that would set the rate above MAX_NET_RATE reverts; a sale caps it and realizes the excess immediately.
+/// @dev With maxTtm capped at MAX_MAX_TTM, MAX_NET_RATE keeps every held market's book value nonnegative.
 /// @dev Sale shortfalls reduce shared unearned interest across held markets, weighted by net credit and time to maturity.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -45,9 +45,9 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
+/// @dev minNetBuyRate, maxNetSellRate and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
@@ -85,9 +85,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
     /// @dev Maximum supported time to maturity for bought markets.
-    uint256 public constant MAX_TTM = 2 * 365 days;
-    /// @dev Highest rate that keeps market book values nonnegative through MAX_TTM.
-    uint256 public constant MAX_NET_RATE = WAD / MAX_TTM;
+    uint256 public constant MAX_MAX_TTM = 2 * 365 days;
+    /// @dev Highest rate that keeps market book values nonnegative through MAX_MAX_TTM.
+    uint256 public constant MAX_NET_RATE = WAD / MAX_MAX_TTM;
 
     /* IMMUTABLES */
 
@@ -135,8 +135,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
-    /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    bool public noSalesWithShortfall;
     /// @dev WAD-scaled simple rate per second, relative to face value, at which the net credit of all markets accrues until maturity.
     uint72 public netRate;
 
@@ -249,7 +247,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
-        require(newMaxTtm <= MAX_TTM, MaxTtmTooHigh());
+        require(newMaxTtm <= MAX_MAX_TTM, MaxTtmTooHigh());
         require(newMaxTtm >= maxTtm, MaxTtmTooLow());
         maxTtm = newMaxTtm.toUint32();
         emit IncreaseMaxTtm(newMaxTtm);
@@ -293,12 +291,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minNetBuyRate = newMinNetBuyRate.toUint64();
         emit SetMinNetBuyRate(newMinNetBuyRate);
-    }
-
-    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesWithShortfall = newNoSalesWithShortfall;
-        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
@@ -480,7 +472,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
-    /// @dev Can revert on extremely high rates.
+    /// @dev Can revert when the computed rate exceeds MAX_NET_RATE.
     function onBuy(
         bytes32 id,
         Market memory market,
@@ -523,7 +515,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (newNetCredit > 0) {
                 uint256 unearned = weighted.mulDivUp(netRate, WAD) + boughtNetCredit - buyerAssets;
                 weighted += boughtNetCredit * ttm;
-                netRate = MathLib.min(unearned.mulDivDown(WAD, weighted), MAX_NET_RATE).toUint72();
+                uint256 newRate = unearned.mulDivDown(WAD, weighted);
+                require(newRate <= MAX_NET_RATE, NetRateTooHigh());
+                netRate = newRate.toUint72();
             }
 
             if (newNetCredit > 0 && oldNetCredit == 0) {
@@ -601,23 +595,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
         uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
-            _marketData.netCredit = newNetCredit;
         } else {
-            _marketData.netCredit = newNetCredit;
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             (inProgressSellMarketId, inProgressSellSoldNetCredit) = (id, soldNetCredit);
             (, uint256 weighted) = netCreditSums();
             (inProgressSellMarketId, inProgressSellSoldNetCredit) = (bytes32(0), 0);
             uint256 unearned = weighted.mulDivUp(netRate, WAD);
-            uint256 soldBookValue = soldNetCredit - (soldNetCredit * ttm).mulDivDown(netRate, WAD);
-            if (sellerAssets < soldBookValue) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-            }
             require(unearned + sellerAssets >= soldNetCredit, ShortfallTooHigh());
             weighted -= soldNetCredit * ttm;
+            // Capped rather than reverting, so that forceDeallocate stays live.
             netRate = weighted == 0
                 ? 0
                 : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), MAX_NET_RATE)
@@ -721,11 +711,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return allocations;
     }
 
-    /// @dev Floored at zero for liveness; the MAX_NET_RATE/MAX_TTM bound keeps the floor from binding.
     /// @dev Returns the sum over markets of the net credit discounted at the adapter-wide rate.
     function realAssets() external view returns (uint256) {
         (uint256 netCreditSum, uint256 weightedNetCreditSum) = netCreditSums();
-        return netCreditSum.zeroFloorSub(weightedNetCreditSum.mulDivUp(netRate, WAD));
+        return netCreditSum - weightedNetCreditSum.mulDivUp(netRate, WAD);
     }
 
     /// @dev Returns aggregate net credit and weighted net credit across held markets.
