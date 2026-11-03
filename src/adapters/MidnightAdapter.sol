@@ -34,7 +34,10 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
+/// @dev The seller callback data must be abi.encode(bytes32 otherMarketId) for sales with a shortfall. Other sales ignore it.
+/// @dev The taker sets it for maker sell offers, because sub-ratifiers check sell offers with empty callbackData. The allocator sets it as takerCallbackData in take.
+/// @dev A shortfall decreases the rate of otherMarketId down to at most zero, so the amortized value of the adapter decreases only by the received assets.
+/// @dev Markets with a sale in progress or force sellable do not absorb shortfalls.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -450,6 +453,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MIDNIGHT CALLBACKS */
 
     /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
+    /// @dev The sub-ratifier checks sell offers with empty callbackData, so that the taker chooses the markets that absorb a shortfall.
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32) {
         if (inForceDeallocate) return CALLBACK_SUCCESS;
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
@@ -463,6 +467,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         (address subRatifier, bytes memory subRatifierData) = abi.decode(ratifierData, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierFailed());
+        if (!offer.buy) offer.callbackData = "";
         return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
     }
 
@@ -581,7 +586,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
-        require(data.length == 0, NonEmptyCallbackData());
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
@@ -594,9 +598,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+                bytes32 otherMarketId = abi.decode(data, (bytes32));
+                MarketData storage otherMarketData = marketData[otherMarketId];
+                require(
+                    !otherMarketData.forceSellable
+                        && (otherMarketId == id
+                            || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this))),
+                    ShortfallTooHigh()
+                );
+                uint128 netCredit = currentNetCredit(otherMarketId);
+                uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm) + shortfall;
+                require(amortizedValue <= netCredit, ShortfallTooHigh());
+                otherMarketData.netRate =
+                    (netCredit - amortizedValue).mulDivDown(WAD, amortizedValue * otherTtm).toUint72();
+                emit ReduceRate(otherMarketId, otherMarketData.netRate);
             }
         }
 

@@ -54,6 +54,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Sell(
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
+    event ReduceRate(bytes32 indexed marketId, uint256 newRate);
 
     /* ERRORS */
 
@@ -82,7 +83,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
-    error NonEmptyCallbackData();
     error OtherSellInProgress();
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
