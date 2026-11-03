@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 /// @notice Minimal stub contract used as the parent vault to test adapters.
 contract VaultV2Mock {
@@ -17,6 +18,7 @@ contract VaultV2Mock {
     mapping(bytes32 => uint256) public absoluteCap;
     mapping(address => uint256) public balanceOf;
     uint256 public totalAssets;
+    uint128 public _totalAssets;
     /// @dev This stub is always accrued; real-vault tests cover transaction-scoped accrual.
     uint256 public firstTotalAssets = 1;
     uint256 public adaptersLength;
@@ -89,6 +91,7 @@ contract VaultV2Mock {
 
     function setTotalAssets(uint256 newTotalAssets) external {
         totalAssets = newTotalAssets;
+        _totalAssets = MathLib.toUint128(newTotalAssets);
     }
 
     function setAdaptersLength(uint256 newAdaptersLength) external {

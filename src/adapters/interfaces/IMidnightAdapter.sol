@@ -14,7 +14,7 @@ struct MarketData {
     uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
+    /// @dev When activated, the sale bypasses the vault's real-asset buffer check and netRate remains unchanged.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -86,7 +86,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error OtherSellInProgress();
     error NetBuyRateTooLow();
     error SalesWithShortfallDisabled();
-    error ShortfallTooHigh();
+    error RealAssetsBelowTotalAssets();
     error SelfAllocationOnly();
     error SellInProgress();
     error ForceSellPriceTooLow();

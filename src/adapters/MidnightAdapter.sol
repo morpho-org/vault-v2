@@ -7,6 +7,7 @@ import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {IAdapter} from "../interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
@@ -19,7 +20,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Loss sales preserve market rates and only proceed when the vault's real assets remain at least its recorded total assets, so the loss is absorbed by value not yet reflected in the share price.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
@@ -34,9 +35,9 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall decreases the rate, so the amortized value of the market decreases only by the received assets.
+/// @dev A shortfall sale preserves rates and must be covered by real assets not yet reflected in the vault's recorded total assets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
-/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
+/// @dev ForceSellable sales are not subject to the vault buffer check.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -102,6 +103,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
+    /// @dev During a shortfall sale, stored credit can overstate live credit before synchronization, making the buffer check stricter; after the sale, it matches live credit.
+    bytes32 public transient inProgressSellMarketId;
 
     /* TIMELOCKS STORAGE */
 
@@ -586,17 +589,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
+        uint256 shortfall;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+                inProgressSellMarketId = id;
+                // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
+                IVaultV2(parentVault).accrueInterest();
             }
         }
 
@@ -610,6 +614,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 sellerAssets
             );
+
+        if (shortfall > 0) {
+            require(vaultRealAssets() >= IVaultV2(parentVault)._totalAssets(), RealAssetsBelowTotalAssets());
+            inProgressSellMarketId = bytes32(0);
+        }
 
         emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
         return CALLBACK_SUCCESS;
@@ -650,6 +659,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netRate = 0;
         _marketData.maturity = 0;
         _marketData.index = 0;
+    }
+
+    function vaultRealAssets() internal view returns (uint256 assets) {
+        IVaultV2 vault = IVaultV2(parentVault);
+        assets = IERC20(asset).balanceOf(parentVault);
+        for (uint256 i; i < vault.adaptersLength(); i++) {
+            assets += IAdapter(vault.adapters(i)).realAssets();
+        }
     }
 
     /* VIEWS */
@@ -715,7 +732,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
+            } else if (marketId == inProgressSellMarketId || IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
