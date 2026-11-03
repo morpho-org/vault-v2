@@ -10,7 +10,7 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
-/// @dev An adapter can admit only if its enterGateFactory is the factory of this gate. The adapter uses its enterGateFactory to decide when it clears the admission, so an adapter with another enterGateFactory could leave the admission set.
+
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable enterGateFactory;
     address public immutable subGate;
