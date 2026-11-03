@@ -104,6 +104,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
+    /// @dev Sold market's pre-sale position is restored during onSell's rate calculation.
+    bytes32 public transient inProgressSellMarketId;
+    /// @dev Sold net credit is restored during onSell's rate calculation.
+    uint256 public transient inProgressSellSoldNetCredit;
 
     /* TIMELOCKS STORAGE */
 
@@ -508,17 +512,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
+            (, uint256 weighted, uint256 maxHeldTtm) = netCreditSums();
             (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
 
             if (newNetCredit > 0) {
-                (, uint256 otherWeighted, uint256 otherMaxTtm) = netCreditSums(id);
-                uint256 unearned = (otherWeighted + (newNetCredit - boughtNetCredit) * ttm).mulDivUp(netRate, WAD)
-                    + boughtNetCredit - buyerAssets;
-                netRate = MathLib.min(
-                        unearned.mulDivDown(WAD, otherWeighted + newNetCredit * ttm),
-                        WAD / MathLib.max(otherMaxTtm, ttm)
-                    )
-                    .toUint72();
+                uint256 unearned = weighted.mulDivUp(netRate, WAD) + boughtNetCredit - buyerAssets;
+                weighted += boughtNetCredit * ttm;
+                maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
+                netRate = MathLib.min(unearned.mulDivDown(WAD, weighted), WAD / maxHeldTtm).toUint72();
             }
 
             if (newNetCredit > 0 && oldNetCredit == 0) {
@@ -595,30 +596,30 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
+        uint256 oldNetCredit = _marketData.netCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
+            _marketData.netCredit = newNetCredit;
         } else {
+            _marketData.netCredit = newNetCredit;
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            (, uint256 otherWeighted, uint256 otherMaxTtm) = netCreditSums(id);
-            uint256 unearned = (otherWeighted + (newNetCredit + soldNetCredit) * ttm).mulDivUp(netRate, WAD);
+            (inProgressSellMarketId, inProgressSellSoldNetCredit) = (id, soldNetCredit);
+            (, uint256 weighted, uint256 maxHeldTtm) = netCreditSums();
+            (inProgressSellMarketId, inProgressSellSoldNetCredit) = (bytes32(0), 0);
+            uint256 unearned = weighted.mulDivUp(netRate, WAD);
             uint256 soldBookValue = soldNetCredit - (soldNetCredit * ttm).mulDivDown(netRate, WAD);
             if (sellerAssets < soldBookValue) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
             }
             require(unearned + sellerAssets >= soldNetCredit, ShortfallTooHigh());
-            uint256 newWeighted = otherWeighted + newNetCredit * ttm;
-            netRate = newWeighted == 0
+            weighted -= soldNetCredit * ttm;
+            netRate = weighted == 0
                 ? 0
-                : MathLib.min(
-                        (unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, newWeighted),
-                        WAD / MathLib.max(otherMaxTtm, newNetCredit > 0 ? ttm : 0)
-                    )
+                : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), WAD / maxHeldTtm)
                     .toUint72();
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -719,39 +720,41 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Floored at zero for liveness; the netRate cap keeps the floor from binding.
     /// @dev Returns the sum over markets of the net credit discounted at the adapter-wide rate.
     function realAssets() external view returns (uint256) {
-        (uint256 netCreditSum, uint256 weightedNetCreditSum,) = netCreditSums(bytes32(0));
+        (uint256 netCreditSum, uint256 weightedNetCreditSum,) = netCreditSums();
         return netCreditSum.zeroFloorSub(weightedNetCreditSum.mulDivUp(netRate, WAD));
     }
 
-    /// @dev Returns aggregate net credit, weighted net credit, and maximum time to maturity across held markets except the excluded market.
-    function netCreditSums(bytes32 excludedMarketId)
+    /// @dev Returns aggregate net credit, weighted net credit, and maximum time to maturity across held markets.
+    function netCreditSums()
         internal
         view
         returns (uint256 netCreditSum, uint256 weightedNetCreditSum, uint256 maxHeldTtm)
     {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
-            if (marketId != excludedMarketId) {
-                MarketData storage _marketData = marketData[marketId];
-                uint128 storedNetCredit = _marketData.netCredit;
-                uint256 netCredit;
-                if (marketId == inProgressBuyMarketId) {
-                    netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
-                } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
-                    netCredit = storedNetCredit;
-                } else {
-                    require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                    netCredit = currentNetCredit(marketId);
-                }
-                uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
-                netCreditSum += netCredit;
-                if (netCredit > 0) {
-                    maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
-                }
-                // Each term is at most uint128 * uint40, and there are fewer than 2**8 markets.
-                unchecked {
-                    weightedNetCreditSum += netCredit * ttm;
-                }
+            MarketData storage _marketData = marketData[marketId];
+            uint128 storedNetCredit = _marketData.netCredit;
+            uint256 netCredit;
+            if (marketId == inProgressBuyMarketId) {
+                netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
+            } else if (marketId == inProgressSellMarketId) {
+                netCredit = storedNetCredit + inProgressSellSoldNetCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
+                netCredit = storedNetCredit;
+            } else {
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                netCredit = currentNetCredit(marketId);
+            }
+            uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
+            netCreditSum += netCredit;
+            uint256 heldNetCredit =
+                marketId == inProgressBuyMarketId || marketId == inProgressSellMarketId ? storedNetCredit : netCredit;
+            if (heldNetCredit > 0) {
+                maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
+            }
+            // Each term is at most uint128 * uint40, and there are fewer than 2**8 markets.
+            unchecked {
+                weightedNetCreditSum += netCredit * ttm;
             }
         }
     }
