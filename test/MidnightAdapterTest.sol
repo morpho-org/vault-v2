@@ -40,8 +40,10 @@ import {
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {VaultV2CompatibleEnterGate} from "../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {VaultV2CompatibleEnterGateFactory} from "../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
+import {IVaultV2CompatibleEnterGate} from "../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
+import {MidnightAdapterFactoryMock} from "./mocks/MidnightAdapterFactoryMock.sol";
 import {IWhitelistEnterSubGate} from "../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {IEnterSubGate} from "../src/periphery/gates/interfaces/IEnterSubGate.sol";
 
@@ -3586,6 +3588,30 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
+    }
+
+    function testEnterGateAdapterWithOtherGateFactoryCannotAdmit() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        MidnightAdapterFactoryMock otherGateFactory = new MidnightAdapterFactoryMock();
+        otherGateFactory.setIsCreated(wrapper, true);
+        IMidnightAdapter otherAdapter = IMidnightAdapter(
+            factory.createMidnightAdapter(
+                address(realVault), allDurations, address(otherGateFactory), bytes32(uint256(1))
+            )
+        );
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(otherAdapter))));
+        Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
+        market.enterGate = wrapper;
+        address buyer = makeForceDeallocateBuyer(otherAdapter);
+        realVault.transfer(buyer, 1);
+        assertTrue(factory.isCreated(address(otherAdapter)));
+        assertTrue(VaultV2CompatibleEnterGate(wrapper).canAdmit(address(factory)));
+        midnight.touchMarket(market);
+
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        realVault.forceDeallocate(address(otherAdapter), abi.encode(market, buyer), 0, address(this));
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
     }
 
     /// forge-config: default.isolate = false

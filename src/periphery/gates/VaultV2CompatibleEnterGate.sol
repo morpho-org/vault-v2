@@ -3,13 +3,16 @@
 pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
+import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
+/// @dev An adapter can admit only if its enterGateFactory is the factory of this gate. The adapter uses its enterGateFactory to decide when it clears the admission, so an adapter with another enterGateFactory could leave the admission set.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
+    address public immutable enterGateFactory;
     address public immutable subGate;
 
     mapping(address factory => bool) public canAdmit;
@@ -17,6 +20,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address transient admitted;
 
     constructor(address _subGate) {
+        enterGateFactory = msg.sender;
         subGate = _subGate;
     }
 
@@ -33,7 +37,11 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
     function admit(address user, address factory) external {
-        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
+        require(
+            canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender)
+                && IMidnightAdapter(msg.sender).enterGateFactory() == enterGateFactory,
+            Unauthorized()
+        );
 
         admitted = user;
         emit Admit(msg.sender, user, factory);

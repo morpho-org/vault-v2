@@ -8,6 +8,7 @@ import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhit
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
+import {IMidnightAdapterBase} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 
 /// forge-config: default.isolate = false
 contract VaultV2CompatibleEnterGateTest is Test {
@@ -34,12 +35,14 @@ contract VaultV2CompatibleEnterGateTest is Test {
         subGate.setIsWhitelister(false, address(this), true);
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsCreated(adapter, true);
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapterBase.enterGateFactory, ()), abi.encode(address(this)));
         wrapper = new VaultV2CompatibleEnterGate(address(subGate));
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(address(adapterFactory));
     }
 
     function testConstructor() public view {
+        assertEq(wrapper.enterGateFactory(), address(this));
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
         assertTrue(wrapper.canAdmit(address(adapterFactory)));
@@ -91,6 +94,15 @@ contract VaultV2CompatibleEnterGateTest is Test {
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         wrapper.admit(depositor, address(otherFactory));
+        assertFalse(wrapper.canIncreaseCredit(depositor));
+    }
+
+    function testAdmitRequiresCallerEnterGateFactory(address otherGateFactory) public {
+        vm.assume(otherGateFactory != address(this));
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapterBase.enterGateFactory, ()), abi.encode(otherGateFactory));
+        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.prank(adapter);
+        wrapper.admit(depositor, address(adapterFactory));
         assertFalse(wrapper.canIncreaseCredit(depositor));
     }
 
