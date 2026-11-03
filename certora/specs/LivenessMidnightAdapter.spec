@@ -4,8 +4,8 @@
 using Midnight as Midnight;
 
 methods {
-    function inProgressBuyBoughtNetCredit() external returns (uint256) envfree;
-    function inProgressSellSoldNetCredit() external returns (uint256) envfree;
+    function inProgressMarketId() external returns (bytes32) envfree;
+    function inProgressNetCredit() external returns (uint256) envfree;
     function netRate() external returns (uint72) envfree;
     function MAX_NET_RATE() external returns (uint256) envfree;
     function MAX_MAX_TTM() external returns (uint256) envfree;
@@ -22,8 +22,7 @@ ghost liquidationLockedGhost(bytes32, address) returns bool;
 // For longer lists, marketIdsLengthBounded in MarketIdsMidnightAdapter.spec bounds the length to MAX_MARKETS = 250, so assets < 2^136 and cannot overflow.
 rule livenessRealAssets(env e) {
     require e.msg.value == 0, "realAssets is not payable";
-    require inProgressBuyBoughtNetCredit() == 0, "no buy in progress, see onBuy";
-    require inProgressSellSoldNetCredit() == 0, "no sale in progress, see onSell";
+    require inProgressMarketId() == to_bytes32(0), "no trade in progress, see onBuy and onSell";
     require netRate() <= MAX_NET_RATE(), "net rate stays within the cap";
     uint256 maxMaxTtm = MAX_MAX_TTM();
     require forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].maturity <= e.block.timestamp + maxMaxTtm, "held market maturity stays within the max TTM";

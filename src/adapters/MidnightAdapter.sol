@@ -105,13 +105,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-    /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
-    bytes32 public transient inProgressBuyMarketId;
-    uint256 public transient inProgressBuyBoughtNetCredit;
-    /// @dev Sold market's pre-sale position is restored during onSell's rate calculation.
-    bytes32 public transient inProgressSellMarketId;
-    /// @dev Sold net credit is restored during onSell's rate calculation.
-    uint256 public transient inProgressSellSoldNetCredit;
+    /// @dev Market being bought or sold, whose pre-trade net credit is read from inProgressNetCredit.
+    bytes32 public transient inProgressMarketId;
+    /// @dev Pre-trade net credit of inProgressMarketId.
+    uint256 public transient inProgressNetCredit;
 
     /* TIMELOCKS STORAGE */
 
@@ -505,12 +502,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
-            _marketData.netCredit = newNetCredit;
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
+            (inProgressMarketId, inProgressNetCredit) = (id, newNetCredit - boughtNetCredit);
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
             (, uint256 weighted) = netCreditSums();
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
+            (inProgressMarketId, inProgressNetCredit) = (bytes32(0), 0);
+            _marketData.netCredit = newNetCredit;
 
             if (newNetCredit > 0) {
                 uint256 unearned = weighted.mulDivUp(netRate, WAD) + boughtNetCredit - buyerAssets;
@@ -595,15 +592,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
         uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            (inProgressSellMarketId, inProgressSellSoldNetCredit) = (id, soldNetCredit);
+            (inProgressMarketId, inProgressNetCredit) = (id, newNetCredit + soldNetCredit);
             (, uint256 weighted) = netCreditSums();
-            (inProgressSellMarketId, inProgressSellSoldNetCredit) = (bytes32(0), 0);
+            (inProgressMarketId, inProgressNetCredit) = (bytes32(0), 0);
             uint256 unearned = weighted.mulDivUp(netRate, WAD);
             require(soldNetCredit.zeroFloorSub(sellerAssets) <= unearned, ShortfallTooHigh());
             weighted -= soldNetCredit * ttm;
@@ -614,6 +610,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     .toUint72();
         }
 
+        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -719,17 +716,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns aggregate net credit and weighted net credit across held markets.
     function netCreditSums() internal view returns (uint256 netCreditSum, uint256 weightedNetCreditSum) {
-        bytes32 buyMarketId = inProgressBuyMarketId;
-        bytes32 sellMarketId = inProgressSellMarketId;
+        bytes32 inProgressMarketId_ = inProgressMarketId;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
             uint256 netCredit;
-            if (marketId == buyMarketId) {
-                netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
-            } else if (marketId == sellMarketId) {
-                netCredit = storedNetCredit + inProgressSellSoldNetCredit;
+            if (marketId == inProgressMarketId_) {
+                netCredit = inProgressNetCredit;
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
             } else {
