@@ -26,9 +26,7 @@ rule livenessRealAssets(env e) {
     require inProgressSellSoldNetCredit() == 0, "no sale in progress, see onSell";
     require netRate() <= MAX_NET_RATE(), "net rate stays within the cap";
     uint256 maxMaxTtm = MAX_MAX_TTM();
-    require forall uint256 i. i < currentContract.marketIds.length =>
-        currentContract.marketData[currentContract.marketIds[i]].maturity <= e.block.timestamp + maxMaxTtm,
-        "held market maturity stays within the max TTM";
+    require forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].maturity <= e.block.timestamp + maxMaxTtm, "held market maturity stays within the max TTM";
     require forall bytes32 id. !liquidationLockedGhost(id, currentContract), "no sale in progress, Midnight sets this lock only during a sale";
     require forall bytes32 id. Midnight.position[id][currentContract].pendingFee <= Midnight.position[id][currentContract].credit, "see pendingContinuousFeeBoundedByCredit in Midnight's Midnight.spec";
     require forall bytes32 id. Midnight.position[id][currentContract].lastLossFactor <= Midnight.marketState[id].lossFactor, "see lastLossFactorLeqMarketLossFactor in Midnight's Midnight.spec";

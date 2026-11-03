@@ -602,7 +602,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         offer.maker = address(adapter);
         offer.callback = address(adapter);
         offer.ratifier = address(adapter);
-        offer.tick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
+        offer.tick = TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING);
         offer.expiry = offer.market.maturity;
         offer.maxUnits = 1e18;
         offer.continuousFeeCap = type(uint256).max;
