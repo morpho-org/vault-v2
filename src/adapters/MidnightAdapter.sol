@@ -659,8 +659,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
-    /// @dev The ids ignore chainId, midnight and loanToken, which are fixed by design: Midnight requires chainId == block.chainid and midnight == itself, and the adapter requires loanToken == asset.
-    /// @dev The ids also ignore maturity and enterGate, so markets differing only by them share caps.
+    /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
