@@ -13,6 +13,5 @@ interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
 
     /* FUNCTIONS */
 
-    function vaultV2CompatibleEnterGate(address subGate, bytes32 salt) external view returns (address);
     function createVaultV2CompatibleEnterGate(address subGate, bytes32 preSalt) external returns (address);
 }

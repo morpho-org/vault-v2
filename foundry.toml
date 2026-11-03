@@ -11,11 +11,6 @@ ignored_warnings_from = ["lib"]
 
 [lint]
 ignore = [
-    "src/imports/MorphoImport.sol",
-    "src/imports/MidnightImport.sol",
-    "src/imports/MetaMorphoImport.sol",
-    "src/imports/MetaMorphoV1_1Import.sol",
-    "src/imports/AdaptiveCurveIrmImport.sol",
     "test/**/*.sol",
 ]
 exclude_lints = [
@@ -50,19 +45,19 @@ via_ir = false
 runs = 2048
 
 [[profile.default.compilation_restrictions]]
-paths = "src/imports/MorphoImport.sol"
+paths = "test/imports/MorphoImport.sol"
 optimizer_runs = 999999
 evm_version = "paris"
 
 [[profile.default.compilation_restrictions]]
-paths = "src/imports/MetaMorphoV1_1Import.sol"
+paths = "test/imports/MetaMorphoV1_1Import.sol"
 optimizer_runs = 200
 evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
-paths = "src/imports/MetaMorphoImport.sol"
+paths = "test/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
-evm_version = "cancun"
+evm_version = "paris"
 
 # The adapter's initcode is embedded in its factory, so it is compiled for size.
 [[profile.default.compilation_restrictions]]
@@ -103,6 +98,11 @@ evm_version = "paris"
 name = "200-cancun"
 optimizer_runs = 200
 evm_version = "cancun"
+
+[[profile.default.additional_compiler_profiles]]
+name = "200-paris"
+optimizer_runs = 200
+evm_version = "paris"
 
 [[profile.default.additional_compiler_profiles]]
 name = "800-osaka"
