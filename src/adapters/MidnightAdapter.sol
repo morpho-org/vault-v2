@@ -635,7 +635,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         netCredit = currentNetCredit(otherMarketId);
                     }
                     uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                    uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit.zeroFloorSub(amortizedValue));
+                    uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit - amortizedValue);
                     if (shortfallReduction == 0) continue;
                     uint256 newAmortizedValue = amortizedValue + shortfallReduction;
                     otherMarketData.netRate =
@@ -658,7 +658,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit);
         return CALLBACK_SUCCESS;
     }
 
