@@ -717,10 +717,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return allocations;
     }
 
+    /// @dev Floored at zero for liveness; the netRate cap keeps the floor from binding.
     /// @dev Returns the sum over markets of the net credit discounted at the adapter-wide rate.
     function realAssets() external view returns (uint256) {
         (uint256 netCreditSum, uint256 weightedNetCreditSum,) = netCreditSums(bytes32(0));
-        return netCreditSum - weightedNetCreditSum.mulDivUp(netRate, WAD);
+        return netCreditSum.zeroFloorSub(weightedNetCreditSum.mulDivUp(netRate, WAD));
     }
 
     /// @dev Returns aggregate net credit, weighted net credit, and maximum time to maturity across held markets except the excluded market.
