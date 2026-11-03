@@ -7,6 +7,7 @@ methods {
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
     function noSalesWithShortfall() external returns (bool) envfree;
+    function netRate() external returns (uint72) envfree;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
@@ -74,7 +75,7 @@ rule saleRevertsIfShortfallDisabled(env e, bytes32 marketId, MidnightAdapter.Mar
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
     require noSalesWithShortfall(), "assume noSalesWithShortfall is set";
-    require sellerAssets * (WAD() + currentContract.marketData[marketId].netRate * ttm) < soldNetCredit * WAD(), "assume the sale has a shortfall";
+    require sellerAssets < soldNetCredit - soldNetCredit * ttm * netRate() / WAD(), "assume the sale has a shortfall";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 

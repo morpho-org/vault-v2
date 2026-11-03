@@ -9,12 +9,10 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
-    uint72 netRate;
     uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
+    /// @dev When activated, the adapter-wide netRate is unchanged by sales.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -114,6 +112,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
+    function netRate() external view returns (uint72);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyBoughtNetCredit() external view returns (uint256);
     function maxNetSellRate() external view returns (uint64);
@@ -154,14 +153,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (
-            uint128 netCredit,
-            uint72 netRate,
-            uint40 maturity,
-            uint8 index,
-            bool forceSellable,
-            uint256 minForceSellPrice
-        );
+        returns (uint128 netCredit, uint40 maturity, uint8 index, bool forceSellable, uint256 minForceSellPrice);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
