@@ -605,9 +605,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             (, uint256 weighted) = netCreditSums();
             (inProgressSellMarketId, inProgressSellSoldNetCredit) = (bytes32(0), 0);
             uint256 unearned = weighted.mulDivUp(netRate, WAD);
-            require(unearned + sellerAssets >= soldNetCredit, ShortfallTooHigh());
+            require(soldNetCredit.zeroFloorSub(sellerAssets) <= unearned, ShortfallTooHigh());
             weighted -= soldNetCredit * ttm;
-        // Capped rather than reverting, so that sales at or near face aren't blocked.
+            // Capped rather than reverting, so that sales at or near face aren't blocked.
             netRate = weighted == 0
                 ? 0
                 : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), MAX_NET_RATE)
