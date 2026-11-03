@@ -85,7 +85,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
     /// @dev Maximum supported time to maturity for bought markets.
-    uint256 public constant MAX_TTM = 365 days;
+    uint256 public constant MAX_TTM = 2 * 365 days;
     /// @dev Highest rate that keeps market book values nonnegative through MAX_TTM.
     uint256 public constant MAX_NET_RATE = WAD / MAX_TTM;
 

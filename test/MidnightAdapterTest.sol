@@ -849,9 +849,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFullSaleOfLongestMarketKeepsRealAssetsConsistent() public {
-        uint256 longDiscountTick = TickLib.priceToTick(0.5e18, DEFAULT_TICK_SPACING);
+        uint256 longDiscountTick = TickLib.priceToTick(0.75e18, DEFAULT_TICK_SPACING);
         Offer memory longMarket = buy(300 days, 100e18, longDiscountTick);
-        Offer memory shortMarket = buy(30 days, 100e18, discountTick);
+        Offer memory shortMarket = buy(30 days, 100e18, MAX_TICK);
         uint256 longTtm = longMarket.market.maturity - block.timestamp;
         uint256 shortTtm = shortMarket.market.maturity - block.timestamp;
         uint256 rateBefore = adapter.netRate();
@@ -859,7 +859,7 @@ contract MidnightAdapterTest is Test {
             longMarket.maxUnits - (uint256(longMarket.maxUnits) * longTtm).mulDivDown(rateBefore, 1e18);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
-        uint256 sellTick = TickLib.priceToTick(0.51e18, DEFAULT_TICK_SPACING);
+        uint256 sellTick = TickLib.priceToTick(0.78e18, DEFAULT_TICK_SPACING);
         deal(address(loanToken), taker, longMarket.maxUnits);
 
         sellUnits(longMarket.market, longMarket.maxUnits, sellTick);
@@ -936,7 +936,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinNetBuyRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
-        duration = bound(duration, 1, 365 days);
+        duration = bound(duration, 1, adapter.MAX_TTM());
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
         midnight.setDefaultContinuousFee(address(loanToken), continuousFee);
@@ -2701,7 +2701,7 @@ contract MidnightAdapterTest is Test {
 
     function testBuyRoundsCarriedValueUp() public {
         deal(address(loanToken), address(parentVault), 20);
-        Offer memory offer = buy(30 days, 10, discountTick);
+        Offer memory offer = buy(30 days, 10, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         bytes32 marketId = _marketId(offer.market);
         uint256 unearnedBefore = 10 - adapter.realAssets();
 
@@ -2709,7 +2709,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
         assertEq(adapter.marketData(marketId).netCredit, 20);
-        assertEq(adapter.netRate(), unearnedBefore.mulDivDown(1e18, 20 * 30 days));
+        assertEq(adapter.netRate(), MathLib.min(unearnedBefore.mulDivDown(1e18, 20 * 30 days), adapter.MAX_NET_RATE()));
         assertApproxEqAbs(adapter.realAssets(), 20 - unearnedBefore, 1);
         assertGt(adapter.netRate(), 0, "carried unearned interest remains");
     }
@@ -2858,7 +2858,7 @@ contract MidnightAdapterTest is Test {
     function testPurchaseDiscountAccruesAtConstantRate() public {
         uint256 duration = 30 days;
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        Offer memory offer = buy(duration, 1e18, discountTick);
+        Offer memory offer = buy(duration, 1e18, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 interest = offer.maxUnits - paid;
         assertGt(interest, 0, "bought at a discount");
@@ -2918,7 +2918,7 @@ contract MidnightAdapterTest is Test {
 
     function testWithdrawZeroPreservesAmortizedValue() public {
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory offer = buy(30 days, 1e18, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 rate = (offer.maxUnits - paid) * 1e18 / (uint256(offer.maxUnits) * 30 days);
         skip(1 days);
@@ -2976,7 +2976,7 @@ contract MidnightAdapterTest is Test {
 
     function testSellBeforeMaturityRemovesNetCredit() public {
         uint256 duration = 30 days;
-        Offer memory offer = buy(duration, 1e18, discountTick);
+        Offer memory offer = buy(duration, 1e18, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         skip(duration / 2);
         uint256 valueBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
@@ -3010,7 +3010,7 @@ contract MidnightAdapterTest is Test {
         elapsed = bound(elapsed, 0, 60 days);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        Offer memory offer = buy(30 days, 1e18, discountTick);
+        Offer memory offer = buy(30 days, 1e18, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         bytes32 marketId = _marketId(offer.market);
         uint128 netCredit = adapter.marketData(marketId).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
@@ -3084,7 +3084,7 @@ contract MidnightAdapterTest is Test {
         elapsed = bound(elapsed, 0, 60 days);
         midnight.setDefaultContinuousFee(address(loanToken), fee);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        Offer memory offer = buy(30 days, units, discountTick);
+        Offer memory offer = buy(30 days, units, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         uint128 netCredit = adapter.marketData(_marketId(offer.market)).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 rate = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
@@ -3109,7 +3109,7 @@ contract MidnightAdapterTest is Test {
         units = bound(units, 1000, 100e18);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
-        Offer memory offer = buy(30 days, units, discountTick);
+        Offer memory offer = buy(30 days, units, TickLib.priceToTick(0.98e18, DEFAULT_TICK_SPACING));
         bytes32 marketId = _marketId(offer.market);
         uint128 oldNetCredit = adapter.marketData(marketId).netCredit;
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
