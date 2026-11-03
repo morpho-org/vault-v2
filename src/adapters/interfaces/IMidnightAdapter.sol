@@ -42,9 +42,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
-    event UnsetForceSellable(bytes32 indexed marketId);
+    event UnsetForceSellable(address indexed sender, bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
+    event Take(address indexed sender);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event ForceRemove(bytes32 indexed marketId, uint256 netCredit);
@@ -102,6 +103,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
