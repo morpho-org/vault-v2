@@ -607,7 +607,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 unearned = weighted.mulDivUp(netRate, WAD);
             require(unearned + sellerAssets >= soldNetCredit, ShortfallTooHigh());
             weighted -= soldNetCredit * ttm;
-            // Capped rather than reverting, so that forceDeallocate stays live.
+        // Capped rather than reverting, so that sales at or near face aren't blocked.
             netRate = weighted == 0
                 ? 0
                 : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), MAX_NET_RATE)
