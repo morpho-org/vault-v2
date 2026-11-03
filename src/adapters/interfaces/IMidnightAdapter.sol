@@ -104,6 +104,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
+    function MAX_TTM() external view returns (uint256);
+    function MAX_NET_RATE() external view returns (uint256);
     function midnight() external view returns (address);
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);

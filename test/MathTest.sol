@@ -32,8 +32,4 @@ contract MathTest is Test {
     function testMin(uint256 x, uint256 y) public pure {
         assertEq(MathLib.min(x, y), x < y ? x : y);
     }
-
-    function testMax(uint256 x, uint256 y) public pure {
-        assertEq(MathLib.max(x, y), x > y ? x : y);
-    }
 }

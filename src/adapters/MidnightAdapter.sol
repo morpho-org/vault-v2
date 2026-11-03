@@ -19,7 +19,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// VALUATION
 /// @dev Approximates held assets by discounting aggregate net credit at a constant simple rate until each market's maturity.
 /// @dev The rate is rounded down on buys and sales, so excess interest is realized immediately.
-/// @dev The rate cap prevents the book value of held markets from becoming negative.
+/// @dev With maxTtm capped at MAX_TTM, MAX_NET_RATE keeps every held market's book value nonnegative.
 /// @dev Sale shortfalls reduce shared unearned interest across held markets, weighted by net credit and time to maturity.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -84,6 +84,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
+    /// @dev Maximum supported time to maturity for bought markets.
+    uint256 public constant MAX_TTM = 365 days;
+    /// @dev Highest rate that keeps market book values nonnegative through MAX_TTM.
+    uint256 public constant MAX_NET_RATE = WAD / MAX_TTM;
 
     /* IMMUTABLES */
 
@@ -245,6 +249,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
+        require(newMaxTtm <= MAX_TTM, MaxTtmTooHigh());
         require(newMaxTtm >= maxTtm, MaxTtmTooLow());
         maxTtm = newMaxTtm.toUint32();
         emit IncreaseMaxTtm(newMaxTtm);
@@ -512,14 +517,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
-            (, uint256 weighted, uint256 maxHeldTtm) = netCreditSums();
+            (, uint256 weighted) = netCreditSums();
             (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
 
             if (newNetCredit > 0) {
                 uint256 unearned = weighted.mulDivUp(netRate, WAD) + boughtNetCredit - buyerAssets;
                 weighted += boughtNetCredit * ttm;
-                maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
-                netRate = MathLib.min(unearned.mulDivDown(WAD, weighted), WAD / maxHeldTtm).toUint72();
+                netRate = MathLib.min(unearned.mulDivDown(WAD, weighted), MAX_NET_RATE).toUint72();
             }
 
             if (newNetCredit > 0 && oldNetCredit == 0) {
@@ -605,7 +609,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             (inProgressSellMarketId, inProgressSellSoldNetCredit) = (id, soldNetCredit);
-            (, uint256 weighted, uint256 maxHeldTtm) = netCreditSums();
+            (, uint256 weighted) = netCreditSums();
             (inProgressSellMarketId, inProgressSellSoldNetCredit) = (bytes32(0), 0);
             uint256 unearned = weighted.mulDivUp(netRate, WAD);
             uint256 soldBookValue = soldNetCredit - (soldNetCredit * ttm).mulDivDown(netRate, WAD);
@@ -616,7 +620,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             weighted -= soldNetCredit * ttm;
             netRate = weighted == 0
                 ? 0
-                : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), WAD / maxHeldTtm)
+                : MathLib.min((unearned + sellerAssets - soldNetCredit).mulDivDown(WAD, weighted), MAX_NET_RATE)
                     .toUint72();
         }
 
@@ -717,19 +721,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return allocations;
     }
 
-    /// @dev Floored at zero for liveness; the netRate cap keeps the floor from binding.
+    /// @dev Floored at zero for liveness; the MAX_NET_RATE/MAX_TTM bound keeps the floor from binding.
     /// @dev Returns the sum over markets of the net credit discounted at the adapter-wide rate.
     function realAssets() external view returns (uint256) {
-        (uint256 netCreditSum, uint256 weightedNetCreditSum,) = netCreditSums();
+        (uint256 netCreditSum, uint256 weightedNetCreditSum) = netCreditSums();
         return netCreditSum.zeroFloorSub(weightedNetCreditSum.mulDivUp(netRate, WAD));
     }
 
-    /// @dev Returns aggregate net credit, weighted net credit, and maximum time to maturity across held markets.
-    function netCreditSums()
-        internal
-        view
-        returns (uint256 netCreditSum, uint256 weightedNetCreditSum, uint256 maxHeldTtm)
-    {
+    /// @dev Returns aggregate net credit and weighted net credit across held markets.
+    function netCreditSums() internal view returns (uint256 netCreditSum, uint256 weightedNetCreditSum) {
         bytes32 buyMarketId = inProgressBuyMarketId;
         bytes32 sellMarketId = inProgressSellMarketId;
         for (uint256 i = 0; i < marketIds.length; i++) {
@@ -749,10 +749,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             netCreditSum += netCredit;
-            uint256 heldNetCredit = marketId == buyMarketId || marketId == sellMarketId ? storedNetCredit : netCredit;
-            if (heldNetCredit > 0) {
-                maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
-            }
             // Each term is at most uint128 * uint40, and there are fewer than 2**8 markets.
             unchecked {
                 weightedNetCreditSum += netCredit * ttm;
