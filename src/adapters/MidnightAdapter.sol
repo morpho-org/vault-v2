@@ -18,8 +18,9 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting aggregate net credit at a constant simple rate until each market's maturity.
-/// @dev The rate is rounded down, so excess interest is realized immediately.
+/// @dev The rate is rounded down on buys and sales, so excess interest is realized immediately.
 /// @dev The rate cap prevents the book value of held markets from becoming negative.
+/// @dev Sale shortfalls reduce shared unearned interest across held markets, weighted by net credit and time to maturity.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
@@ -36,6 +37,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A shortfall sale lowers the adapter-wide rate, spreading the shortfall over the remaining markets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 /// @dev ForceSellable sales do not change the adapter-wide rate.
 ///
 /// FORCE DEALLOCATE
@@ -673,20 +675,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
+    /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray =
-            new bytes32[](2 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        if (market.liquidatorGate != address(0)) {
-            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
-        }
-        idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
+        idsArray[j++] =
+            keccak256(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
-            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
 
         return idsArray;
