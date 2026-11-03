@@ -18,7 +18,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev Rate is rounded down. Interest excluded from the rate is realized immediately.
+/// @dev Rates are rounded down on buys and on sales whose shortfall is absorbed by the rate. This increases amortized value compared to no rounding.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -37,6 +37,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev The seller callback data must be abi.encode(bytes32 otherMarketId) for sales with a shortfall. Other sales ignore it.
 /// @dev The taker sets it for maker sell offers, because sub-ratifiers check sell offers with empty callbackData. The allocator sets it as takerCallbackData in take.
 /// @dev A shortfall decreases the rate of otherMarketId down to at most zero, so the amortized value of the adapter decreases only by the received assets.
+/// @dev In forceSellable markets, a shortfall is realized as an instant loss.
 /// @dev Markets with a sale in progress or force sellable do not absorb shortfalls.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
@@ -453,7 +454,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MIDNIGHT CALLBACKS */
 
     /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
-    /// @dev The sub-ratifier checks sell offers with empty callbackData, so that the taker chooses the markets that absorb a shortfall.
+    /// @dev The sub-ratifier checks sell offers with empty callbackData, so that the taker chooses the market that absorbs a shortfall.
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32) {
         if (inForceDeallocate) return CALLBACK_SUCCESS;
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
@@ -675,20 +676,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
+    /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray =
-            new bytes32[](2 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        if (market.liquidatorGate != address(0)) {
-            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
-        }
-        idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
+        idsArray[j++] =
+            keccak256(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
-            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
 
         return idsArray;
