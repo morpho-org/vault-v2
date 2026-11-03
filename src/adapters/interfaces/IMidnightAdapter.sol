@@ -101,6 +101,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
