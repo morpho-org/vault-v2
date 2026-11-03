@@ -596,8 +596,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
@@ -605,30 +603,29 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
-            uint256 remainingShortfall = shortfall;
-            for (uint256 i; remainingShortfall > 0 && i < marketIds.length; i++) {
+            for (uint256 i; shortfall > 0 && i < marketIds.length; i++) {
                 bytes32 otherMarketId = marketIds[i];
                 MarketData storage otherMarketData = marketData[otherMarketId];
                 if (
                     otherMarketData.forceSellable
                         || (otherMarketId != id && IMidnight(midnight).liquidationLocked(otherMarketId, address(this)))
                 ) continue;
-                uint128 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
-                    ? otherMarketData.netCredit
-                    : currentNetCredit(otherMarketId);
+                uint128 netCredit = currentNetCredit(otherMarketId);
                 uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                 uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit - amortizedValue);
+                uint256 shortfallReduction = MathLib.min(shortfall, netCredit - amortizedValue);
                 if (shortfallReduction == 0) continue;
-                uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                amortizedValue += shortfallReduction;
                 otherMarketData.netRate =
-                    (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
-                remainingShortfall -= shortfallReduction;
+                    (netCredit - amortizedValue).mulDivDown(WAD, amortizedValue * otherTtm).toUint72();
+                shortfall -= shortfallReduction;
                 emit ReduceRate(otherMarketId, otherMarketData.netRate);
             }
-            require(remainingShortfall == 0, ShortfallTooHigh());
+            require(shortfall == 0, ShortfallTooHigh());
         }
 
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -638,7 +635,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit);
         return CALLBACK_SUCCESS;
     }
 
