@@ -37,6 +37,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev Shortfalls are absorbed by portfolio interest without changing market net rates.
 /// @dev Bad debt visible in onSell is applied before setting the book floor.
+/// @dev Losses below book value in forceSellable markets are realized immediately.
 ///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
@@ -50,6 +51,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
 /// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
+/// @dev When trading between adapters of the same vault, caps can be transiently exceeded and make the trade revert.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
@@ -98,7 +100,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
@@ -122,6 +123,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
+    /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
@@ -760,20 +762,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return _floorData.headroom;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the liquidator gate (if non-zero), the RCF threshold, and each collateral token and collateral params.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
+    /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        bytes32[] memory idsArray =
-            new bytes32[](2 + (market.liquidatorGate != address(0) ? 1 : 0) + market.collateralParams.length * 2);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        if (market.liquidatorGate != address(0)) {
-            idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
-        }
-        idsArray[j++] = keccak256(abi.encode("rcfThreshold", market.rcfThreshold));
+        idsArray[j++] =
+            keccak256(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
-            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
 
         return idsArray;
