@@ -412,7 +412,7 @@ contract MidnightAdapterTest is Test {
         bytes memory decreaseData = abi.encodeCall(IMidnightAdapterBase.decreaseTimelock, (selector, newDuration));
         vm.prank(curator);
         adapter.submit(decreaseData);
-        assertEq(adapter.executableAt(decreaseData), block.timestamp + oldDuration, "decrease delay");
+        assertEq(adapter.executableAt(decreaseData), vm.getBlockTimestamp() + oldDuration, "decrease delay");
         skip(oldDuration);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.decreaseTimelock.selector, decreaseData);
