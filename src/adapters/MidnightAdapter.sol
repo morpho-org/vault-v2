@@ -730,14 +730,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         view
         returns (uint256 netCreditSum, uint256 weightedNetCreditSum, uint256 maxHeldTtm)
     {
+        bytes32 buyMarketId = inProgressBuyMarketId;
+        bytes32 sellMarketId = inProgressSellMarketId;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
             uint256 netCredit;
-            if (marketId == inProgressBuyMarketId) {
+            if (marketId == buyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
-            } else if (marketId == inProgressSellMarketId) {
+            } else if (marketId == sellMarketId) {
                 netCredit = storedNetCredit + inProgressSellSoldNetCredit;
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
@@ -747,8 +749,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             netCreditSum += netCredit;
-            uint256 heldNetCredit =
-                marketId == inProgressBuyMarketId || marketId == inProgressSellMarketId ? storedNetCredit : netCredit;
+            uint256 heldNetCredit = marketId == buyMarketId || marketId == sellMarketId ? storedNetCredit : netCredit;
             if (heldNetCredit > 0) {
                 maxHeldTtm = MathLib.max(maxHeldTtm, ttm);
             }
