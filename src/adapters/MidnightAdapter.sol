@@ -369,6 +369,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by this adapter to fund a buy callback or in a sell callback. Allocators and sentinels can call deallocate with data abi.encode(true, abi.encode(market)) to withdraw from a market.
     /// @dev The sell callback reports the market's IDs and net-credit change with abi.encode(false, abi.encode(ids, change)).
     /// @dev Called by anyone through forceDeallocate. Data abi.encode(false, abi.encode(market, taker)) sells the market's credit to the taker; abi.encode(true, abi.encode(market)) withdraws from the market.
+    /// @dev A withdrawal with `assets == 0` synchronizes the market's stored net credit after a loss.
     /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
@@ -380,7 +381,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (bool withdraw, bytes memory innerData) = abi.decode(data, (bool, bytes));
         if (withdraw) {
             // No caller check: the vault restricts deallocate to allocators and sentinels, and charges a penalty on forceDeallocate.
-            return withdrawToVault(abi.decode(innerData, (Market)), assets);
+            Market memory market = abi.decode(innerData, (Market));
+            bytes32 marketId = IdLib.toId(market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+            IMidnight(midnight).withdraw(market, assets, address(this), address(this));
+
+            uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            emit WithdrawToVault(marketId, assets, newNetCredit);
+            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else if (selector == IVaultV2.forceDeallocate.selector) {
             (Market memory market, address taker) = abi.decode(innerData, (Market, address));
             require(taker == sender || IMidnight(midnight).isAuthorized(taker, sender), NotAuthorized());
@@ -602,26 +615,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
-
-    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
-    /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets)
-        internal
-        returns (bytes32[] memory, int256)
-    {
-        bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
-        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-
-        uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        marketData[marketId].netCredit = newNetCredit;
-        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-        emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
-    }
 
     /// @dev Ends the external call, returning data without ABI encoding.
     function returnExactBytes(bytes memory data) internal pure {
