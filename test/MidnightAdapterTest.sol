@@ -4641,8 +4641,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit before");
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18, "allocation before");
 
+        vm.recordLogs();
         vm.prank(caller);
         adapter.refreshMarket(boughtOffer.market);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != IMidnightAdapterBase.WithdrawToVault.selector, "WithdrawToVault emitted");
+        }
 
         uint128 netCredit = adapter.marketData(marketId).netCredit;
         assertApproxEqAbs(netCredit, 0.7e18, 1, "netCredit");

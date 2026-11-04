@@ -346,8 +346,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Permissionless. Synchronizes the market's stored net credit and the vault's allocations with Midnight, e.g. after a loss.
     function refreshMarket(Market memory market) external {
         require(market.loanToken == asset, LoanAssetMismatch());
-        (bytes32[] memory _ids, int256 change) = withdrawToVault(market, 0);
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(_ids, change), 0);
+        bytes32 marketId = IdLib.toId(market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        // forge-lint: disable-next-line(reentrancy-no-eth) updatePosition does not reenter.
+        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePosition(market, address(this));
+
+        uint128 newNetCredit = credit - pendingFee;
+        uint256 oldNetCredit = marketData[marketId].netCredit;
+        marketData[marketId].netCredit = newNetCredit;
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        IVaultV2(parentVault)
+            .deallocate(
+                address(this),
+                // forge-lint: disable-next-line(unsafe-typecast) both net credit values fit in uint128.
+                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(uint256(oldNetCredit))),
+                0
+            );
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
