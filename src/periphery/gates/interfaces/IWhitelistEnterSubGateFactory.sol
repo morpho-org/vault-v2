@@ -16,13 +16,6 @@ interface IWhitelistEnterSubGateFactory {
 
     /// STORAGE GETTERS ///
     function isCreated(address subGate) external view returns (bool);
-    function whitelistEnterSubGate(
-        address creditRoleSetter,
-        address debtRoleSetter,
-        bool creditOpen,
-        bool debtOpen,
-        bytes32 salt
-    ) external view returns (address);
 
     /// FUNCTIONS ///
     function createWhitelistEnterSubGate(

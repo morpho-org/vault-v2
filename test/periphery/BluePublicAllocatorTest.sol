@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.0;
 
 import "../integration/MorphoMarketV1IntegrationTest.sol";
 
