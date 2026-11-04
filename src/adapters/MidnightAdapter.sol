@@ -24,7 +24,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate) and to self-fund buys.
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), to self-fund buys and to refresh markets.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
@@ -341,6 +341,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 address(this),
                 takerCallbackData
             );
+    }
+
+    /// @dev Permissionless. Synchronizes the market's stored net credit and the vault's allocations with Midnight, e.g. after a loss.
+    function refreshMarket(Market memory market) external {
+        require(market.loanToken == asset, LoanAssetMismatch());
+        (bytes32[] memory _ids, int256 change) = withdrawToVault(market, 0);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(_ids, change), 0);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
