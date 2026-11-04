@@ -591,11 +591,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                             || (otherMarketId != id
                                 && IMidnight(midnight).liquidationLocked(otherMarketId, address(this)))
                     ) continue;
-                    uint256 netCredit = otherMarketId == id
-                        ? newNetCredit
-                        : IMidnight(midnight).lossFactor(otherMarketId) == 0
-                            ? otherMarketData.netCredit
-                            : currentNetCredit(otherMarketId);
+                    uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
+                        ? otherMarketData.netCredit
+                        : currentNetCredit(otherMarketId);
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint256 amortizedValue = amortizedValueUp(netCredit, otherMarketData.netRate, otherTtm);
                     values[i] = [netCredit, amortizedValue, otherTtm];
