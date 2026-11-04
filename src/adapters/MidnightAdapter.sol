@@ -502,7 +502,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
-                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + buyerAssets;
+                    amortizedValueUp(newNetCredit - boughtNetCredit, _marketData.netRate, ttm) + buyerAssets;
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
 
@@ -587,8 +587,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            require(sellerAssets >= amortizedValueUp(soldNetCredit, maxNetSellRate, ttm), NetSellRateTooHigh());
+            uint256 shortfall = amortizedValueUp(soldNetCredit, _marketData.netRate, ttm).zeroFloorSub(sellerAssets);
             require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
             uint256 remainingShortfall = shortfall;
             for (uint256 i; remainingShortfall > 0 && i < marketIds.length; i++) {
@@ -602,14 +602,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     ? otherMarketData.netCredit
                     : currentNetCredit(otherMarketId);
                 uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                uint256 amortizedValue = amortizedValueUp(netCredit, otherMarketData.netRate, otherTtm);
                 uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit - amortizedValue);
                 if (shortfallReduction == 0) continue;
                 uint256 newAmortizedValue = amortizedValue + shortfallReduction;
-                otherMarketData.netRate =
+                uint72 newRate =
                     (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
+                otherMarketData.netRate = newRate;
                 remainingShortfall -= shortfallReduction;
-                emit ReduceRate(otherMarketId, otherMarketData.netRate);
+                emit ReduceRate(otherMarketId, newRate);
             }
             require(remainingShortfall == 0, ShortfallTooHigh());
         }
@@ -628,6 +629,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function amortizedValueUp(uint256 netCredit, uint256 netRate, uint256 ttm) internal pure returns (uint256) {
+        return netCredit.mulDivUp(WAD, WAD + netRate * ttm);
+    }
 
     /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
