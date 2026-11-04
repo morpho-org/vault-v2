@@ -16,7 +16,7 @@ struct MarketData {
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
-    uint256 minForceSellPrice;
+    uint64 minForceSellPrice;
 }
 
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
@@ -152,7 +152,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint40 maturity, uint8 index, bool forceSellable, uint256 minForceSellPrice);
+        returns (uint128 netCredit, uint40 maturity, uint8 index, bool forceSellable, uint64 minForceSellPrice);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
