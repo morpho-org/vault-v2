@@ -37,7 +37,10 @@ strong invariant midnightNetCreditBelowStoredNetCredit()
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
-            increaseMidnightNetCredit(marketId);
+            // Exception: forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            if (!currentContract.inForceDeallocate) {
+                increaseMidnightNetCredit(marketId);
+            }
         }
     }
 
@@ -51,6 +54,9 @@ strong invariant nonZeroNetCreditIsListed()
         }
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             requireInvariant midnightNetCreditBelowStoredNetCredit();
-            increaseMidnightNetCredit(marketId);
+            // forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            if (!currentContract.inForceDeallocate) {
+                increaseMidnightNetCredit(marketId);
+            }
         }
     }
