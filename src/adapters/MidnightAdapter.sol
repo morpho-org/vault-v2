@@ -579,8 +579,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= amortizedValueUp(soldNetCredit, maxNetSellRate, ttm), NetSellRateTooHigh());
             uint256 shortfall = amortizedValueUp(soldNetCredit, _marketData.netRate, ttm).zeroFloorSub(sellerAssets);
-            require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
             if (shortfall > 0) {
+                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
                 uint256[3][] memory values = new uint256[3][](marketIds.length);
                 uint256 totalInterest;
                 for (uint256 i; i < marketIds.length; i++) {
