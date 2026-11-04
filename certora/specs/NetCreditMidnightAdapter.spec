@@ -54,6 +54,7 @@ strong invariant nonZeroNetCreditIsListed()
         }
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             requireInvariant midnightNetCreditBelowStoredNetCredit();
+        
             // forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
