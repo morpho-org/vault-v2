@@ -412,7 +412,7 @@ contract MidnightAdapterTest is Test {
         bytes memory decreaseData = abi.encodeCall(IMidnightAdapterBase.decreaseTimelock, (selector, newDuration));
         vm.prank(curator);
         adapter.submit(decreaseData);
-        assertEq(adapter.executableAt(decreaseData), block.timestamp + oldDuration, "decrease delay");
+        assertEq(adapter.executableAt(decreaseData), vm.getBlockTimestamp() + oldDuration, "decrease delay");
         skip(oldDuration);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.decreaseTimelock.selector, decreaseData);
@@ -1772,12 +1772,8 @@ contract MidnightAdapterTest is Test {
         address newAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
         assertEq(newAdapter, expected, "expected address");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "midnightAdapter"
-        );
         assertTrue(factory.isCreated(newAdapter), "isCreated");
+        assertEq(IMidnightAdapter(newAdapter).factory(), address(factory), "factory");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
@@ -1788,36 +1784,17 @@ contract MidnightAdapterTest is Test {
         factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
 
         bytes32 differentPreSalt = bytes32(uint256(preSalt) ^ 1);
-        bytes32 differentSalt = keccak256(abi.encode(differentPreSalt, address(this)));
         address otherAdapter =
             factory.createMidnightAdapter(address(newVault), allDurations, address(0), differentPreSalt);
         assertTrue(otherAdapter != newAdapter, "different preSalts create different adapters");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), differentSalt),
-            otherAdapter,
-            "different preSalt adapter mapping"
-        );
         assertTrue(factory.isCreated(newAdapter), "first adapter registered");
         assertTrue(factory.isCreated(otherAdapter), "different preSalt adapter registered");
 
         address otherCaller = makeAddr("other");
         vm.prank(otherCaller);
         address otherCallerAdapter = factory.createMidnightAdapter(address(newVault), allDurations, address(0), preSalt);
-        bytes32 otherCallerSalt = keccak256(abi.encode(preSalt, otherCaller));
         assertTrue(otherCallerAdapter != newAdapter, "different callers create different adapters");
-        assertEq(
-            factory.midnightAdapter(
-                address(newVault), keccak256(abi.encode(allDurations)), address(0), otherCallerSalt
-            ),
-            otherCallerAdapter,
-            "other caller adapter mapping"
-        );
         assertTrue(factory.isCreated(otherCallerAdapter), "other caller adapter registered");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "first adapter mapping unchanged"
-        );
 
         uint256[] memory singleDuration = new uint256[](1);
         singleDuration[0] = allDurations[0];
@@ -1825,16 +1802,7 @@ contract MidnightAdapterTest is Test {
             factory.createMidnightAdapter(address(newVault), singleDuration, address(0), preSalt);
         assertTrue(otherDurationsAdapter != newAdapter, "different durations create different adapters");
         assertEq(IMidnightAdapter(otherDurationsAdapter).durations(), singleDuration, "durations");
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(singleDuration)), address(0), salt),
-            otherDurationsAdapter,
-            "other durations adapter mapping"
-        );
-        assertEq(
-            factory.midnightAdapter(address(newVault), keccak256(abi.encode(allDurations)), address(0), salt),
-            newAdapter,
-            "first adapter mapping unchanged"
-        );
+        assertTrue(factory.isCreated(otherDurationsAdapter), "other durations adapter registered");
     }
 
     function testFactoryConstructor() public {
@@ -1874,10 +1842,6 @@ contract MidnightAdapterTest is Test {
 
         assertEq(created, expectedAdapter);
         assertEq(IMidnightAdapter(created).enterGateFactory(), gateFactory);
-        assertEq(
-            newFactory.midnightAdapter(address(parentVault), keccak256(abi.encode(allDurations)), gateFactory, salt),
-            created
-        );
         assertTrue(newFactory.isCreated(created));
 
         address otherGateFactory = address(new VaultV2CompatibleEnterGateFactory());
@@ -1886,12 +1850,6 @@ contract MidnightAdapterTest is Test {
         assertNotEq(otherCreated, created);
         assertEq(IMidnightAdapter(otherCreated).enterGateFactory(), otherGateFactory);
         assertTrue(newFactory.isCreated(otherCreated));
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), otherGateFactory, salt
-            ),
-            otherCreated
-        );
 
         vm.expectRevert();
         newFactory.createMidnightAdapter(address(parentVault), allDurations, gateFactory, preSalt);
@@ -1900,26 +1858,12 @@ contract MidnightAdapterTest is Test {
     function testFactoryDifferentSalts(bytes32 firstPreSalt, bytes32 secondPreSalt) public {
         vm.assume(firstPreSalt != secondPreSalt);
         MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight));
-        bytes32 firstSalt = keccak256(abi.encode(firstPreSalt, address(this)));
-        bytes32 secondSalt = keccak256(abi.encode(secondPreSalt, address(this)));
         address first = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), firstPreSalt);
         address second = newFactory.createMidnightAdapter(address(parentVault), allDurations, address(0), secondPreSalt);
 
         assertNotEq(first, second);
         assertTrue(newFactory.isCreated(first));
         assertTrue(newFactory.isCreated(second));
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), address(0), firstSalt
-            ),
-            first
-        );
-        assertEq(
-            newFactory.midnightAdapter(
-                address(parentVault), keccak256(abi.encode(allDurations)), address(0), secondSalt
-            ),
-            second
-        );
     }
 
     function testConstructorTooManyDurations() public {
@@ -1974,6 +1918,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testConstructorGetters() public view {
+        assertEq(adapter.factory(), address(factory), "factory");
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
@@ -2399,6 +2344,9 @@ contract MidnightAdapterTest is Test {
         collateralCount = bound(collateralCount, 0, 5);
 
         Market memory market;
+        market.chainId = block.chainid;
+        market.midnight = address(midnight);
+        market.loanToken = address(loanToken);
 
         CollateralParams[] memory collateralParams = new CollateralParams[](collateralCount);
         for (uint256 i = 0; i < collateralCount; i++) {
@@ -2415,45 +2363,79 @@ contract MidnightAdapterTest is Test {
 
         bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
-        uint256 k = liquidatorGate == address(0) ? 0 : 1;
-        if (k != 0) assertEq(ids[1], keccak256(abi.encode("liquidatorGate", liquidatorGate)));
-        assertEq(ids[1 + k], keccak256(abi.encode("rcfThreshold", rcfThreshold)));
+        assertEq(ids[1], keccak256(familyIdData(market)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            assertEq(ids[i * 2 + 2 + k], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
-            assertEq(
-                ids[i * 2 + 3 + k],
-                keccak256(
-                    abi.encode(
-                        "collateralParams",
-                        market.collateralParams[i].token,
-                        market.collateralParams[i].lltv,
-                        market.collateralParams[i].liquidationCursor,
-                        market.collateralParams[i].oracle
-                    )
-                )
-            );
+            assertEq(ids[i + 2], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
         }
 
-        assertEq(ids.length, 2 + k + market.collateralParams.length * 2);
-        if (k == 0) {
-            bytes32 zeroLiquidatorGateId = keccak256(abi.encode("liquidatorGate", address(0)));
-            for (uint256 i = 0; i < ids.length; i++) {
-                assertNotEq(ids[i], zeroLiquidatorGateId);
-            }
-        }
+        assertEq(ids.length, 2 + market.collateralParams.length);
 
         market.maturity = bound(otherMaturity, 1, 700 days);
         vm.assume(market.maturity != bound(maturity, 1, 700 days));
         assertEq(adapter.ids(market), ids, "ids do not depend on maturity");
+    }
 
-        market.enterGate = address(uint160(enterGate) ^ 1);
-        assertEq(adapter.ids(market), ids, "ids do not depend on enterGate");
+    function testFamilyIdDependsOnMarketConfig(uint256 configField, uint160 delta) public view {
+        configField = bound(configField, 0, 5);
+        delta = uint160(bound(delta, 1, type(uint160).max));
+        Market memory market = storedOffer.market;
+        bytes32[] memory originalIds = adapter.ids(market);
+
+        if (configField == 0) {
+            market.rcfThreshold ^= delta;
+        } else if (configField == 1) {
+            market.liquidatorGate = address(delta);
+        } else if (configField == 2) {
+            market.collateralParams[0].token = address(uint160(market.collateralParams[0].token) ^ delta);
+        } else if (configField == 3) {
+            market.collateralParams[0].lltv ^= delta;
+        } else if (configField == 4) {
+            market.collateralParams[0].liquidationCursor ^= delta;
+        } else {
+            market.collateralParams[0].oracle = address(uint160(market.collateralParams[0].oracle) ^ delta);
+        }
+
+        bytes32[] memory changedIds = adapter.ids(market);
+        assertEq(changedIds.length, originalIds.length);
+        assertEq(changedIds[0], originalIds[0], "adapter id unchanged");
+        assertNotEq(changedIds[1], originalIds[1], "family includes every risk configuration field");
+        if (configField == 2) assertNotEq(changedIds[2], originalIds[2], "collateral token changed");
+        else assertEq(changedIds[2], originalIds[2], "collateral token unchanged");
+        assertEq(changedIds[3], originalIds[3], "other collateral token unchanged");
+    }
+
+    function testIdsIgnoreFixedFieldsAndEnterGate(
+        uint256 chainId,
+        address midnightAddress,
+        address otherLoanToken,
+        address otherEnterGate
+    ) public view {
+        Market memory market = storedOffer.market;
+        bytes32[] memory originalIds = adapter.ids(market);
+        market.chainId = chainId;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on chainId");
+        market.midnight = midnightAddress;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on midnight");
+        market.loanToken = otherLoanToken;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on loanToken");
+        market.enterGate = otherEnterGate;
+        assertEq(adapter.ids(market), originalIds, "ids do not depend on enterGate");
+    }
+
+    function testFamilyIdDependsOnCollateralSet() public view {
+        Market memory market = storedOffer.market;
+        bytes32[] memory originalIds = adapter.ids(market);
+        market.collateralParams = storedSingleCollateral;
+        bytes32[] memory subsetIds = adapter.ids(market);
+        assertEq(subsetIds.length, 3);
+        assertNotEq(subsetIds[1], originalIds[1], "different collateral set");
+        assertEq(subsetIds[2], originalIds[2], "shared collateral token");
     }
 
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 1);
+        configField = bound(configField, 0, 4);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -2462,14 +2444,25 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         offer.maker = address(adapter);
         offer.ratifier = address(adapter);
-        if (configField == 0) offer.market.liquidatorGate = gate;
-        else offer.market.rcfThreshold = 1e18;
-        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
-        midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
+        if (configField == 0) {
+            offer.market.liquidatorGate = gate;
+        } else if (configField == 1) {
+            offer.market.rcfThreshold = 1e18;
+        } else if (configField == 2) {
+            offer.market.collateralParams[0].lltv = 0.9e18;
+            midnight.enableLltv(0.9e18);
+        } else if (configField == 3) {
+            offer.market.collateralParams[0].liquidationCursor = 0.5e18;
+            midnight.enableLiquidationCursor(0.5e18);
+        } else {
+            OracleMock oracle = new OracleMock();
+            oracle.setPrice(ORACLE_PRICE_SCALE);
+            offer.market.collateralParams[0].oracle = address(oracle);
+        }
+        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
 
-        bytes memory idData;
-        if (configField == 0) idData = abi.encode("liquidatorGate", offer.market.liquidatorGate);
-        else idData = abi.encode("rcfThreshold", offer.market.rcfThreshold);
+        bytes memory idData = familyIdData(offer.market);
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
         this.takeWithAccrual(offer, data, taker, address(0));
@@ -2488,6 +2481,65 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(realVault.allocation(keccak256(idData)), 0, "config allocation after sell");
+    }
+
+    function testFamilyCapsSharedAcrossMaturities(bool relativeCap) public {
+        setUpRealVault();
+        bytes memory idData = familyIdData(storedOffer.market);
+        vm.prank(curator);
+        if (relativeCap) realVault.decreaseRelativeCap(idData, 0.15e18);
+        else realVault.decreaseAbsoluteCap(idData, 1.5e18);
+
+        Offer memory first = buyOnRealVault(7 days, 1e18);
+        Offer memory second = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        second.maker = address(adapter);
+        second.ratifier = address(adapter);
+        midnight.supplyCollateral(second.market, 0, 0.5e18, taker);
+        midnight.supplyCollateral(second.market, 1, 0.5e18, taker);
+        bytes memory data = ratify([second], signerAllocator);
+        vm.expectRevert(relativeCap ? ErrorsLib.RelativeCapExceeded.selector : ErrorsLib.AbsoluteCapExceeded.selector);
+        this.takeWithAccrual(second, data, taker, address(0));
+
+        sellUnits(first.market, 0.5e18, MAX_TICK);
+        assertEq(realVault.allocation(keccak256(idData)), 0.5e18, "sale releases family cap");
+        this.takeWithAccrual(second, data, taker, address(0));
+        assertEq(realVault.allocation(keccak256(idData)), 1.5e18, "maturities share family allocation");
+
+        sellUnits(second.market, 1e18, MAX_TICK);
+        sellUnits(first.market, 0.5e18, MAX_TICK);
+        assertEq(realVault.allocation(keccak256(idData)), 0, "both maturities exited");
+    }
+
+    function testCollateralTokenCapsSharedAcrossFamilies() public {
+        setUpRealVault();
+        Offer memory first = buyOnRealVault(7 days, 1e18);
+        bytes memory tokenIdData = abi.encode("collateralToken", storedCollaterals[0].token);
+        vm.prank(curator);
+        realVault.decreaseAbsoluteCap(tokenIdData, 1e18);
+
+        Offer memory second = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        second.maker = address(adapter);
+        second.ratifier = address(adapter);
+        second.group = bytes32("other family");
+        second.market.rcfThreshold = 1e18;
+        bytes memory familyData = familyIdData(second.market);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (familyData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (familyData, 1e18)));
+        midnight.supplyCollateral(second.market, 0, 0.5e18, taker);
+        midnight.supplyCollateral(second.market, 1, 0.5e18, taker);
+        bytes memory data = ratify([second], signerAllocator);
+        vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
+        this.takeWithAccrual(second, data, taker, address(0));
+
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (tokenIdData, 2e18)));
+        this.takeWithAccrual(second, data, taker, address(0));
+        assertEq(realVault.allocation(keccak256(tokenIdData)), 2e18, "families share token allocation");
+        assertEq(realVault.allocation(keccak256(familyIdData(first.market))), 1e18, "first family allocation");
+        assertEq(realVault.allocation(keccak256(familyData)), 1e18, "second family allocation");
+
+        sellUnits(second.market, 1e18, MAX_TICK);
+        assertEq(realVault.allocation(keccak256(tokenIdData)), 1e18, "sale releases shared token cap");
+        assertEq(realVault.allocation(keccak256(familyData)), 0, "second family exited");
     }
 
     /// @dev Midnight still accepts takes (the loss factor is below its maximum), but the adapter's credit rounds down to 0 while its stored net credit does not change.
@@ -3616,6 +3668,7 @@ contract MidnightAdapterTest is Test {
         VaultV2CompatibleEnterGate(attackerGate).addAdmitterFactory(address(factory));
         Market memory attackerMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         attackerMarket.enterGate = attackerGate;
+        increaseFamilyCap(realVault, attackerMarket);
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
         bytes memory data = abi.encode(attackerMarket, buyer);
@@ -3655,13 +3708,14 @@ contract MidnightAdapterTest is Test {
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.addAdapter, (address(hookedAdapter))));
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(hookedAdapter), true)));
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.setIsAllocator, (signerAllocator, true)));
-        bytes[] memory idDatas = new bytes[](6);
+        Market memory gatedMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
+        gatedMarket.loanToken = address(hookedToken);
+        gatedMarket.enterGate = wrapper;
+        bytes[] memory idDatas = new bytes[](4);
         idDatas[0] = abi.encode("this", address(hookedAdapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
-        idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
-        idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
-        idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
-        idDatas[5] = abi.encode("rcfThreshold", uint256(0));
+        idDatas[2] = abi.encode("collateralToken", storedCollaterals[1].token);
+        idDatas[3] = familyIdData(gatedMarket);
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(hookedVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
@@ -3670,17 +3724,25 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
 
-        // A buy in an ungated market gives every id of the gated market below a positive allocation in the attacker's vault.
+        // The ungated market provides the shared adapter and collateral-token allocations.
         Market memory ungatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
         ungatedMarket.loanToken = address(hookedToken);
+        increaseFamilyCap(hookedVault, ungatedMarket);
         Offer memory ungatedSellOffer = makeExternalOffer(ungatedMarket, false, 1e18, MAX_TICK);
         vm.prank(signerAllocator);
         hookedAdapter.take(ungatedSellOffer, "", ungatedSellOffer.maxUnits, abi.encode(address(0), hex""));
         assertGt(midnight.credit(_marketId(ungatedMarket), address(hookedAdapter)), 0);
 
-        Market memory gatedMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
-        gatedMarket.loanToken = address(hookedToken);
-        gatedMarket.enterGate = wrapper;
+        // A sibling market provides an allocation for the gated family's id without credit in gatedMarket.
+        Market memory gatedAllocationMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
+        gatedAllocationMarket.loanToken = address(hookedToken);
+        gatedAllocationMarket.enterGate = wrapper;
+        gate.setIsWhitelisted(true, address(hookedAdapter), true);
+        Offer memory gatedSellOffer = makeExternalOffer(gatedAllocationMarket, false, 1e18, MAX_TICK);
+        vm.prank(signerAllocator);
+        hookedAdapter.take(gatedSellOffer, "", gatedSellOffer.maxUnits, abi.encode(address(0), hex""));
+        assertGt(midnight.credit(_marketId(gatedAllocationMarket), address(hookedAdapter)), 0);
+
         midnight.touchMarket(gatedMarket);
         address buyer = makeForceDeallocateBuyer(hookedAdapter);
         hookedVault.deposit(1e18, buyer);
@@ -4920,6 +4982,7 @@ contract MidnightAdapterTest is Test {
     function makeEnterGateBuyOffer(address gate, bool adapterIsMaker) internal returns (Offer memory offer) {
         offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
         offer.market.enterGate = gate;
+        increaseFamilyCap(realVault, offer.market);
         if (adapterIsMaker) {
             midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
             midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
@@ -5208,13 +5271,11 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         realVault.setMaxRate(1e18 / uint256(365 days));
 
-        bytes[] memory idDatas = new bytes[](6);
+        bytes[] memory idDatas = new bytes[](4);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
-        idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
-        idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
-        idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
-        idDatas[5] = abi.encode("rcfThreshold", uint256(0));
+        idDatas[2] = abi.encode("collateralToken", storedCollaterals[1].token);
+        idDatas[3] = familyIdData(storedOffer.market);
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
@@ -5225,6 +5286,18 @@ contract MidnightAdapterTest is Test {
         realVault.deposit(10e18, address(this));
         midnight.setIsAuthorized(address(adapter), true, address(this));
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
+    }
+
+    function familyIdData(Market memory market) internal pure returns (bytes memory) {
+        return abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate);
+    }
+
+    function increaseFamilyCap(IVaultV2 vault, Market memory market) internal {
+        bytes memory idData = familyIdData(market);
+        if (vault.absoluteCap(keccak256(idData)) != 0) return;
+
+        submitAndCall(vault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        submitAndCall(vault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
     }
 
     function buyOnRealVault(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
