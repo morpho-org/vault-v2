@@ -661,42 +661,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the share of futureInterest that deferredShortfall represents, rounded down. Assumes deferredShortfall <= futureInterest.
-    function share(uint256 deferredShortfall, uint256 futureInterest) internal pure returns (uint256) {
-        return futureInterest == 0 ? 0 : deferredShortfall.mulDivDown(WAD, futureInterest);
-    }
-
-    /// @dev Returns the sums over markets of the amortized value and of the interest left to earn, using the supplied credit for overrideMarketId.
-    function valuation(bytes32 overrideMarketId, uint256 overrideNetCredit) internal view returns (uint256, uint256) {
-        uint256 amortizedValue;
-        uint256 futureInterest;
-        for (uint256 i = 0; i < marketIds.length; i++) {
-            bytes32 marketId = marketIdAt(i);
-            MarketData storage _marketData = marketData[marketId];
-            uint128 storedNetCredit = _marketData.netCredit;
-            uint72 netRate = _marketData.netRate;
-            uint40 maturity = _marketData.maturity;
-            uint256 netCredit;
-            if (marketId == overrideMarketId) {
-                netCredit = overrideNetCredit;
-            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
-                netCredit = storedNetCredit;
-            } else {
-                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                netCredit = currentNetCredit(marketId);
-            }
-            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint72 * uint40) are << 2^256.
-            // Each iteration adds at most a uint128 to each sum and there are at most MAX_MARKETS additions, so neither sum overflows.
-            unchecked {
-                uint256 marketAmortizedValue =
-                    netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
-                amortizedValue += marketAmortizedValue;
-                futureInterest += netCredit - marketAmortizedValue;
-            }
-        }
-        return (amortizedValue, futureInterest);
-    }
-
     function removeMarket(bytes32 marketId) internal {
         MarketData storage _marketData = marketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
@@ -760,5 +724,41 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function realAssets() external view returns (uint256) {
         (uint256 amortizedValue, uint256 futureInterest) = valuation(inProgressBuyMarketId, inProgressBuyNetCredit);
         return amortizedValue + futureInterest.mulDivDown(shortfallShare, WAD);
+    }
+
+    /// @dev Returns the share of futureInterest that deferredShortfall represents, rounded down. Assumes deferredShortfall <= futureInterest.
+    function share(uint256 deferredShortfall, uint256 futureInterest) internal pure returns (uint256) {
+        return futureInterest == 0 ? 0 : deferredShortfall.mulDivDown(WAD, futureInterest);
+    }
+
+    /// @dev Returns the sums over markets of the amortized value and of the interest left to earn, using the supplied credit for overrideMarketId.
+    function valuation(bytes32 overrideMarketId, uint256 overrideNetCredit) internal view returns (uint256, uint256) {
+        uint256 amortizedValue;
+        uint256 futureInterest;
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            bytes32 marketId = marketIdAt(i);
+            MarketData storage _marketData = marketData[marketId];
+            uint128 storedNetCredit = _marketData.netCredit;
+            uint72 netRate = _marketData.netRate;
+            uint40 maturity = _marketData.maturity;
+            uint256 netCredit;
+            if (marketId == overrideMarketId) {
+                netCredit = overrideNetCredit;
+            } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
+                netCredit = storedNetCredit;
+            } else {
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                netCredit = currentNetCredit(marketId);
+            }
+            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint72 * uint40) are << 2^256.
+            // Each iteration adds at most a uint128 to each sum and there are at most MAX_MARKETS additions, so neither sum overflows.
+            unchecked {
+                uint256 marketAmortizedValue =
+                    netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+                amortizedValue += marketAmortizedValue;
+                futureInterest += netCredit - marketAmortizedValue;
+            }
+        }
+        return (amortizedValue, futureInterest);
     }
 }
