@@ -149,7 +149,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.stopPrank();
 
         vm.prank(allocator);
-        vault.deallocate(address(adapter), abi.encode(true, market), units);
+        vault.deallocate(address(adapter), abi.encode(true, abi.encode(market)), units);
         uint256 shares = vault.balanceOf(depositor);
         vm.startPrank(depositor);
         vault.redeem(shares, depositor, depositor);
@@ -313,7 +313,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         midnight.setIsAuthorized(address(adapter), true, depositor);
-        vault.forceDeallocate(address(adapter), abi.encode(false, market, depositor), units, depositor);
+        vault.forceDeallocate(address(adapter), abi.encode(false, abi.encode(market, depositor)), units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }
@@ -488,7 +488,7 @@ contract MidnightAdapterExitRouter is IFlashLoanCallback {
         (Market memory market, address taker, uint256 settlementFeeAssets) =
             abi.decode(data, (Market, address, uint256));
         SafeERC20Lib.safeApprove(asset, adapter, assets[0] + settlementFeeAssets);
-        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(false, market, taker), assets[0], taker);
+        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(false, abi.encode(market, taker)), assets[0], taker);
         // The taker keeps the credit. The vault withdrawal repays the flashloan.
         IVaultV2(parentVault).withdraw(assets[0], address(this), taker);
         SafeERC20Lib.safeApprove(asset, midnight, assets[0]);

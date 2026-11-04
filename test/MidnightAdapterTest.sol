@@ -3327,7 +3327,7 @@ contract MidnightAdapterTest is Test {
         midnight.setIsAuthorized(address(adapter), true, taker);
 
         uint256 penaltyShares = realVault.forceDeallocate(
-            address(adapter), abi.encode(false, boughtOffer.market, taker), 0.5e18, address(this)
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, taker)), 0.5e18, address(this)
         );
         vm.stopPrank();
 
@@ -3546,7 +3546,9 @@ contract MidnightAdapterTest is Test {
         address buyer = makeForceDeallocateBuyer(IMidnightAdapter(otherAdapter));
         realVault.transfer(buyer, 1);
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
-        realVault.forceDeallocate(otherAdapter, abi.encode(false, offer.market, buyer), 0.5e18, address(this));
+        realVault.forceDeallocate(
+            otherAdapter, abi.encode(false, abi.encode(offer.market, buyer)), 0.5e18, address(this)
+        );
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
         assertEq(midnight.credit(_marketId(offer.market), otherAdapter), 0);
     }
@@ -3566,7 +3568,9 @@ contract MidnightAdapterTest is Test {
 
         midnight.touchMarket(otherMarket);
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
-        realVault.forceDeallocate(address(adapter), abi.encode(false, otherMarket, buyer), 0.5e18, address(this));
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(otherMarket, buyer)), 0.5e18, address(this)
+        );
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
     }
 
@@ -3585,7 +3589,7 @@ contract MidnightAdapterTest is Test {
         vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
         vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 1);
         midnight.touchMarket(otherMarket);
-        realVault.forceDeallocate(address(adapter), abi.encode(false, otherMarket, buyer), 0, address(this));
+        realVault.forceDeallocate(address(adapter), abi.encode(false, abi.encode(otherMarket, buyer)), 0, address(this));
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
         assertEq(midnight.credit(_marketId(otherMarket), buyer), 0);
@@ -3613,7 +3617,7 @@ contract MidnightAdapterTest is Test {
         attackerMarket.enterGate = attackerGate;
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
-        bytes memory data = abi.encode(false, attackerMarket, buyer);
+        bytes memory data = abi.encode(false, abi.encode(attackerMarket, buyer));
         midnight.touchMarket(attackerMarket);
         assertTrue(VaultV2CompatibleEnterGate(attackerGate).canIncreaseDebt(address(adapter)));
 
@@ -3691,7 +3695,9 @@ contract MidnightAdapterTest is Test {
 
         // The funding transfer runs before admission. The vault's own checks pass.
         vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
-        hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(false, gatedMarket, buyer), 0, address(this));
+        hookedVault.forceDeallocate(
+            address(hookedAdapter), abi.encode(false, abi.encode(gatedMarket, buyer)), 0, address(this)
+        );
 
         assertTrue(hookedToken.attackAttempted());
         assertEq(hookedToken.attackRevert(), IMidnight.BuyerGatedFromIncreasingCredit.selector);
@@ -3744,7 +3750,9 @@ contract MidnightAdapterTest is Test {
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
 
         if (!hasShares) vm.expectRevert(IMidnightAdapterBase.TakerHasNoShares.selector);
-        realVault.forceDeallocate(address(adapter), abi.encode(false, boughtOffer.market, buyer), 0.5e18, address(this));
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, buyer)), 0.5e18, address(this)
+        );
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(address(this)));
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
@@ -3762,7 +3770,9 @@ contract MidnightAdapterTest is Test {
         realVault.transfer(buyer, 1);
         gate.setCanIncreaseCredit(buyer, true);
 
-        realVault.forceDeallocate(address(adapter), abi.encode(false, boughtOffer.market, buyer), 0.5e18, address(this));
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, buyer)), 0.5e18, address(this)
+        );
 
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
         assertEq(adapter.marketData(_marketId(boughtOffer.market)).netCredit, 0.5e18);
@@ -3780,7 +3790,9 @@ contract MidnightAdapterTest is Test {
             address(gate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (buyer)), "subgate reverted"
         );
 
-        realVault.forceDeallocate(address(adapter), abi.encode(false, boughtOffer.market, buyer), 0.5e18, address(this));
+        realVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, buyer)), 0.5e18, address(this)
+        );
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
         vm.expectRevert(bytes("subgate reverted"));
         VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer);
@@ -3794,7 +3806,7 @@ contract MidnightAdapterTest is Test {
         take(boughtOffer);
         address buyer = makeForceDeallocateBuyer(adapter);
         setUpReceiveSharesGate(buyer);
-        bytes memory data = abi.encode(false, boughtOffer.market, buyer);
+        bytes memory data = abi.encode(false, abi.encode(boughtOffer.market, buyer));
         assertTrue(realVault.canReceiveShares(buyer));
         assertEq(realVault.balanceOf(buyer), 0);
         assertGt(realVault.balanceOf(address(this)), 0);
@@ -3866,7 +3878,9 @@ contract MidnightAdapterTest is Test {
         address buyer,
         uint256 assets
     ) external {
-        vault.forceDeallocate(address(targetAdapter), abi.encode(false, market, buyer), assets, address(this));
+        vault.forceDeallocate(
+            address(targetAdapter), abi.encode(false, abi.encode(market, buyer)), assets, address(this)
+        );
     }
 
     /// @dev Returns a buyer that lets this contract force deallocate to it from targetAdapter.
@@ -3897,7 +3911,7 @@ contract MidnightAdapterTest is Test {
         uint256 expectedPenaltyShares =
             realVault.previewWithdraw(assets[0].mulDivUp(realVault.forceDeallocatePenalty(address(adapter)), 1e18));
         uint256 penaltyShares = realVault.forceDeallocate(
-            address(adapter), abi.encode(false, market, address(this)), assets[0], address(this)
+            address(adapter), abi.encode(false, abi.encode(market, address(this))), assets[0], address(this)
         );
         assertEq(penaltyShares, expectedPenaltyShares);
         assertFalse(VaultV2CompatibleEnterGate(market.enterGate).canIncreaseCredit(address(this)));
@@ -4100,7 +4114,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(realVault));
         vm.prank(signerAllocator);
-        realVault.deallocate(address(adapter), abi.encode(true, boughtOffer.market), assets);
+        realVault.deallocate(address(adapter), abi.encode(true, abi.encode(boughtOffer.market)), assets);
 
         assertEq(loanToken.balanceOf(address(realVault)), vaultBalanceBefore + assets, "vault balance");
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - assets, "netCredit");
@@ -4116,7 +4130,7 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
-        bytes memory data = bytes.concat(bytes32(0), abi.encode(marketIds, int256(-1)));
+        bytes memory data = abi.encode(false, abi.encode(marketIds, int256(-1)));
 
         vm.expectRevert(IMidnightAdapterBase.SelfAllocationOnly.selector);
         vm.prank(signerAllocator);
@@ -4260,7 +4274,7 @@ contract MidnightAdapterTest is Test {
 
         if (!authorized) vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         parentVault.forceDeallocate(
-            address(adapter), abi.encode(false, boughtOffer.market, buyer), 0.5e18, address(this)
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, buyer)), 0.5e18, address(this)
         );
 
         assertEq(midnight.credit(marketId, buyer), authorized ? 0.5e18 : 0, "taker credit");
@@ -4334,8 +4348,9 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(marketId, assets, netCreditBefore - assets);
         vm.prank(caller);
-        uint256 penaltyShares =
-            realVault.forceDeallocate(address(adapter), abi.encode(true, boughtOffer.market), assets, caller);
+        uint256 penaltyShares = realVault.forceDeallocate(
+            address(adapter), abi.encode(true, abi.encode(boughtOffer.market)), assets, caller
+        );
 
         assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
         assertEq(realVault.balanceOf(caller), sharesBefore - penaltyShares, "caller pays penalty");
@@ -4697,7 +4712,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceDeallocate(marketId, assets, 1);
         (, int256 change) = parentVault.forceDeallocate(
-            address(adapter), abi.encode(false, boughtOffer.market, address(this)), assets, address(this)
+            address(adapter), abi.encode(false, abi.encode(boughtOffer.market, address(this))), assets, address(this)
         );
 
         assertEq(change, -int256(assets), "change");
@@ -5222,7 +5237,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function forceDeallocate(Market memory market, uint256 assets) internal {
-        parentVault.forceDeallocate(address(adapter), abi.encode(false, market, address(this)), assets, address(this));
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(market, address(this))), assets, address(this)
+        );
     }
 
     function setUpRealVault() internal {
@@ -5279,12 +5296,13 @@ contract MidnightAdapterTest is Test {
     function deallocateFromMarket(Market memory market, uint256 assets) internal {
         IVaultV2 vault = IVaultV2(adapter.parentVault());
         vm.prank(signerAllocator);
-        vault.deallocate(address(adapter), abi.encode(true, market), assets);
+        vault.deallocate(address(adapter), abi.encode(true, abi.encode(market)), assets);
     }
 
     function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
-        return
-            realVault.forceDeallocate(address(adapter), abi.encode(false, market, address(this)), assets, address(this));
+        return realVault.forceDeallocate(
+            address(adapter), abi.encode(false, abi.encode(market, address(this))), assets, address(this)
+        );
     }
 
     function submitAndCall(IVaultV2 vault, bytes memory call_) internal {
@@ -5669,14 +5687,19 @@ contract MidnightAdapterTest is Test {
         );
         callback.push(
             address(realVault),
-            abi.encodeCall(IVaultV2.deallocate, (address(adapter), abi.encode(true, initial.market), 0)),
+            abi.encodeCall(IVaultV2.deallocate, (address(adapter), abi.encode(true, abi.encode(initial.market)), 0)),
             IMidnightAdapterBase.SellInProgress.selector
         );
         callback.push(
             address(realVault),
             abi.encodeCall(
                 IVaultV2.forceDeallocate,
-                (address(adapter), abi.encode(false, initial.market, address(callback)), 1e15, address(callback))
+                (
+                    address(adapter),
+                    abi.encode(false, abi.encode(initial.market, address(callback))),
+                    1e15,
+                    address(callback)
+                )
             ),
             IMidnightAdapterBase.SellInProgress.selector
         );
@@ -6085,7 +6108,7 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = makeBuyOffer(6 days, 1e18, MAX_TICK);
         offer.callbackData =
-            abi.encode(address(adapter), bytes.concat(bytes32(0), abi.encode(adapter.ids(initial.market), int256(-1))));
+            abi.encode(address(adapter), abi.encode(false, abi.encode(adapter.ids(initial.market), int256(-1))));
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
 
         vm.expectRevert(bytes(""));
