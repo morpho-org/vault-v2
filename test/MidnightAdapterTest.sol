@@ -4628,7 +4628,7 @@ contract MidnightAdapterTest is Test {
 
     /* REFRESH MARKET */
 
-    function testRefreshMarketAfterLoss(address caller) public {
+    function testUpdateMarketAfterLoss(address caller) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
 
@@ -4643,19 +4643,27 @@ contract MidnightAdapterTest is Test {
 
         vm.recordLogs();
         vm.prank(caller);
-        adapter.refreshMarket(boughtOffer.market);
+        adapter.updateMarket(boughtOffer.market);
         Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint128 netCredit = adapter.marketData(marketId).netCredit;
+        bool updateMarketEmitted;
         for (uint256 i; i < logs.length; i++) {
             assertTrue(logs[i].topics[0] != IMidnightAdapterBase.WithdrawToVault.selector, "WithdrawToVault emitted");
+            if (logs[i].emitter == address(adapter) && logs[i].topics[0] == IMidnightAdapterBase.UpdateMarket.selector)
+            {
+                assertEq(logs[i].topics[1], marketId, "event marketId");
+                assertEq(abi.decode(logs[i].data, (uint256)), netCredit, "event newNetCredit");
+                updateMarketEmitted = true;
+            }
         }
+        assertTrue(updateMarketEmitted, "UpdateMarket not emitted");
 
-        uint128 netCredit = adapter.marketData(marketId).netCredit;
         assertApproxEqAbs(netCredit, 0.7e18, 1, "netCredit");
         assertEq(parentVault.allocation(adapter.adapterId()), netCredit, "allocation");
         assertEq(parentVault.allocation(keccak256(familyIdData(boughtOffer.market))), netCredit, "family allocation");
     }
 
-    function testRefreshMarketFullLossRemovesMarket() public {
+    function testUpdateMarketFullLossRemovesMarket() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
 
@@ -4663,25 +4671,27 @@ contract MidnightAdapterTest is Test {
         OracleMock(storedCollaterals[1].oracle).setPrice(0);
         midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
 
-        adapter.refreshMarket(boughtOffer.market);
+        vm.expectEmit();
+        emit IMidnightAdapterBase.UpdateMarket(marketId, 0);
+        adapter.updateMarket(boughtOffer.market);
 
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation");
     }
 
-    function testRefreshMarketLoanAssetMismatch() public {
+    function testUpdateMarketLoanAssetMismatch() public {
         Market memory market = storedOffer.market;
         market.loanToken = address(rewardToken);
         vm.expectRevert(IMidnightAdapterBase.LoanAssetMismatch.selector);
-        adapter.refreshMarket(market);
+        adapter.updateMarket(market);
     }
 
-    function testRefreshMarketAdapterNotAllocator() public {
+    function testUpdateMarketAdapterNotAllocator() public {
         setUpRealVault();
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        adapter.refreshMarket(storedOffer.market);
+        adapter.updateMarket(storedOffer.market);
     }
 
     /* SKIM */
@@ -5762,7 +5772,7 @@ contract MidnightAdapterTest is Test {
         );
         callback.push(
             address(adapter),
-            abi.encodeCall(IMidnightAdapterBase.refreshMarket, (initial.market)),
+            abi.encodeCall(IMidnightAdapterBase.updateMarket, (initial.market)),
             IMidnightAdapterBase.SellInProgress.selector
         );
         callback.push(
