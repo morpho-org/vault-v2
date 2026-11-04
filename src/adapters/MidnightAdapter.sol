@@ -517,9 +517,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 // The bought interest must not pay for past shortfalls: the deferred shortfall stays the same.
                 // The rate is rounded down below, so the interest left after the buy is at most the one used here.
                 (, uint256 futureInterest) = valuation(id, newNetCredit - boughtNetCredit);
-                shortfallShare = share(
-                    futureInterest.mulDivDown(shortfallShare, WAD), futureInterest + boughtNetCredit - buyerAssets
-                );
+                shortfallShare =
+                    futureInterest.mulDivDown(shortfallShare, futureInterest + boughtNetCredit - buyerAssets);
             }
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
@@ -612,11 +611,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (shortfall || shortfallShare > 0) {
                 // The deferred shortfall before the sale, plus this sale's shortfall or minus its gain, is carried by the interest left after the sale.
                 (, uint256 futureInterest) = valuation(id, newNetCredit);
-                uint256 deferredShortfall = (futureInterest + soldNetCredit - soldAmortizedValue)
-                .mulDivDown(shortfallShare, WAD) + soldAmortizedValue;
-                deferredShortfall = deferredShortfall.zeroFloorSub(sellerAssets);
+                uint256 deferredShortfall = ((futureInterest + soldNetCredit - soldAmortizedValue)
+                        .mulDivDown(shortfallShare, WAD) + soldAmortizedValue)
+                .zeroFloorSub(sellerAssets);
                 require(deferredShortfall <= futureInterest, SaleRealizesLoss());
-                shortfallShare = share(deferredShortfall, futureInterest);
+                shortfallShare = futureInterest == 0 ? 0 : deferredShortfall.mulDivDown(WAD, futureInterest);
             }
         }
 
@@ -724,11 +723,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function realAssets() external view returns (uint256) {
         (uint256 amortizedValue, uint256 futureInterest) = valuation(inProgressBuyMarketId, inProgressBuyNetCredit);
         return amortizedValue + futureInterest.mulDivDown(shortfallShare, WAD);
-    }
-
-    /// @dev Returns the share of futureInterest that deferredShortfall represents, rounded down. Assumes deferredShortfall <= futureInterest.
-    function share(uint256 deferredShortfall, uint256 futureInterest) internal pure returns (uint256) {
-        return futureInterest == 0 ? 0 : deferredShortfall.mulDivDown(WAD, futureInterest);
     }
 
     /// @dev Returns the sums over markets of the amortized value and of the interest left to earn, using the supplied credit for overrideMarketId.
