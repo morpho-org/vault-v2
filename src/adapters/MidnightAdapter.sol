@@ -35,7 +35,8 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A shortfall is absorbed by future interest through a rate decrease, except in forceSellable markets, where it is realized as an instant loss.
+/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across eligible markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
+/// @dev ForceSellable markets and other markets with a sale in progress do not absorb shortfalls; forceSellable sales realize them as instant losses.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -491,7 +492,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
-                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + buyerAssets;
+                    amortizedValueUp(newNetCredit - boughtNetCredit, _marketData.netRate, ttm) + buyerAssets;
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
 
@@ -570,22 +571,55 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-            require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            require(sellerAssets >= amortizedValueUp(soldNetCredit, maxNetSellRate, ttm), NetSellRateTooHigh());
+            uint256 shortfall = amortizedValueUp(soldNetCredit, _marketData.netRate, ttm).zeroFloorSub(sellerAssets);
+            require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
             if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 amortizedValue = newNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm) + shortfall;
-                require(amortizedValue <= newNetCredit, ShortfallTooHigh());
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+                uint256[3][] memory values = new uint256[3][](marketIds.length);
+                uint256 totalInterest;
+                for (uint256 i; i < marketIds.length; i++) {
+                    bytes32 otherMarketId = marketIds[i];
+                    MarketData storage otherMarketData = marketData[otherMarketId];
+                    if (
+                        otherMarketData.forceSellable
+                            || (otherMarketId != id
+                                && IMidnight(midnight).liquidationLocked(otherMarketId, address(this)))
+                    ) continue;
+                    uint256 netCredit = otherMarketId == id
+                        ? newNetCredit
+                        : IMidnight(midnight).lossFactor(otherMarketId) == 0
+                            ? otherMarketData.netCredit
+                            : currentNetCredit(otherMarketId);
+                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                    uint256 amortizedValue = amortizedValueUp(netCredit, otherMarketData.netRate, otherTtm);
+                    values[i] = [netCredit, amortizedValue, otherTtm];
+                    totalInterest += netCredit - amortizedValue;
+                }
+                require(shortfall <= totalInterest, ShortfallTooHigh());
+                uint256 remainingShortfall = shortfall;
+                for (uint256 i; remainingShortfall > 0 && i < marketIds.length; i++) {
+                    uint256 netCredit = values[i][0];
+                    uint256 amortizedValue = values[i][1];
+                    uint256 reduction =
+                        MathLib.min(remainingShortfall, shortfall.mulDivUp(netCredit - amortizedValue, totalInterest));
+                    if (reduction == 0) continue;
+                    uint256 newAmortizedValue = amortizedValue + reduction;
+                    uint72 newRate =
+                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * values[i][2]).toUint72();
+                    bytes32 otherMarketId = marketIds[i];
+                    marketData[otherMarketId].netRate = newRate;
+                    remainingShortfall -= reduction;
+                    emit ReduceRate(otherMarketId, newRate);
+                }
             }
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
@@ -595,11 +629,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, _marketData.netRate);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit);
         return CALLBACK_SUCCESS;
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function amortizedValueUp(uint256 netCredit, uint256 netRate, uint256 ttm) internal pure returns (uint256) {
+        return netCredit.mulDivUp(WAD, WAD + netRate * ttm);
+    }
 
     /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
