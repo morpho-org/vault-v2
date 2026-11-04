@@ -4184,29 +4184,25 @@ contract MidnightAdapterTest is Test {
         this.takeWithAccrual(offer, data, taker, address(0));
     }
 
-    function testReorderMarketsNotAuthorizedAndRemovalKeepsIndices() public {
+    function testSwapMarketsNotAuthorizedAndRemovalKeepsIndices() public {
         Offer memory offerA = buy(1 days, 1e18);
         Offer memory offerB = buy(2 days, 1e18);
         Offer memory offerC = buy(3 days, 1e18);
         bytes32 marketIdA = _marketId(offerA.market);
         bytes32 marketIdB = _marketId(offerB.market);
         bytes32 marketIdC = _marketId(offerC.market);
-        bytes32[] memory newMarketIds = new bytes32[](3);
-        newMarketIds[0] = marketIdC;
-        newMarketIds[1] = marketIdB;
-        newMarketIds[2] = marketIdA;
 
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        adapter.reorderMarkets(newMarketIds);
+        adapter.swapMarkets(0, 2);
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.ReorderMarkets(signerAllocator, newMarketIds);
+        emit IMidnightAdapterBase.SwapMarkets(signerAllocator, 0, 2);
         vm.prank(signerAllocator);
-        adapter.reorderMarkets(newMarketIds);
-        assertEq(adapter.marketIds(0), marketIdC, "market C reordered to index zero");
+        adapter.swapMarkets(0, 2);
+        assertEq(adapter.marketIds(0), marketIdC, "market C swapped to index zero");
         assertEq(adapter.marketIds(1), marketIdB, "market B remains at index one");
-        assertEq(adapter.marketIds(2), marketIdA, "market A moved to index two");
+        assertEq(adapter.marketIds(2), marketIdA, "market A swapped to index two");
         assertEq(adapter.marketData(marketIdC).index, 0, "market C index");
         assertEq(adapter.marketData(marketIdB).index, 1, "market B index");
         assertEq(adapter.marketData(marketIdA).index, 2, "market A index");
@@ -4221,43 +4217,13 @@ contract MidnightAdapterTest is Test {
         assertEq(abi.encode(adapter.marketData(marketIdC)), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
     }
 
-    function testReorderMarketsWrongLength() public {
-        Offer memory offerA = buy(1 days, 1e18);
+    function testSwapMarketsIndexOutOfBounds() public {
+        buy(1 days, 1e18);
         buy(2 days, 1e18);
 
-        bytes32[] memory newMarketIds = new bytes32[](1);
-        newMarketIds[0] = _marketId(offerA.market);
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.InvalidLength.selector);
-        adapter.reorderMarkets(newMarketIds);
-    }
-
-    function testReorderMarketsDuplicateId() public {
-        Offer memory offerA = buy(1 days, 1e18);
-        buy(2 days, 1e18);
-        Offer memory offerC = buy(3 days, 1e18);
-
-        bytes32[] memory newMarketIds = new bytes32[](3);
-        newMarketIds[0] = _marketId(offerA.market);
-        newMarketIds[1] = _marketId(offerA.market);
-        newMarketIds[2] = _marketId(offerC.market);
-        vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.NotAPermutation.selector);
-        adapter.reorderMarkets(newMarketIds);
-    }
-
-    function testReorderMarketsUnknownId() public {
-        Offer memory offerA = buy(1 days, 1e18);
-        Offer memory offerB = buy(2 days, 1e18);
-        buy(3 days, 1e18);
-
-        bytes32[] memory newMarketIds = new bytes32[](3);
-        newMarketIds[0] = _marketId(offerA.market);
-        newMarketIds[1] = _marketId(offerB.market);
-        newMarketIds[2] = keccak256("unknown market");
-        vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.NotAPermutation.selector);
-        adapter.reorderMarkets(newMarketIds);
+        vm.expectRevert(stdError.indexOOBError);
+        adapter.swapMarkets(0, 2);
     }
 
     /* TAKE */
@@ -4974,7 +4940,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketIdB).netRate, newRateB, "market B rate uses post-loss net credit");
     }
 
-    function testReorderMarketsChangesWhichMarketAbsorbsShortfallFirst() public {
+    function testSwapMarketsChangesWhichMarketAbsorbsShortfallFirst() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);
         bytes32 marketIdB = _marketId(offerB.market);
@@ -4993,11 +4959,8 @@ contract MidnightAdapterTest is Test {
             (uint256(dataB.netCredit) - (amortizedValueB + loss)).mulDivDown(WAD, (amortizedValueB + loss) * ttmB);
         assertLt(loss, capacityA, "market A can absorb the shortfall");
 
-        bytes32[] memory newMarketIds = new bytes32[](2);
-        newMarketIds[0] = marketIdB;
-        newMarketIds[1] = marketIdA;
         vm.prank(signerAllocator);
-        adapter.reorderMarkets(newMarketIds);
+        adapter.swapMarkets(0, 1);
         assertEq(adapter.marketIds(0), marketIdB, "market B moved first");
         assertEq(adapter.marketData(marketIdB).index, 0, "market B index updated");
         assertEq(adapter.marketData(marketIdA).index, 1, "market A index updated");

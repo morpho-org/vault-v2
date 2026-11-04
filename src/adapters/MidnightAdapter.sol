@@ -303,26 +303,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* ALLOCATOR FUNCTIONS */
 
-    /// @dev Allocators can reorder marketIds to choose which markets absorb shortfalls first.
-    /// @dev newMarketIds must be a permutation of marketIds.
-    function reorderMarkets(bytes32[] calldata newMarketIds) external {
+    /// @dev Allocators can swap markets in marketIds to choose which markets absorb shortfalls first.
+    function swapMarkets(uint256 i, uint256 j) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        require(newMarketIds.length == marketIds.length, InvalidLength());
-
-        uint256 seen;
-        for (uint256 i; i < newMarketIds.length; i++) {
-            uint256 index = marketData[newMarketIds[i]].index;
-            require(marketIds[index] == newMarketIds[i] && ((seen >> index) & 1) == 0, NotAPermutation());
-            seen |= 1 << index;
-        }
-
-        for (uint256 i; i < newMarketIds.length; i++) {
-            marketIds[i] = newMarketIds[i];
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
-            marketData[newMarketIds[i]].index = uint8(i);
-        }
-
-        emit ReorderMarkets(msg.sender, newMarketIds);
+        (bytes32 idI, bytes32 idJ) = (marketIds[i], marketIds[j]);
+        (marketIds[i], marketIds[j]) = (idJ, idI);
+        // forge-lint: disable-next-item(unsafe-typecast) marketIds is capped at 250 entries.
+        (marketData[idI].index, marketData[idJ].index) = (uint8(j), uint8(i));
+        emit SwapMarkets(msg.sender, i, j);
     }
 
     function setConsumed(bytes32 group, uint128 amount) external {
@@ -609,47 +597,39 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
-            if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256 remainingShortfall = shortfall;
-                for (uint256 i; i < marketIds.length && remainingShortfall > 0; i++) {
-                    bytes32 otherMarketId = marketIds[i];
-                    MarketData storage otherMarketData = marketData[otherMarketId];
-                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                    if (
-                        otherMarketData.forceSellable || otherTtm == 0
-                            || (otherMarketId != id
-                                && IMidnight(midnight).liquidationLocked(otherMarketId, address(this)))
-                    ) continue;
-                    uint128 netCredit;
-                    if (otherMarketId == id) {
-                        netCredit = newNetCredit;
-                    } else if (IMidnight(midnight).lossFactor(otherMarketId) == 0) {
-                        netCredit = otherMarketData.netCredit;
-                    } else {
-                        netCredit = currentNetCredit(otherMarketId);
-                    }
-                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
-                    uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit - amortizedValue);
-                    if (shortfallReduction == 0) continue;
-                    uint256 newAmortizedValue = amortizedValue + shortfallReduction;
-                    otherMarketData.netRate =
-                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
-                    remainingShortfall -= shortfallReduction;
-                    emit ReduceRate(otherMarketId, otherMarketData.netRate);
-                }
-                require(remainingShortfall == 0, ShortfallTooHigh());
+            require(shortfall == 0 || !noSalesWithShortfall, SalesWithShortfallDisabled());
+            uint256 remainingShortfall = shortfall;
+            for (uint256 i; remainingShortfall > 0 && i < marketIds.length; i++) {
+                bytes32 otherMarketId = marketIds[i];
+                MarketData storage otherMarketData = marketData[otherMarketId];
+                if (
+                    otherMarketData.forceSellable
+                        || (otherMarketId != id && IMidnight(midnight).liquidationLocked(otherMarketId, address(this)))
+                ) continue;
+                uint128 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
+                    ? otherMarketData.netCredit
+                    : currentNetCredit(otherMarketId);
+                uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                uint256 shortfallReduction = MathLib.min(remainingShortfall, netCredit - amortizedValue);
+                if (shortfallReduction == 0) continue;
+                uint256 newAmortizedValue = amortizedValue + shortfallReduction;
+                otherMarketData.netRate =
+                    (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
+                remainingShortfall -= shortfallReduction;
+                emit ReduceRate(otherMarketId, otherMarketData.netRate);
             }
+            require(remainingShortfall == 0, ShortfallTooHigh());
         }
 
-        uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
