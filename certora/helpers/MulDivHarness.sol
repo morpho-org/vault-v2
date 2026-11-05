@@ -61,6 +61,14 @@ contract MulDivHarness {
         }
     }
 
+    function bitAnd(uint256 a, uint256 b) external pure returns (uint256) {
+        return a & b;
+    }
+
+    function bitOr(uint256 a, uint256 b) external pure returns (uint256) {
+        return a | b;
+    }
+
     function inverseResidue(uint256 denominator) external pure returns (uint256) {
         unchecked {
             return denominator * _inverse(denominator);
@@ -76,7 +84,7 @@ contract MulDivHarness {
     function twosWordPost(uint256 denominator) external pure returns (bool) {
         (uint256 odd, uint256 t, uint256 flipped) = _twos(denominator);
         if (t == 0) return false;
-        return t <= denominator && denominator % t == 0 && odd == denominator / t && odd % 2 == 1
+        return t <= denominator && denominator % t == 0 && odd == denominator / t && odd % 2 == 1 && (t & (t - 1)) == 0
             && type(uint256).max % t == t - 1 && flipped == (t == 1 ? 0 : type(uint256).max / t + 1);
     }
 
