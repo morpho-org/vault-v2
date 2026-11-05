@@ -47,7 +47,8 @@ jobs:
           python-version: "3.14.10"
 
       - name: Install certora
-        run: pip install --require-hashes --only-binary :all: -r certora/requirements.txt
+        run: |
+          pip install --require-hashes --only-binary :all: -r certora/requirements.txt
 
       - name: Run Certora Specs Linter
         run: |
