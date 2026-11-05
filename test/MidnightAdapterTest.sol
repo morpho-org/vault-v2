@@ -4997,7 +4997,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(absorberId).netRate, newRate, "later market absorbs the shortfall");
     }
 
-    function testShortfallSkipsForceSellableMarkets() public {
+    function testShortfallAbsorbedByForceSellableMarkets() public {
         (Offer memory offerA, Offer memory forceSellable) = buyShortfallMarkets();
         MarketData memory dataA = adapter.marketData(_marketId(offerA.market));
         MarketData memory forceSellableData = adapter.marketData(_marketId(forceSellable.market));
@@ -5011,11 +5011,16 @@ contract MidnightAdapterTest is Test {
             uint256(forceSellableData.netCredit).mulDivUp(WAD, WAD + forceSellableData.netRate * ttmForceSellable);
         uint256 capacity = uint256(forceSellableData.netCredit).zeroFloorSub(amortizedValueForceSellable);
         assertGt(shortfall, 0, "sale has a shortfall");
-        assertLt(shortfall, capacity, "forceSellable market could absorb the shortfall");
+        assertLt(shortfall, capacity, "forceSellable market can absorb the shortfall");
 
         setForceSellable(_marketId(forceSellable.market));
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(offerA.market, dataA.netCredit, tick);
+
+        assertLt(
+            adapter.marketData(_marketId(forceSellable.market)).netRate,
+            forceSellableData.netRate,
+            "forceSellable market absorbs the shortfall"
+        );
     }
 
     function testNestedShortfallSaleRevertsWithSaleInProgress() public {
