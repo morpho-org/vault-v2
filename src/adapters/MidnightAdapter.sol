@@ -581,10 +581,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(!noSalesWithShortfall, SalesWithShortfallDisabled());
-                uint256[] memory netCredits = new uint256[](marketIds.length);
+                uint256 length = marketIds.length;
+                uint256[] memory netCredits = new uint256[](length);
                 uint256 totalInterest;
-                for (uint256 i; i < marketIds.length; i++) {
-                    bytes32 otherMarketId = marketIds[i];
+                for (uint256 i; i < length; i++) {
+                    bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
                     if (
                         otherMarketData.forceSellable
@@ -604,10 +605,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
                 uint256 remainingShortfall = shortfall;
-                for (uint256 i; remainingShortfall > 0 && i < marketIds.length; i++) {
+                for (uint256 i; remainingShortfall > 0 && i < length; i++) {
                     uint256 netCredit = netCredits[i];
                     if (netCredit == 0) continue;
-                    bytes32 otherMarketId = marketIds[i];
+                    bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
