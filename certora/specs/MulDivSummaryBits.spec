@@ -21,10 +21,19 @@ rule seedWord(uint256 d) {
     assert residue == 1;
 }
 
-// Check that the OR combines disjoint limbs into their sum.
-rule shiftWord(uint256 hi, uint256 lo, uint256 t, uint256 flipped) {
-    require wordShiftPre(t, flipped), "The divisor divides the word modulus and the flip is exact";
-    uint256 high = finalProduct(hi, flipped);
-    uint256 result = shift(hi, lo, t, flipped);
-    assert result == lo / t + high;
+// Check that the real twos block supplies a zero or power-of-two flipped word.
+rule twosPower(uint256 d) {
+    require d > 0, "The slow path has a positive denominator";
+    uint256 odd;
+    uint256 t;
+    uint256 flipped;
+    odd, t, flipped = twos(d);
+    assert flipped == 0 || (flipped & assert_uint256(flipped - 1)) == 0;
+}
+
+// Check the generic OR identity for disjoint binary digits.
+rule powerOr(uint256 a, uint256 b, uint256 p) {
+    require p > 0 && (p & assert_uint256(p - 1)) == 0;
+    require a < p && b % p == 0;
+    assert (a | b) == a + b;
 }

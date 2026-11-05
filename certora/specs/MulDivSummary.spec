@@ -11,6 +11,73 @@ function divisibleProducts(mathint a, mathint b, mathint m) {
     require m > 0 && a % m == 0 && b % m == 0 => (a * b) % (m * m) == 0, "axiom: products of multiples; MulDivArithmetic.lean: MulDiv.divisible_products";
 }
 
+function orSummary(uint256 a, uint256 b, uint256 p) {
+    require p > 0 && (p & assert_uint256(p - 1)) == 0 && a < p && b % p == 0 => (a | b) == a + b, "MulDivSummaryBits.powerOr";
+}
+
+// Check the real shift block using disjoint digits and explicit division witnesses.
+rule shiftWord(uint256 hi, uint256 lo, uint256 t, uint256 flipped) {
+    require wordShiftPre(t, flipped), "The divisor divides the word modulus and the flip is exact";
+    require flipped == 0 || (flipped & assert_uint256(flipped - 1)) == 0, "MulDivSummaryBits.twosPower";
+    uint256 high = finalProduct(hi, flipped);
+    uint256 result = shift(hi, lo, t, flipped);
+    assert high == (hi * flipped) % B();
+    assert result == (assert_uint256(lo / t) | high);
+    mathint u = max_uint256 / t + 1;
+    assert B() == u * t;
+    assert lo / t < u;
+    mathint q = hi / t;
+    mathint r = hi % t;
+    assert hi == q * t + r;
+    assert hi * u == q * B() + r * u;
+    assert r * u < B();
+    assert (hi * u) % B() == r * u;
+    if (t == 1) {
+        assert flipped == 0;
+        assert high == 0;
+        assert result == lo;
+    } else {
+        assert flipped == u;
+        assert high == r * u;
+        assert high % flipped == 0;
+        orSummary(assert_uint256(lo / t), high, flipped);
+    }
+    assert lo / t + high < B();
+    assert result == lo / t + high;
+}
+
+// Check shift reconstruction and no-wrap arithmetic without bitwise operations or axioms.
+rule shiftArithmetic(uint256 hi, uint256 lo, uint256 t, uint256 flipped) {
+    require wordShiftPre(t, flipped);
+    mathint u = max_uint256 / t + 1;
+    assert B() == u * t;
+    assert u == B() / t;
+    assert lo / t < u;
+    mathint q = hi / t;
+    mathint r = hi % t;
+    assert hi == q * t + r;
+    assert hi * u == q * B() + r * u;
+    assert r * u < B();
+    assert (hi * u) % B() == r * u;
+    if (t == 1) {
+        assert flipped == 0;
+        assert (hi * flipped) % B() == r * u;
+    } else {
+        assert flipped == u;
+        assert max_uint256 % flipped == flipped - 1;
+        assert (hi * flipped) % B() == r * u;
+    }
+    assert ((hi * flipped) % B()) % u == 0;
+    assert lo / t + (hi * flipped) % B() < B();
+    mathint lowQ = lo / t;
+    mathint lowR = lo % t;
+    assert lo == lowQ * t + lowR;
+    assert hi * B() + lo == (hi * u + lowQ) * t + lowR;
+    assert (hi * B() + lo) / t == hi * u + lowQ;
+    assert (hi * u + lowQ) % B() == r * u + lowQ;
+    assert lo / t + (hi * flipped) % B() == ((hi * B() + lo) / t) % B();
+}
+
 // Check Newton precision doubling from 4 to 8 bits with explicit error and wrap witnesses.
 rule newton4(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 4) == 1, "The preceding iteration supplies the current inverse precision";

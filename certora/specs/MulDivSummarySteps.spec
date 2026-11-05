@@ -18,7 +18,7 @@ function divideProduct(mathint a, mathint b, mathint t) {
 }
 
 function shiftArithmetic(uint256 hi, uint256 lo, uint256 t, uint256 flipped) {
-    require wordShiftPre(t, flipped) => lo / t + (hi * flipped) % B() == ((hi * B() + lo) / t) % B(), "axiom: division of two limbs by a word-modulus divisor; MulDivArithmetic.lean: MulDiv.word_shift_arithmetic";
+    require wordShiftPre(t, flipped) => lo / t + (hi * flipped) % B() == ((hi * B() + lo) / t) % B(), "MulDivSummary.shiftArithmetic";
 }
 
 function cancelModularInverse(mathint d, mathint q, mathint inv, mathint m) {
@@ -54,6 +54,7 @@ function twosSummary(uint256 d) returns (uint256, uint256, uint256) {
     uint256 t;
     uint256 flipped;
     require d > 0 => wordTwosPost(d, odd, t, flipped), "MulDivSummaryBits.twosWord";
+    require d > 0 => flipped == 0 || (flipped & assert_uint256(flipped - 1)) == 0, "MulDivSummaryBits.twosPower";
     oddPart = odd;
     return (odd, t, flipped);
 }
@@ -61,7 +62,7 @@ function twosSummary(uint256 d) returns (uint256, uint256, uint256) {
 function shiftSummary(uint256 hi, uint256 lo, uint256 t, uint256 flipped) returns uint256 {
     uint256 result;
     uint256 high = finalProduct(hi, flipped);
-    require wordShiftPre(t, flipped) => result == lo / t + high, "MulDivSummaryBits.shiftWord";
+    require wordShiftPre(t, flipped) && (flipped == 0 || (flipped & assert_uint256(flipped - 1)) == 0) => result == lo / t + high, "MulDivSummary.shiftWord";
     shiftArithmetic(hi, lo, t, flipped);
     divideProduct(originalD, quotient, t);
     assert hi * B() + lo == originalD * quotient;

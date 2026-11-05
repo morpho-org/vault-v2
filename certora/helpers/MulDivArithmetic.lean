@@ -60,9 +60,39 @@ theorem word_shift_arithmetic {B hi lo t flipped : Nat} (hB : 0 < B) (hlo : lo <
   rw [hflip]
   exact shift_arithmetic ht he hlo
 
+theorem power_or {a b k : Nat} (ha : a < 2 ^ k) (hb : b % (2 ^ k) = 0) :
+    a ||| b = a + b := by
+  obtain ⟨q, rfl⟩ := Nat.dvd_of_mod_eq_zero hb
+  simpa [Nat.or_comm, Nat.add_comm] using (Nat.two_pow_add_eq_or_of_lt ha q).symm
+
+theorem word_divisor {w p : Nat} (hp : 0 < p)
+    (hr : (2 ^ w - 1) % p = p - 1) : p ∣ 2 ^ w := by
+  refine ⟨(2 ^ w - 1) / p + 1, ?_⟩
+  have h := Nat.mod_add_div (2 ^ w - 1) p
+  rw [hr] at h
+  have hpow : 0 < 2 ^ w := by positivity
+  nlinarith [Nat.sub_add_cancel (show 1 ≤ p by omega),
+    Nat.sub_add_cancel (Nat.succ_le_of_lt hpow)]
+
+theorem word_divisor_or {w p a b : Nat} (hp : 0 < p)
+    (hr : (2 ^ w - 1) % p = p - 1) (ha : a < p) (hb : b % p = 0) :
+    a ||| b = a + b := by
+  obtain ⟨k, _, h⟩ := (Nat.dvd_prime_pow Nat.prime_two).mp (word_divisor hp hr)
+  subst p
+  exact power_or ha hb
+
+theorem word_divisor_power {w p : Nat} (hp : 0 < p)
+    (hr : (2 ^ w - 1) % p = p - 1) : p &&& (p - 1) = 0 := by
+  obtain ⟨k, _, h⟩ := (Nat.dvd_prime_pow Nat.prime_two).mp (word_divisor hp hr)
+  subst p
+  exact (Nat.and_two_pow_sub_one_eq_mod (2 ^ k) k).trans (Nat.mod_self _)
+
 end MulDiv
 
 #print axioms MulDiv.modular_polynomial
 #print axioms MulDiv.divisible_products
 #print axioms MulDiv.cancel_modular_inverse
 #print axioms MulDiv.word_shift_arithmetic
+#print axioms MulDiv.power_or
+#print axioms MulDiv.word_divisor_or
+#print axioms MulDiv.word_divisor_power
