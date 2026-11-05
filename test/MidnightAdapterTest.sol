@@ -5018,7 +5018,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offerA.market, dataA.netCredit, tick);
     }
 
-    function testNestedSaleSkipsMarketWithSaleInProgress() public {
+    function testNestedShortfallSaleRevertsWithSaleInProgress() public {
         Offer memory outer = buy(30 days, 100e18, MAX_TICK / 2);
         Offer memory inner = buy(60 days, 100e18, MAX_TICK / 2);
         Offer memory absorber = buy(90 days, 100e18, MAX_TICK / 2);
@@ -5033,17 +5033,14 @@ contract MidnightAdapterTest is Test {
 
         SaleCallback callback = new SaleCallback(address(midnight), address(loanToken), address(parentVault));
         deal(address(loanToken), address(callback), 1_000e18);
-        pushNestedSell(callback, inner.market);
+        uint256 innerNetCredit = adapter.marketData(_marketId(inner.market)).netCredit;
+        pushNestedSell(callback, inner.market, IMidnightAdapterBase.OtherSellInProgress.selector);
 
         callbackSale(makeSellOffer(outer.market, outerSold, MAX_TICK), callback);
 
-        assertEq(
-            adapter.marketData(_marketId(outer.market)).netRate, outerRate, "market with sale in progress is unchanged"
-        );
-        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, 0, "nested sale completes");
-        assertLt(
-            adapter.marketData(_marketId(absorber.market)).netRate, absorberRate, "third market absorbs the inner loss"
-        );
+        assertEq(adapter.marketData(_marketId(outer.market)).netRate, outerRate, "outer rate is unchanged");
+        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, innerNetCredit, "nested sale reverts");
+        assertEq(adapter.marketData(_marketId(absorber.market)).netRate, absorberRate, "third rate is unchanged");
     }
 
     function testShortfallUsesAmortizedValue() public {
@@ -5232,7 +5229,7 @@ contract MidnightAdapterTest is Test {
         assertLt(innerLoss, absorberCapacity, "third market can absorb the inner loss");
     }
 
-    function pushNestedSell(SaleCallback callback, Market memory market) internal {
+    function pushNestedSell(SaleCallback callback, Market memory market, bytes4 expectedRevert) internal {
         uint256 tick = TickLib.priceToTick(0.4e18, DEFAULT_TICK_SPACING);
         Offer memory sellOffer = makeSellOffer(market, adapter.marketData(_marketId(market)).netCredit, tick);
         callback.push(
@@ -5249,7 +5246,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            bytes4(0)
+            expectedRevert
         );
     }
 
