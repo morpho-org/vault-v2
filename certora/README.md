@@ -30,9 +30,8 @@ Global invariants and the accounting effects of each entry point.
 
 Share-price movement, rounding, previews, and equivalent entry points.
 
-- [`MulDivSummary.spec`](specs/MulDivSummary.spec) checks the exact revert condition and floor quotient of OpenZeppelin's `Math.mulDiv`, the arithmetic summary used by the Morpho Vault V1 adapter specs.
-  It also checks individual arithmetic blocks and equivalence with a split implementation; [`MulDivSummarySteps.spec`](specs/MulDivSummarySteps.spec) checks their composition using summaries whose assumptions cite the corresponding block rules.
-  The composition depends on those block rules and the unsummarized equivalence rule passing; local compilation alone does not establish these properties.
+- [`MulDivSummary.spec`](specs/MulDivSummary.spec) checks that the `Math.mulDiv` summary used in the Morpho Vault V1 adapter specs is sound: OpenZeppelin's `Math.mulDiv` reverts exactly when the denominator is zero or the exact quotient overflows, and otherwise returns the floor of `x * y / denominator`.
+  It also checks each arithmetic block of the 512-bit division separately, and [`MulDivSummarySteps.spec`](specs/MulDivSummarySteps.spec) composes these block lemmas.
 - [`ExchangeRate.spec`](specs/ExchangeRate.spec) checks that the seeded vault's share price does not decrease when the management fee is zero and interest has already been accrued.
   It separately shows that realizing a loss does not increase the share price and that `deposit`, `mint`, `withdraw`, and `redeem` use the tight protocol-favoring rounding direction.
 - [`PreviewFunctions.spec`](specs/PreviewFunctions.spec) checks that `previewDeposit`, `previewMint`, `previewWithdraw`, and `previewRedeem` return exactly the value produced by the corresponding successful ERC-4626 operation.
