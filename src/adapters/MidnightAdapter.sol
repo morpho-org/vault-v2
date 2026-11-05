@@ -597,8 +597,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
-                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                    uint256 amortizedValue = netCredit.mulDivUp(WAD, WAD + otherMarketData.netRate * otherTtm);
+                    uint256 amortizedValue = netCredit.mulDivUp(
+                        WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
+                    );
                     netCredits[i] = netCredit;
                     // Cannot underflow: amortizedValue <= netCredit. Cannot overflow: at most MAX_MARKETS uint128 additions.
                     unchecked {
