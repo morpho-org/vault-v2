@@ -42,7 +42,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testConstructor() public view {
-        assertEq(wrapper.enterGateFactory(), address(this));
+        assertEq(wrapper.factory(), address(this));
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
         assertTrue(wrapper.canAdmit(address(adapterFactory)));
