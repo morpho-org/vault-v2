@@ -130,7 +130,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint96 public maxShortfall;
+    uint256 public maxShortfall;
 
     /* CONSTRUCTOR */
 
@@ -288,7 +288,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMaxShortfall(uint256 newMaxShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxShortfall = newMaxShortfall.toUint96();
+        maxShortfall = newMaxShortfall;
         emit SetMaxShortfall(newMaxShortfall);
     }
 
@@ -585,8 +585,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= maxShortfall, MaxShortfallExceeded());
-                // forge-lint: disable-next-item(unsafe-typecast) safe because shortfall <= maxShortfall.
-                maxShortfall -= uint96(shortfall);
+                maxShortfall -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);

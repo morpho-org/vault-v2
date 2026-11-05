@@ -89,7 +89,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.prank(curator);
         adapter.setMaxNetSellRate(1e18 / uint256(365 days));
         vm.prank(curator);
-        adapter.setMaxShortfall(type(uint96).max);
+        adapter.setMaxShortfall(type(uint256).max);
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));

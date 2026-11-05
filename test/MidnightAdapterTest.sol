@@ -202,7 +202,7 @@ contract MidnightAdapterTest is Test {
         // Sales below face value are blocked by default. Tests of the limit itself set it back.
         setMaxNetSellRate(type(uint64).max);
         // Sales with a shortfall are blocked by default. Tests of the limit itself set it back.
-        setMaxShortfall(type(uint96).max);
+        setMaxShortfall(type(uint256).max);
 
         priceRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
@@ -489,7 +489,7 @@ contract MidnightAdapterTest is Test {
 
     /* MULTICALL */
 
-    function testMulticall(uint96 newMaxShortfall, uint64 newMaxNetSellRate) public {
+    function testMulticall(uint256 newMaxShortfall, uint64 newMaxNetSellRate) public {
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeCall(IMidnightAdapterBase.setMaxShortfall, (newMaxShortfall));
         data[1] = abi.encodeCall(IMidnightAdapterBase.setMaxNetSellRate, (newMaxNetSellRate));
@@ -538,7 +538,7 @@ contract MidnightAdapterTest is Test {
 
     /* MAX SHORTFALL */
 
-    function testSetMaxShortfallAuthorized(uint96 oldValue, uint96 newValue) public {
+    function testSetMaxShortfallAuthorized(uint256 oldValue, uint256 newValue) public {
         vm.prank(curator);
         adapter.setMaxShortfall(oldValue);
         vm.expectEmit(address(adapter));
@@ -546,13 +546,6 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.setMaxShortfall(newValue);
         assertEq(adapter.maxShortfall(), newValue, "value updated immediately");
-    }
-
-    function testSetMaxShortfallOverflow(uint256 newValue) public {
-        newValue = bound(newValue, uint256(type(uint96).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        vm.prank(curator);
-        adapter.setMaxShortfall(newValue);
     }
 
     function testSetMaxShortfallNotAuthorized(address caller, bool sentinel) public {
@@ -574,7 +567,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 snapshot = vm.snapshotState();
         sellUnits(offer.market, 10e18, tick);
-        uint256 shortfall = type(uint96).max - adapter.maxShortfall();
+        uint256 shortfall = type(uint256).max - adapter.maxShortfall();
         assertGt(shortfall, 0, "sale has a shortfall");
         vm.revertToState(snapshot);
 
@@ -4554,7 +4547,7 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, true, address(this), address(0), "");
         assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
-        assertEq(adapter.maxShortfall(), type(uint96).max, "sales with shortfall allowed");
+        assertEq(adapter.maxShortfall(), type(uint256).max, "sales with shortfall allowed");
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation");
@@ -5183,19 +5176,16 @@ contract MidnightAdapterTest is Test {
     function testStoragePacking() public {
         setMinNetBuyRate(type(uint64).max);
         setMaxNetSellRate(type(uint64).max);
-        setMaxShortfall(type(uint96).max);
         setUpMaxTtm(type(uint32).max);
 
         vm.record();
         assertEq(adapter.maxTtm(), type(uint32).max);
         assertEq(adapter.minNetBuyRate(), type(uint64).max);
         assertEq(adapter.maxNetSellRate(), type(uint64).max);
-        assertEq(adapter.maxShortfall(), type(uint96).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 4);
+        assertEq(reads.length, 3);
         assertEq(reads[0], reads[1], "maxTtm and minNetBuyRate share one slot");
         assertEq(reads[1], reads[2], "maxNetSellRate shares the same slot");
-        assertEq(reads[2], reads[3], "maxShortfall shares the same slot");
     }
 
     function testMarketDataPacking() public {
@@ -5629,7 +5619,7 @@ contract MidnightAdapterTest is Test {
         disableDurationCaps(adapter);
         setUpMaxTtm(type(uint32).max);
         setMaxNetSellRate(type(uint64).max);
-        setMaxShortfall(type(uint96).max);
+        setMaxShortfall(type(uint256).max);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
