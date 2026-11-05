@@ -1914,12 +1914,13 @@ contract MidnightAdapterTest is Test {
 
     /* DURATIONS */
 
-    function testConstructorEvent() public {
+    function testConstructorEvent(bool withEnterGateFactory) public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+        address gateFactory = withEnterGateFactory ? makeAddr("enterGateFactory") : address(0);
 
         vm.expectEmit();
-        emit IMidnightAdapterBase.Constructor(address(newVault), address(midnight), allDurations);
-        factory.createMidnightAdapter(address(newVault), allDurations, address(0), bytes32(0));
+        emit IMidnightAdapterBase.Constructor(address(newVault), address(midnight), allDurations, gateFactory);
+        factory.createMidnightAdapter(address(newVault), allDurations, gateFactory, bytes32(0));
     }
 
     function testConstructorGetters() public view {
