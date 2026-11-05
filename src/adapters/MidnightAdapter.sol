@@ -608,7 +608,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
                 uint256 remainingShortfall = shortfall;
-                for (uint256 i; remainingShortfall > 0 && i < length; i++) {
+                for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
                     if (netCredit == 0) continue;
                     bytes32 otherMarketId = marketIdAt(i);
@@ -624,6 +624,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     remainingShortfall -= reduction;
                     emit ReduceRate(otherMarketId, newRate);
+                    if (remainingShortfall == 0) break;
                 }
             }
         }
