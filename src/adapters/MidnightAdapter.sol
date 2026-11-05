@@ -46,9 +46,9 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetBuyRate, maxNetSellRate, maxShortfall and minForceSellPrice help the curator set guardrails for allocators.
+/// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and maxShortfall, and are bounded by minForceSellPrice instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
@@ -130,7 +130,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint64 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint256 public maxShortfall;
+    uint256 public shortfallAllowance;
 
     /* CONSTRUCTOR */
 
@@ -286,10 +286,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
-    function setMaxShortfall(uint256 newMaxShortfall) external {
+    function setShortfallAllowance(uint256 newShortfallAllowance) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxShortfall = newMaxShortfall;
-        emit SetMaxShortfall(newMaxShortfall);
+        shortfallAllowance = newShortfallAllowance;
+        emit SetShortfallAllowance(newShortfallAllowance);
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
@@ -584,8 +584,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                require(shortfall <= maxShortfall, MaxShortfallExceeded());
-                maxShortfall -= shortfall;
+                require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
+                shortfallAllowance -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);

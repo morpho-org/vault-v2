@@ -6,7 +6,7 @@ methods {
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
-    function maxShortfall() external returns (uint256) envfree;
+    function shortfallAllowance() external returns (uint256) envfree;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
@@ -68,12 +68,12 @@ rule saleRevertsIfNetRateTooHigh(env e, bytes32 marketId, MidnightAdapter.Market
     assert lastReverted;
 }
 
-// Check that a sale in a market that is not forceSellable reverts if its shortfall exceeds maxShortfall.
-rule saleRevertsIfShortfallAboveMax(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
+// Check that a sale in a market that is not forceSellable reverts if its shortfall exceeds shortfallAllowance.
+rule saleRevertsIfShortfallAboveAllowance(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
-    require (sellerAssets + maxShortfall()) * (WAD() + currentContract.marketData[marketId].netRate * ttm) < soldNetCredit * WAD(), "assume the shortfall exceeds maxShortfall";
+    require (sellerAssets + shortfallAllowance()) * (WAD() + currentContract.marketData[marketId].netRate * ttm) < soldNetCredit * WAD(), "assume the shortfall exceeds shortfallAllowance";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
