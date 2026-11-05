@@ -3,6 +3,18 @@
 
 import "../helpers/MulDiv.spec";
 
+methods {
+    function newton(uint256, uint256) external returns (uint256) envfree;
+}
+
+// Check one Newton precision doubling independently of the XOR seed and other iterations.
+rule newtonLift(uint256 d, uint256 inv, uint256 m) {
+    require m > 1 && m <= 2 ^ 128 && B() % (m * m) == 0, "The squared precision divides the word modulus";
+    require (d * inv) % m == 1, "The previous iteration is an inverse at precision m";
+    uint256 next = newton(d, inv);
+    assert (d * next) % (m * m) == 1;
+}
+
 // Check the exact revert condition of the unsummarized OpenZeppelin implementation.
 rule mulDivReverts(uint256 x, uint256 y, uint256 d) {
     mulDiv@withrevert(x, y, d);
