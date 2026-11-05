@@ -3,6 +3,28 @@
 
 import "../helpers/MulDiv.spec";
 
+persistent ghost mathint originalD;
+
+persistent ghost mathint quotient;
+
+persistent ghost mathint oddPart;
+
+function euclideanDivision(mathint n, mathint d) {
+    assert n >= 0 && d > 0 => n - n % d == d * (n / d);
+}
+
+function divideProduct(mathint a, mathint b, mathint t) {
+    assert a >= 0 && b >= 0 && t > 0 && a % t == 0 => (a * b) / t == (a / t) * b;
+}
+
+function shiftArithmetic(uint256 hi, uint256 lo, uint256 t, uint256 flipped) {
+    require wordShiftPre(t, flipped) => lo / t + (hi * flipped) % B() == ((hi * B() + lo) / t) % B(), "axiom: division of two limbs by a word-modulus divisor; MulDivArithmetic.lean: MulDiv.word_shift_arithmetic";
+}
+
+function cancelModularInverse(mathint d, mathint q, mathint inv, mathint m) {
+    require d >= 0 && q >= 0 && inv >= 0 && m > 1 && (d * inv) % m == 1 => (((d * q) % m) * inv) % m == q % m, "axiom: modular inverse cancellation; MulDivArithmetic.lean: MulDiv.cancel_modular_inverse";
+}
+
 methods {
     function MulDivHarness._product(uint256 x, uint256 y) internal returns (uint256, uint256) => productSummary(x, y);
     function MulDivHarness._subtract(uint256 hi, uint256 lo, uint256 r) internal returns (uint256, uint256) => subtractSummary(hi, lo, r);
@@ -32,6 +54,7 @@ function twosSummary(uint256 d) returns (uint256, uint256, uint256) {
     uint256 t;
     uint256 flipped;
     require d > 0 => wordTwosPost(d, odd, t, flipped), "MulDivSummaryBits.twosWord";
+    oddPart = odd;
     return (odd, t, flipped);
 }
 
@@ -39,6 +62,11 @@ function shiftSummary(uint256 hi, uint256 lo, uint256 t, uint256 flipped) return
     uint256 result;
     uint256 high = finalProduct(hi, flipped);
     require wordShiftPre(t, flipped) => result == lo / t + high, "MulDivSummaryBits.shiftWord";
+    shiftArithmetic(hi, lo, t, flipped);
+    divideProduct(originalD, quotient, t);
+    assert hi * B() + lo == originalD * quotient;
+    assert result == ((hi * B() + lo) / t) % B();
+    assert result == (oddPart * quotient) % B();
     return result;
 }
 
@@ -52,6 +80,7 @@ function seedSummary(uint256 d) returns uint256 {
 function finalSummary(uint256 lo, uint256 inv) returns uint256 {
     uint256 result;
     require result == (lo * inv) % B(), "MulDivSummary.finalProductCorrect";
+    cancelModularInverse(oddPart, quotient, inv, B());
     return result;
 }
 
@@ -68,12 +97,18 @@ function newtonSummary(uint256 d, uint256 inv) returns uint256 {
 
 // Check the split implementation's exact revert condition using the separately checked block lemmas.
 rule stepsReverts(uint256 x, uint256 y, uint256 d) {
+    originalD = d;
+    quotient = d == 0 ? 0 : x * y / d;
+    euclideanDivision(x * y, d);
     mulDivSteps@withrevert(x, y, d);
     assert lastReverted <=> d == 0 || x * y / d >= B();
 }
 
 // Check tail_correct: the summarized blocks compose to the exact bounded floor quotient.
 rule stepsValue(uint256 x, uint256 y, uint256 d) {
+    originalD = d;
+    quotient = d == 0 ? 0 : x * y / d;
+    euclideanDivision(x * y, d);
     uint256 result = mulDivSteps@withrevert(x, y, d);
     assert !lastReverted => d != 0 && result == x * y / d;
 }

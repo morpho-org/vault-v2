@@ -3,11 +3,20 @@
 
 import "../helpers/MulDiv.spec";
 
+function modularPolynomial(mathint a, mathint b, mathint c, mathint m) {
+    require m > 0 => (a * (b - c)) % m == ((a % m) * ((b - (c % m)) % m)) % m, "axiom: modular ring normalization; MulDivArithmetic.lean: MulDiv.modular_polynomial";
+}
+
+function divisibleProducts(mathint a, mathint b, mathint m) {
+    require m > 0 && a % m == 0 && b % m == 0 => (a * b) % (m * m) == 0, "axiom: products of multiples; MulDivArithmetic.lean: MulDiv.divisible_products";
+}
+
 // Check Newton precision doubling from 4 to 8 bits with explicit error and wrap witnesses.
 rule newton4(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 4) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
+    modularPolynomial(inv, 2, d * inv, B());
     assert (expression - next) % B() == 0;
     mathint wrap = (expression - next) / B();
     assert expression == next + wrap * B();
@@ -22,6 +31,7 @@ rule newton8(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 8) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
+    modularPolynomial(inv, 2, d * inv, B());
     assert (expression - next) % B() == 0;
     mathint wrap = (expression - next) / B();
     assert expression == next + wrap * B();
@@ -36,6 +46,7 @@ rule newton16(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 16) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
+    modularPolynomial(inv, 2, d * inv, B());
     assert (expression - next) % B() == 0;
     mathint wrap = (expression - next) / B();
     assert expression == next + wrap * B();
@@ -50,6 +61,7 @@ rule newton32(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 32) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
+    modularPolynomial(inv, 2, d * inv, B());
     assert (expression - next) % B() == 0;
     mathint wrap = (expression - next) / B();
     assert expression == next + wrap * B();
@@ -64,6 +76,7 @@ rule newton64(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 64) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
+    modularPolynomial(inv, 2, d * inv, B());
     assert (expression - next) % B() == 0;
     mathint wrap = (expression - next) / B();
     assert expression == next + wrap * B();
@@ -73,18 +86,20 @@ rule newton64(uint256 d, uint256 inv) {
     assert (d * next) % (2 ^ 128) == 1;
 }
 
-// Check Newton precision doubling from 128 to 256 bits with explicit error and wrap witnesses.
+// Check Newton precision doubling from 128 to 256 bits by squaring the divisible error.
 rule newton128(uint256 d, uint256 inv) {
     require d % 2 == 1 && (d * inv) % (2 ^ 128) == 1, "The preceding iteration supplies the current inverse precision";
     uint256 next = newton(d, inv);
     mathint expression = inv * (2 - d * inv);
-    assert (expression - next) % B() == 0;
-    mathint wrap = (expression - next) / B();
-    assert expression == next + wrap * B();
-    mathint error = (d * inv - 1) / (2 ^ 128);
-    assert d * inv == 1 + (2 ^ 128) * error;
-    assert d * expression == 1 - (2 ^ 256) * error * error;
-    assert (d * next) % (2 ^ 256) == 1;
+    modularPolynomial(inv, 2, d * inv, B());
+    assert next == expression % B();
+    mathint error = d * inv - 1;
+    assert error % (2 ^ 128) == 0;
+    divisibleProducts(error, error, 2 ^ 128);
+    assert d * expression == 1 - error * error;
+    assert (d * expression) % B() == 1;
+    modularPolynomial(d, expression, 0, B());
+    assert (d * next) % B() == 1;
 }
 
 // Check that the split implementation has the same revert and return behavior without summaries.
