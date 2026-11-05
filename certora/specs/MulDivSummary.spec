@@ -3,6 +3,90 @@
 
 import "../helpers/MulDiv.spec";
 
+// Check Newton precision doubling from 4 to 8 bits with explicit error and wrap witnesses.
+rule newton4(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 4) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 4);
+    assert d * inv == 1 + (2 ^ 4) * error;
+    assert d * expression == 1 - (2 ^ 8) * error * error;
+    assert (d * next) % (2 ^ 8) == 1;
+}
+
+// Check Newton precision doubling from 8 to 16 bits with explicit error and wrap witnesses.
+rule newton8(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 8) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 8);
+    assert d * inv == 1 + (2 ^ 8) * error;
+    assert d * expression == 1 - (2 ^ 16) * error * error;
+    assert (d * next) % (2 ^ 16) == 1;
+}
+
+// Check Newton precision doubling from 16 to 32 bits with explicit error and wrap witnesses.
+rule newton16(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 16) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 16);
+    assert d * inv == 1 + (2 ^ 16) * error;
+    assert d * expression == 1 - (2 ^ 32) * error * error;
+    assert (d * next) % (2 ^ 32) == 1;
+}
+
+// Check Newton precision doubling from 32 to 64 bits with explicit error and wrap witnesses.
+rule newton32(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 32) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 32);
+    assert d * inv == 1 + (2 ^ 32) * error;
+    assert d * expression == 1 - (2 ^ 64) * error * error;
+    assert (d * next) % (2 ^ 64) == 1;
+}
+
+// Check Newton precision doubling from 64 to 128 bits with explicit error and wrap witnesses.
+rule newton64(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 64) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 64);
+    assert d * inv == 1 + (2 ^ 64) * error;
+    assert d * expression == 1 - (2 ^ 128) * error * error;
+    assert (d * next) % (2 ^ 128) == 1;
+}
+
+// Check Newton precision doubling from 128 to 256 bits with explicit error and wrap witnesses.
+rule newton128(uint256 d, uint256 inv) {
+    require d % 2 == 1 && (d * inv) % (2 ^ 128) == 1, "The preceding iteration supplies the current inverse precision";
+    uint256 next = newton(d, inv);
+    mathint expression = inv * (2 - d * inv);
+    assert (expression - next) % B() == 0;
+    mathint wrap = (expression - next) / B();
+    assert expression == next + wrap * B();
+    mathint error = (d * inv - 1) / (2 ^ 128);
+    assert d * inv == 1 + (2 ^ 128) * error;
+    assert d * expression == 1 - (2 ^ 256) * error * error;
+    assert (d * next) % (2 ^ 256) == 1;
+}
+
 // Check that the split implementation has the same revert and return behavior without summaries.
 rule stepsEquivalent(uint256 x, uint256 y, uint256 d) {
     uint256 actual = mulDiv@withrevert(x, y, d);

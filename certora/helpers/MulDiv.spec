@@ -10,6 +10,9 @@ methods {
     function shift(uint256, uint256, uint256, uint256) external returns (uint256) envfree;
     function inverse(uint256) external returns (uint256) envfree;
     function finalProduct(uint256, uint256) external returns (uint256) envfree;
+    function seed(uint256) external returns (uint256) envfree;
+    function seedProduct(uint256, uint256) external returns (uint256) envfree;
+    function newton(uint256, uint256) external returns (uint256) envfree;
 }
 
 definition B() returns mathint = 2 ^ 256;

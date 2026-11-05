@@ -55,6 +55,18 @@ contract MulDivHarness {
         return _final(prod0, inverse_);
     }
 
+    function seed(uint256 denominator) external pure returns (uint256) {
+        return _seed(denominator);
+    }
+
+    function seedProduct(uint256 denominator, uint256 inverse_) external pure returns (uint256) {
+        return mulmod(denominator, inverse_, 16);
+    }
+
+    function newton(uint256 denominator, uint256 inverse_) external pure returns (uint256) {
+        return _newton(denominator, inverse_);
+    }
+
     function _product(uint256 x, uint256 y) internal pure returns (uint256 prod1, uint256 prod0) {
         unchecked {
             prod0 = x * y;
@@ -96,15 +108,25 @@ contract MulDivHarness {
     }
 
     function _inverse(uint256 denominator) internal pure returns (uint256 inverse_) {
+        uint256 inverse = _seed(denominator);
+        inverse = _newton(denominator, inverse);
+        inverse = _newton(denominator, inverse);
+        inverse = _newton(denominator, inverse);
+        inverse = _newton(denominator, inverse);
+        inverse = _newton(denominator, inverse);
+        inverse = _newton(denominator, inverse);
+        return inverse;
+    }
+
+    function _seed(uint256 denominator) internal pure returns (uint256) {
         unchecked {
-            uint256 inverse = (3 * denominator) ^ 2;
-            inverse *= 2 - denominator * inverse;
-            inverse *= 2 - denominator * inverse;
-            inverse *= 2 - denominator * inverse;
-            inverse *= 2 - denominator * inverse;
-            inverse *= 2 - denominator * inverse;
-            inverse *= 2 - denominator * inverse;
-            return inverse;
+            return (3 * denominator) ^ 2;
+        }
+    }
+
+    function _newton(uint256 denominator, uint256 inverse_) internal pure returns (uint256) {
+        unchecked {
+            return inverse_ * (2 - denominator * inverse_);
         }
     }
 

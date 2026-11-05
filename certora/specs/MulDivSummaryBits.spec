@@ -13,11 +13,11 @@ rule twosWord(uint256 d) {
     assert wordTwosPost(d, odd, t, flipped);
 }
 
-// Check that all six Newton updates produce a word inverse for every odd denominator.
-rule inverseWord(uint256 d) {
-    require d % 2 == 1, "The inverse is used only for odd denominators";
-    uint256 inv = inverse(d);
-    uint256 residue = finalProduct(d, inv);
+// Check the XOR seed at four-bit precision using exact bitwise operations.
+rule seedWord(uint256 d) {
+    require d % 2 == 1, "The inverse seed is used only for odd denominators";
+    uint256 inv = seed(d);
+    uint256 residue = seedProduct(d, inv);
     assert residue == 1;
 }
 
