@@ -73,7 +73,9 @@ rule saleRevertsIfShortfallAboveMax(env e, bytes32 marketId, MidnightAdapter.Mar
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
-    require (sellerAssets + to_mathint(maxShortfall())) * (WAD() + currentContract.marketData[marketId].netRate * ttm) < soldNetCredit * WAD(), "assume the shortfall exceeds maxShortfall";
+    mathint denominator = WAD() + currentContract.marketData[marketId].netRate * ttm;
+    mathint amortizedValue = (soldNetCredit * WAD() + denominator - 1) / denominator;
+    require amortizedValue - sellerAssets > maxShortfall(), "assume the shortfall exceeds maxShortfall";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
