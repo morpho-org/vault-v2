@@ -603,10 +603,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     );
                     netCredits[i] = netCredit;
                     amortizedValues[i] = amortizedValue;
-                    // Cannot underflow: amortizedValue <= netCredit. Cannot overflow: at most MAX_MARKETS uint128 additions.
-                    unchecked {
-                        totalInterest += netCredit - amortizedValue;
-                    }
+                    totalInterest += netCredit - amortizedValue;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
                 for (uint256 i; i < length; i++) {
