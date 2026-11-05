@@ -13,7 +13,7 @@ methods {
 // Check that OR on disjoint words is their wrapped sum.
 rule disjointOr(uint256 a, uint256 b) {
     require bitAnd(a, b) == 0, "The lemma is restricted to disjoint bit supports";
-    assert bitOr(a, b) == to_uint256(a + b);
+    assert bitOr(a, b) == a + b;
 }
 
 // Check that a power-of-two-aligned high word does not overlap a bounded low word.
