@@ -4839,19 +4839,16 @@ contract MidnightAdapterTest is Test {
             tolerance += credit * ttm / WAD + 3;
         }
         uint256 assetsBefore = adapter.realAssets();
-        uint256 remaining = shortfall;
         uint256[] memory expectedRates = new uint256[](offers.length);
         for (uint256 i; i < offers.length; i++) {
             uint256 interest = values[i][0] - values[i][1];
-            uint256 share = MathLib.min(remaining, shortfall.mulDivUp(interest, totalInterest));
+            uint256 share = shortfall.mulDivUp(interest, totalInterest);
             uint256 newValue = values[i][1] + share;
             expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
-            assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), offers.length, "proportional share");
-            remaining -= share;
+            assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), 1, "proportional share");
             vm.expectEmit(address(adapter));
             emit IMidnightAdapterBase.ReduceRate(_marketId(offers[i].market), expectedRates[i]);
         }
-        assertEq(remaining, 0, "shares exactly exhaust shortfall");
         sellUnits(offers[0].market, sold, tick);
         for (uint256 i; i < offers.length; i++) {
             assertEq(adapter.marketData(_marketId(offers[i].market)).netRate, expectedRates[i], "proportional rate");
@@ -4881,11 +4878,11 @@ contract MidnightAdapterTest is Test {
             remainingAmortizedValueA + loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateA =
             (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
-        uint256 remainingLoss = loss - loss.mulDivUp(capacityA, capacityA + capacityB);
-        uint256 newRateB = (uint256(dataB.netCredit) - (amortizedValueB + remainingLoss))
-        .mulDivDown(WAD, (amortizedValueB + remainingLoss) * ttmB);
+        uint256 reductionB = loss.mulDivUp(capacityB, capacityA + capacityB);
+        uint256 newRateB = (uint256(dataB.netCredit) - (amortizedValueB + reductionB))
+        .mulDivDown(WAD, (amortizedValueB + reductionB) * ttmB);
         assertGt(loss, capacityA, "market A cannot absorb the full shortfall");
-        assertLt(remainingLoss, capacityB, "market B absorbs the rest");
+        assertLt(reductionB, capacityB, "market B absorbs the rest");
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ReduceRate(marketIdA, newRateA);
@@ -4929,14 +4926,18 @@ contract MidnightAdapterTest is Test {
             remainingAmortizedValueA + loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateA =
             (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
-        uint256 remainingLoss = loss - loss.mulDivUp(capacityA, capacityA + capacityB);
+        uint256 reductionB = loss.mulDivUp(capacityB, capacityA + capacityB);
         uint256 newRateB =
-            (netCreditB - (amortizedValueB + remainingLoss)).mulDivDown(WAD, (amortizedValueB + remainingLoss) * ttmB);
+            (netCreditB - (amortizedValueB + reductionB)).mulDivDown(WAD, (amortizedValueB + reductionB) * ttmB);
         uint256 staleAmortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
-        uint256 staleRateB = (uint256(dataB.netCredit) - (staleAmortizedValueB + remainingLoss))
-        .mulDivDown(WAD, (staleAmortizedValueB + remainingLoss) * ttmB);
+        uint256 staleReductionB = loss.mulDivUp(
+            uint256(dataB.netCredit).zeroFloorSub(staleAmortizedValueB),
+            capacityA + uint256(dataB.netCredit).zeroFloorSub(staleAmortizedValueB)
+        );
+        uint256 staleRateB = (uint256(dataB.netCredit) - (staleAmortizedValueB + staleReductionB))
+        .mulDivDown(WAD, (staleAmortizedValueB + staleReductionB) * ttmB);
         assertGt(loss, capacityA, "market A cannot absorb the full shortfall");
-        assertLt(remainingLoss, capacityB, "market B absorbs the rest");
+        assertLt(reductionB, capacityB, "market B absorbs the rest");
         assertNotEq(newRateB, staleRateB, "post-loss net credit changes the rate");
 
         vm.expectEmit(address(adapter));
