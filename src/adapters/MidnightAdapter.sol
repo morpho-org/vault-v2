@@ -102,6 +102,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyBoughtNetCredit;
+    uint72 public transient inProgressBuyNetRate;
 
     /* TIMELOCKS STORAGE */
 
@@ -500,36 +501,37 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
+            uint72 oldNetRate = _marketData.netRate;
+            bool isNewMarket = newNetCredit > 0 && oldNetCredit == 0;
             _marketData.netCredit = newNetCredit;
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
-
-            if (newNetCredit > 0 && oldNetCredit == 0) {
+            if (newNetCredit > 0) {
+                uint256 amortizedValue =
+                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + oldNetRate * ttm) + buyerAssets;
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+            }
+            if (isNewMarket) {
                 require(marketIds.length < MAX_MARKETS, TooManyMarkets());
                 _marketData.maturity = market.maturity.toUint40();
                 // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
                 _marketData.index = uint8(marketIds.length);
                 marketIds.push(id);
-                // List the market before the gate calls. The stored net credit is already non-zero.
-                if (market.enterGate != address(0) && enterGateFactory != address(0)) {
-                    require(
-                        IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
-                        IncorrectEnterGate()
-                    );
-                }
             } else if (newNetCredit == 0 && oldNetCredit > 0) {
                 removeMarket(id);
+            }
+            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit, inProgressBuyNetRate) =
+            (id, boughtNetCredit, oldNetRate);
+
+            if (isNewMarket && market.enterGate != address(0) && enterGateFactory != address(0)) {
+                require(
+                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                        && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
+                    IncorrectEnterGate()
+                );
             }
 
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
-
-            if (newNetCredit > 0) {
-                uint256 amortizedValue =
-                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + _marketData.netRate * ttm) + buyerAssets;
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
-            }
+            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit, inProgressBuyNetRate) = (bytes32(0), 0, 0);
 
             (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
             if (fundingAdapter == address(this)) {
@@ -714,6 +716,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
                 netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
+                netRate = inProgressBuyNetRate;
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
             } else {
