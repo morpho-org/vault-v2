@@ -55,45 +55,6 @@ contract MulDivHarness {
         return _final(prod0, inverse_);
     }
 
-    function seedResidue(uint256 denominator) external pure returns (uint256) {
-        unchecked {
-            return mulmod(denominator, (3 * denominator) ^ 2, 16);
-        }
-    }
-
-    function bitAnd(uint256 a, uint256 b) external pure returns (uint256) {
-        return a & b;
-    }
-
-    function bitOr(uint256 a, uint256 b) external pure returns (uint256) {
-        return a | b;
-    }
-
-    function inverseResidue(uint256 denominator) external pure returns (uint256) {
-        unchecked {
-            return denominator * _inverse(denominator);
-        }
-    }
-
-    function newton(uint256 denominator, uint256 inverse_) external pure returns (uint256) {
-        unchecked {
-            return inverse_ * (2 - denominator * inverse_);
-        }
-    }
-
-    function twosWordPost(uint256 denominator) external pure returns (bool) {
-        (uint256 odd, uint256 t, uint256 flipped) = _twos(denominator);
-        if (t == 0) return false;
-        return t <= denominator && denominator % t == 0 && odd == denominator / t && odd % 2 == 1 && (t & (t - 1)) == 0
-            && type(uint256).max % t == t - 1 && flipped == (t == 1 ? 0 : type(uint256).max / t + 1);
-    }
-
-    function shiftWordPost(uint256 hi, uint256 lo, uint256 t, uint256 flipped) external pure returns (bool) {
-        unchecked {
-            return _shift(hi, lo, t, flipped) == lo / t + hi * flipped;
-        }
-    }
-
     function _product(uint256 x, uint256 y) internal pure returns (uint256 prod1, uint256 prod0) {
         unchecked {
             prod0 = x * y;

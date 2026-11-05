@@ -31,8 +31,8 @@ Global invariants and the accounting effects of each entry point.
 Share-price movement, rounding, previews, and equivalent entry points.
 
 - [`MulDivSummary.spec`](specs/MulDivSummary.spec) checks that the `Math.mulDiv` summary used in the Morpho Vault V1 adapter specs is sound: OpenZeppelin's `Math.mulDiv` reverts exactly when the denominator is zero or the exact quotient overflows, and otherwise returns the floor of `x * y / denominator`.
-  It also checks each arithmetic block of the 512-bit division separately, and [`MulDivSummarySteps.spec`](specs/MulDivSummarySteps.spec) composes these block lemmas.
-  [`MulDivSummaryBits.spec`](specs/MulDivSummaryBits.spec) isolates word-only seed, inverse, twos, and shift checks with exact bitwise encoding; it does not supply assumptions to the composition.
+  The proof is assembled from the unsummarized `stepsEquivalent` rule and the `stepsReverts` and `stepsValue` rules in [`MulDivSummarySteps.spec`](specs/MulDivSummarySteps.spec), which compose the separately checked block lemmas. All supporting lemmas must pass before the composed result establishes summary soundness.
+  [`MulDivSummaryBits.spec`](specs/MulDivSummaryBits.spec) checks the twos, inverse, and shift summaries with exact bitwise encoding and word-sized predicates. Each retained block rule is cited by its corresponding composition summary.
 - [`ExchangeRate.spec`](specs/ExchangeRate.spec) checks that the seeded vault's share price does not decrease when the management fee is zero and interest has already been accrued.
   It separately shows that realizing a loss does not increase the share price and that `deposit`, `mint`, `withdraw`, and `redeem` use the tight protocol-favoring rounding direction.
 - [`PreviewFunctions.spec`](specs/PreviewFunctions.spec) checks that `previewDeposit`, `previewMint`, `previewWithdraw`, and `previewRedeem` return exactly the value produced by the corresponding successful ERC-4626 operation.

@@ -14,6 +14,6 @@ methods {
 
 definition B() returns mathint = 2 ^ 256;
 
-definition twosPost(uint256 d, uint256 odd, uint256 t, uint256 flipped) returns bool = t > 0 && t <= d && d % t == 0 && B() % t == 0 && odd == d / t && odd % 2 == 1 && flipped == (B() / t) % B();
+definition wordShiftPre(uint256 t, uint256 flipped) returns bool = t > 0 && max_uint256 % t == t - 1 && flipped == (t == 1 ? 0 : max_uint256 / t + 1);
 
-definition shiftPre(uint256 t, uint256 flipped) returns bool = t > 0 && B() % t == 0 && flipped == (B() / t) % B();
+definition wordTwosPost(uint256 d, uint256 odd, uint256 t, uint256 flipped) returns bool = wordShiftPre(t, flipped) && t <= d && d % t == 0 && odd == d / t && odd % 2 == 1;

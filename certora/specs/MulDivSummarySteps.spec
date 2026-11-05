@@ -30,19 +30,21 @@ function twosSummary(uint256 d) returns (uint256, uint256, uint256) {
     uint256 odd;
     uint256 t;
     uint256 flipped;
-    require d > 0 => twosPost(d, odd, t, flipped), "MulDivSummary.twosAndFlip";
+    require d > 0 => wordTwosPost(d, odd, t, flipped), "MulDivSummaryBits.twosWord";
     return (odd, t, flipped);
 }
 
 function shiftSummary(uint256 hi, uint256 lo, uint256 t, uint256 flipped) returns uint256 {
     uint256 result;
-    require shiftPre(t, flipped) => result == ((hi * B() + lo) / t) % B(), "MulDivSummary.shiftCombine";
+    uint256 high = finalProduct(hi, flipped);
+    require wordShiftPre(t, flipped) => result == lo / t + high, "MulDivSummaryBits.shiftWord";
     return result;
 }
 
 function inverseSummary(uint256 d) returns uint256 {
     uint256 inv;
-    require d % 2 == 1 => (d * inv) % B() == 1, "MulDivSummary.inverseCorrect";
+    uint256 residue = finalProduct(d, inv);
+    require d % 2 == 1 => residue == 1, "MulDivSummaryBits.inverseWord";
     return inv;
 }
 
