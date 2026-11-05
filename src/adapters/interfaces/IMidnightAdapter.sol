@@ -61,6 +61,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error AutomaticallyTimelocked();
     error DataAlreadyPending();
     error DataNotTimelocked();
+    error DataTooLong();
     error DurationAbsoluteCapExceeded();
     error DurationRelativeCapExceeded();
     error DurationZeroAbsoluteCap();
@@ -106,6 +107,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
+    function MAX_SUBMIT_DATA_LENGTH() external view returns (uint256);
     function midnight() external view returns (address);
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);

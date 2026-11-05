@@ -69,6 +69,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
+/// @dev Unlike in VaultV2, submitted data cannot be longer than MAX_SUBMIT_DATA_LENGTH, so that revoking it is always cheap.
 ///
 /// MISC
 /// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each other, as the buyer's onBuy accrues interest on the vault mid-sale.
@@ -83,6 +84,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
+    /// @dev Length of the longest unpadded timelocked call (increaseTimelock and decreaseTimelock).
+    uint256 public constant MAX_SUBMIT_DATA_LENGTH = 68;
 
     /* IMMUTABLES */
 
@@ -172,6 +175,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(data.length <= MAX_SUBMIT_DATA_LENGTH, DataTooLong());
         require(executableAt[data] == 0, DataAlreadyPending());
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.

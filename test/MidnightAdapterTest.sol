@@ -346,6 +346,25 @@ contract MidnightAdapterTest is Test {
         adapter.submit(data);
     }
 
+    function testSubmitDataTooLong(bytes memory padding) public {
+        vm.assume(padding.length > 0);
+        bytes memory data =
+            bytes.concat(abi.encodeCall(IMidnightAdapterBase.increaseTimelock, (bytes4(0), 1 days)), padding);
+
+        vm.prank(curator);
+        vm.expectRevert(IMidnightAdapterBase.DataTooLong.selector);
+        adapter.submit(data);
+    }
+
+    function testSubmitMaxDataLength() public {
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseTimelock, (bytes4(0), 1 days));
+        assertEq(data.length, adapter.MAX_SUBMIT_DATA_LENGTH(), "length");
+
+        vm.prank(curator);
+        adapter.submit(data);
+        assertEq(adapter.executableAt(data), block.timestamp, "executableAt");
+    }
+
     function testRevoke(address caller) public {
         address sentinel = makeAddr("timelockSentinel");
         stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
