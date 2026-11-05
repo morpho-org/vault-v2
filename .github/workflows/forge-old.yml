@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
-      - name: Install Foundry v1.8.3 and solc
+      - name: Install Foundry (old)
         shell: python
         run: |
           import hashlib, io, pathlib, sys, tarfile, urllib.request
