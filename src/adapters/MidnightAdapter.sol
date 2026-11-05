@@ -129,7 +129,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
-    /// @dev Rounding down the reduced rates can destroy slightly more interest than the consumed shortfall, so this is a guardrail, not a strict bound.
+    /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed, so this is a guardrail, not a strict bound.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint256 public shortfallAllowance;
 
