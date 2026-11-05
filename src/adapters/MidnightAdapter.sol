@@ -46,9 +46,9 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 ///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetBuyRate, maxNetSellRate, noSalesWithShortfall and minForceSellPrice help the curator set guardrails for allocators.
+/// @dev minNetBuyRate, maxNetSellRate, maxShortfall and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and noSalesWithShortfall, and are bounded by minForceSellPrice instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and maxShortfall, and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
@@ -128,8 +128,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
+    /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    bool public noSalesWithShortfall;
+    uint96 public maxShortfall;
 
     /* CONSTRUCTOR */
 
@@ -285,10 +286,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
-    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external {
+    function setMaxShortfall(uint256 newMaxShortfall) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        noSalesWithShortfall = newNoSalesWithShortfall;
-        emit SetNoSalesWithShortfall(newNoSalesWithShortfall);
+        maxShortfall = newMaxShortfall.toUint96();
+        emit SetMaxShortfall(newMaxShortfall);
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
@@ -583,7 +584,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             uint256 shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
-                require(!noSalesWithShortfall, SalesWithShortfallDisabled());
+                require(shortfall <= maxShortfall, MaxShortfallExceeded());
+                // forge-lint: disable-next-item(unsafe-typecast) safe because shortfall <= maxShortfall.
+                maxShortfall -= uint96(shortfall);
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
