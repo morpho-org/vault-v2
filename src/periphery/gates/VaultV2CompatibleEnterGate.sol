@@ -3,7 +3,6 @@
 pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
-import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
@@ -12,7 +11,6 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
 
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
-    address public immutable factory;
     address public immutable subGate;
 
     mapping(address adapterFactory => bool) public canAdmit;
@@ -20,7 +18,6 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address transient admitted;
 
     constructor(address _subGate) {
-        factory = msg.sender;
         subGate = _subGate;
     }
 
@@ -38,9 +35,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
     function admit(address user, address adapterFactory) external {
         require(
-            canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender)
-                && IMidnightAdapter(msg.sender).enterGateFactory() == factory,
-            Unauthorized()
+            canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
         );
 
         admitted = user;
