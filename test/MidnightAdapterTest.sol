@@ -358,7 +358,7 @@ contract MidnightAdapterTest is Test {
 
     function testSubmitMaxDataLength() public {
         bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseTimelock, (bytes4(0), 1 days));
-        assertEq(data.length, adapter.MAX_SUBMIT_DATA_LENGTH(), "length");
+        assertEq(data.length, 68, "length");
 
         vm.prank(curator);
         adapter.submit(data);

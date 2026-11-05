@@ -84,8 +84,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
-    /// @dev Length of the longest unpadded timelocked call (increaseTimelock and decreaseTimelock).
-    uint256 public constant MAX_SUBMIT_DATA_LENGTH = 68;
 
     /* IMMUTABLES */
 
@@ -175,7 +173,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(data.length <= MAX_SUBMIT_DATA_LENGTH, DataTooLong());
+        // 68 bytes = 4-byte selector + two 32-byte arguments for increaseTimelock/decreaseTimelock.
+        require(data.length <= 68, DataTooLong());
         require(executableAt[data] == 0, DataAlreadyPending());
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
