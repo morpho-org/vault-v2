@@ -18,27 +18,37 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
-      - name: Install Foundry (old)
+      - name: Install Foundry v1.8.3 and solc
+        shell: python
         run: |
-          curl -fsSL -o foundry.tar.gz https://github.com/foundry-rs/foundry/releases/download/v1.8.3/foundry_v1.8.3_linux_amd64.tar.gz
-          echo "7ca48e6ca3cac1bce1403ca67e5bc1dc3bc1fd818199c9957c7165079c228568  foundry.tar.gz" | sha256sum -c -
-          mkdir "$RUNNER_TEMP/foundry"
-          tar -xzf foundry.tar.gz -C "$RUNNER_TEMP/foundry"
-          echo "$RUNNER_TEMP/foundry" >> "$GITHUB_PATH"
-      - name: Install solc into svm cache
-        run: |
-          echo "0.8.19 7a5c1d3dc9a8eba62bb2ec37192c9178ae5fe8a54a56e5573fd3c9c17cd9eb48
-          0.8.21 f2857a898be15c69e8de5598dcd3f3e169e94964a0ce9a0bbb1b111f145a81df
-          0.8.26 d5f23436f443edb85d8e76906d12f0a86ce0490e7663a9e608efeb7a93f149ef
-          0.8.28 9a0fb7e0db2c0641dbae1c5cc645dc686820c83af516226abb1c0a2f76636f25
-          0.8.34 d40adc6f9fdbb22a97d32a02fa05688bf2ee7886affc48c9851b0afd4a726b39
-          0.8.37 5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a" |
-          while read -r version sha256; do
-            solc="$HOME/.svm/$version/solc-$version"
-            mkdir -p "${solc%/*}"
-            curl -fsSL -o "$solc" "https://github.com/ethereum/solidity/releases/download/v$version/solc-static-linux"
-            echo "$sha256  $solc" | sha256sum -c -
-            chmod +x "$solc"
-          done
+          import hashlib, io, pathlib, sys, tarfile, urllib.request
+
+          FOUNDRY_URL = "https://github.com/foundry-rs/foundry/releases/download/v1.8.3/foundry_v1.8.3_linux_amd64.tar.gz"
+          FOUNDRY_SHA256 = "7ca48e6ca3cac1bce1403ca67e5bc1dc3bc1fd818199c9957c7165079c228568"
+
+          SOLC_SHA256 = {
+              "0.8.19": "7a5c1d3dc9a8eba62bb2ec37192c9178ae5fe8a54a56e5573fd3c9c17cd9eb48",
+              "0.8.21": "f2857a898be15c69e8de5598dcd3f3e169e94964a0ce9a0bbb1b111f145a81df",
+              "0.8.26": "d5f23436f443edb85d8e76906d12f0a86ce0490e7663a9e608efeb7a93f149ef",
+              "0.8.28": "9a0fb7e0db2c0641dbae1c5cc645dc686820c83af516226abb1c0a2f76636f25",
+              "0.8.34": "d40adc6f9fdbb22a97d32a02fa05688bf2ee7886affc48c9851b0afd4a726b39",
+              "0.8.37": "5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a",
+          }
+
+          data = urllib.request.urlopen(FOUNDRY_URL).read()
+          if hashlib.sha256(data).hexdigest() != FOUNDRY_SHA256:
+              sys.exit(FOUNDRY_URL)
+          with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+              tar.extractall(pathlib.Path.home() / "foundry-old", filter="data")
+
+          for version, sha256 in SOLC_SHA256.items():
+              url = f"https://github.com/ethereum/solidity/releases/download/v{version}/solc-static-linux"
+              data = urllib.request.urlopen(url).read()
+              if hashlib.sha256(data).hexdigest() != sha256:
+                  sys.exit(url)
+              solc = pathlib.Path.home() / ".svm" / version / f"solc-{version}"
+              solc.parent.mkdir(parents=True)
+              solc.write_bytes(data)
+              solc.chmod(0o755)
       - name: Run Forge tests
-        run: forge test --offline
+        run: ~/foundry-old/forge test --offline
