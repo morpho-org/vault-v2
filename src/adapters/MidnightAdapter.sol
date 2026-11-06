@@ -37,7 +37,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
 /// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
 /// @dev ForceSellable sales do not reduce rates; they realize shortfalls as instant losses.
-/// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net credit is stale.
+/// @dev A sale with a shortfall reverts while another market with a loss has a sale in progress, as in realAssets.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -595,13 +595,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 for (uint256 i; i < length; i++) {
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    require(
-                        otherMarketId == id || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this)),
-                        OtherSellInProgress()
-                    );
-                    uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
-                        ? otherMarketData.netCredit
-                        : currentNetCredit(otherMarketId);
+                    uint256 netCredit;
+                    if (IMidnight(midnight).lossFactor(otherMarketId) == 0) {
+                        netCredit = otherMarketData.netCredit;
+                    } else {
+                        require(
+                            otherMarketId == id || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this)),
+                            OtherSellInProgress()
+                        );
+                        netCredit = currentNetCredit(otherMarketId);
+                    }
                     uint256 amortizedValue = netCredit.mulDivUp(
                         WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
                     );
