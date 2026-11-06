@@ -100,9 +100,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-    /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
+    /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
-    uint256 public transient inProgressBuyBoughtNetCredit;
+    uint256 public transient inProgressBuyNetCredit;
     uint72 public transient inProgressBuyNetRate;
 
     /* TIMELOCKS STORAGE */
@@ -501,8 +501,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             } else if (newNetCredit == 0 && oldNetCredit > 0) {
                 removeMarket(id);
             }
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit, inProgressBuyNetRate) =
-            (id, boughtNetCredit, oldNetRate);
+            (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
+            (id, newNetCredit - boughtNetCredit, oldNetRate);
 
             if (isNewMarket && market.enterGate != address(0) && enterGateFactory != address(0)) {
                 require(
@@ -514,7 +514,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit, inProgressBuyNetRate) = (bytes32(0), 0, 0);
+            (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) = (bytes32(0), 0, 0);
 
             (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
             if (fundingAdapter == address(this)) {
@@ -719,7 +719,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint40 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
-                netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
+                netCredit = inProgressBuyNetCredit;
                 netRate = inProgressBuyNetRate;
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
