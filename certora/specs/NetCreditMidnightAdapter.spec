@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
-// The adapter's net credit (credit minus pending fee) in each Midnight market.
-persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
-    init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
-}
-
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
     function MAX_MARKETS() external returns (uint256) envfree;
 
-    // Same summaries as in MarketIdsMidnightAdapter.spec, where they are explained. The vault's accrueInterest and the token transfers are not summarized, so the strong invariants are checked at these calls.
+    // Same summaries as in MarketIdsMidnightAdapter.spec, where they are explained.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
     function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => HAVOC_ALL;
+}
+
+// The adapter's net credit (credit minus pending fee) in each Midnight market.
+persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
+    init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
 function arbitraryIds() returns bytes32[] {
