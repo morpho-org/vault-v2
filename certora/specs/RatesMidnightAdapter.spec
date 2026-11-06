@@ -11,7 +11,7 @@ methods {
 
 definition WAD() returns mathint = 10 ^ 18;
 
-definition mulDivUp(mathint x, mathint y, mathint d) returns mathint = (x * y + (d - 1)) / d;
+definition mulDivDown(mathint x, mathint y, mathint d) returns mathint = (x * y) / d;
 
 // Check that a buy reverts in a forceSellable market.
 rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
@@ -75,7 +75,7 @@ rule saleRevertsIfShortfallAboveAllowance(env e, bytes32 marketId, MidnightAdapt
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
-    require mulDivUp(soldNetCredit, WAD(), WAD() + currentContract.marketData[marketId].netRate * ttm) - sellerAssets > shortfallAllowance(), "assume the shortfall exceeds shortfallAllowance";
+    require mulDivDown(soldNetCredit, WAD(), WAD() + currentContract.marketData[marketId].netRate * ttm) - sellerAssets > shortfallAllowance(), "assume the shortfall exceeds shortfallAllowance";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
