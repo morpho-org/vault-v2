@@ -129,7 +129,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
-    /// @dev Total shortfall of sales that markets can absorb.
+    /// @dev Total shortfall of sales that markets can absorb. Each sale with a shortfall consumes it.
     /// @dev A sale's absorbed shortfall is the increase of the markets' amortized values, which can exceed the sale's shortfall by rounding.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint256 public shortfallAllowance;
