@@ -10,8 +10,8 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
-    uint64 netRate;
-    uint48 maturity;
+    uint72 netRate;
+    uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling.
@@ -31,7 +31,9 @@ struct MaturityData {
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
-    event Constructor(address indexed parentVault, address indexed midnight, uint256[] durations);
+    event Constructor(
+        address indexed parentVault, address indexed midnight, uint256[] durations, address enterGateFactory
+    );
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Accept(bytes4 indexed selector, bytes data);
@@ -47,13 +49,14 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
-    event UnsetForceSellable(bytes32 indexed marketId);
+    event UnsetForceSellable(address indexed sender, bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
+    event Take(address indexed sender);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event Buy(
-        bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
+        bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
         bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
@@ -76,6 +79,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
+    error IncorrectEnterGate();
     error IncorrectMaker();
     error IncorrectReceiver();
     error InvalidLength();
@@ -103,14 +107,16 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
-    function maturities(uint256) external view returns (uint48);
+    function maturities(uint256) external view returns (uint40);
     function maturitiesLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
     function midnight() external view returns (address);
+    function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint32);
@@ -144,7 +150,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
@@ -159,8 +164,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint64 netRate,
-            uint48 maturity,
+            uint72 netRate,
+            uint40 maturity,
             uint8 index,
             bool forceSellable,
             uint256 minForceSellPrice
