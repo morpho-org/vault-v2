@@ -603,7 +603,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
-                    uint256 amortizedValue = netCredit.mulDivUp(
+                    uint256 amortizedValue = netCredit.mulDivDown(
                         WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
                     );
                     netCredits[i] = netCredit;
@@ -611,19 +611,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     totalInterest += netCredit - amortizedValue;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
+                uint256 remainingShortfall = shortfall;
                 for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
                     uint256 amortizedValue = amortizedValues[i];
                     if (netCredit == amortizedValue) continue;
-                    uint256 newAmortizedValue =
-                        amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
+                    uint256 newAmortizedValue = amortizedValue
+                        + MathLib.min(remainingShortfall, shortfall.mulDivUp(netCredit - amortizedValue, totalInterest));
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    uint72 newRate = (netCredit - newAmortizedValue)
-                        .mulDivDown(WAD, newAmortizedValue * otherMarketData.maturity.zeroFloorSub(block.timestamp))
-                        .toUint72();
+                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                    uint72 newRate =
+                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
+                    remainingShortfall = remainingShortfall.zeroFloorSub(
+                        netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue
+                    );
+                    if (remainingShortfall == 0) break;
                 }
             }
         }

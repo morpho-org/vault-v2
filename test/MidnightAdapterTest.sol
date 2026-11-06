@@ -906,7 +906,7 @@ contract MidnightAdapterTest is Test {
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
             uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
+            uint256 newAmortizedValue = (100e18 - units).mulDivDown(1e18, 1e18 + rate * 30 days)
                 + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
             if (newAmortizedValue <= 100e18 - units) low = mid;
             else high = mid;
@@ -2755,7 +2755,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, liveNetCredit + units);
     }
 
-    function testTakeRoundingShortfallRevertsWhenRemainingInterestRoundsAway() public {
+    function testTakeRoundingShortfallUsesRoundedDownRemainingInterest() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
@@ -2763,12 +2763,11 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
-        assertEq(adapter.realAssets(), 9);
-        assertEq(loanToken.balanceOf(address(parentVault)), 1);
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 5);
+        assertEq(adapter.marketData(_marketId(offer.market)).netRate, 0);
+        assertEq(adapter.realAssets(), 5);
     }
 
     function testTakeSaleRoundsValueUp() public {
@@ -4844,6 +4843,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 1_000e18);
         skip(1 days);
         uint256[3][] memory values = new uint256[3][](offers.length);
+        uint256[] memory oldRates = new uint256[](offers.length);
         uint256 totalInterest;
         uint256 sold = uint256(adapter.marketData(_marketId(offers[0].market)).netCredit) * soldPercent / 100;
         uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
@@ -4859,19 +4859,24 @@ contract MidnightAdapterTest is Test {
                 shortfall = sold.mulDivUp(WAD, WAD + data.netRate * ttm) - proceeds;
                 credit -= sold;
             }
-            uint256 value = credit.mulDivUp(WAD, WAD + data.netRate * ttm);
+            uint256 value = credit.mulDivDown(WAD, WAD + data.netRate * ttm);
             values[i] = [credit, value, ttm];
+            oldRates[i] = data.netRate;
             totalInterest += credit - value;
             tolerance += credit * ttm / WAD + 3;
         }
         uint256 assetsBefore = adapter.realAssets();
-        uint256[] memory expectedRates = new uint256[](offers.length);
-        for (uint256 i; i < offers.length; i++) {
+        uint256[] memory expectedRates = oldRates;
+        uint256 remainingShortfall = shortfall;
+        for (uint256 i; i < offers.length && remainingShortfall > 0; i++) {
             uint256 interest = values[i][0] - values[i][1];
             uint256 share = shortfall.mulDivUp(interest, totalInterest);
-            uint256 newValue = values[i][1] + share;
-            expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
             assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), 1, "proportional share");
+            uint256 newValue = values[i][1] + MathLib.min(remainingShortfall, share);
+            expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
+            remainingShortfall = remainingShortfall.zeroFloorSub(
+                values[i][0].mulDivDown(WAD, WAD + expectedRates[i] * values[i][2]) - values[i][1]
+            );
             vm.expectEmit(address(adapter));
             emit IMidnightAdapterBase.ReduceRate(_marketId(offers[i].market), expectedRates[i]);
         }
