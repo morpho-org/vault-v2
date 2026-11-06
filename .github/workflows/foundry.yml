@@ -57,9 +57,20 @@ jobs:
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
+        token-type: [0]
+        include:
+          - { token-type: 0, token: standard }
+          - { decimals: 18, isolate: true, token-type: 1, token: no-revert }
+          - { decimals: 18, isolate: true, token-type: 2, token: usdt }
+          - { decimals: 18, isolate: true, token-type: 3, token: revert-to-zero }
+          - { decimals: 18, isolate: true, token-type: 4, token: no-return }
+          - { decimals: 18, isolate: false, token-type: 1, token: no-revert }
+          - { decimals: 18, isolate: false, token-type: 2, token: usdt }
+          - { decimals: 18, isolate: false, token-type: 3, token: revert-to-zero }
+          - { decimals: 18, isolate: false, token-type: 4, token: no-return }
 
     runs-on: ubuntu-latest
-    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }})"
+    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, ${{ matrix.token }} token)"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -72,3 +83,4 @@ jobs:
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
         env:
           DECIMALS: ${{ matrix.decimals }}
+          TOKEN_TYPE: ${{ matrix.token-type }}

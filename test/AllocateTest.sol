@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -19,7 +19,7 @@ contract AllocateTest is BaseTest {
         adapter = address(new AdapterMock(address(vault)));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter)));
@@ -122,7 +122,7 @@ contract AllocateTest is BaseTest {
         allocation = bound(allocation, 1, type(uint128).max / 2 / vault.virtualShares());
         deal(address(underlyingToken), allocator, type(uint256).max);
         vm.prank(allocator);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         vault.deposit(allocation, address(this));
 

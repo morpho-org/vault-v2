@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -41,7 +41,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
 
         // Donate
         morpho.supply(
@@ -86,7 +86,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
-        underlyingToken.approve(address(morpho), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(morpho), type(uint256).max);
 
         // Donate
         morpho.supply(

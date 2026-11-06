@@ -1,19 +1,28 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 interface IMidnightAdapterFactory {
     /* EVENTS */
 
-    event CreateMidnightAdapterFactory(address indexed midnight, uint256[] durations);
-    event CreateMidnightAdapter(address indexed parentVault, address indexed midnightAdapter);
+    event CreateMidnightAdapterFactory(address indexed midnight);
+    event CreateMidnightAdapter(
+        address indexed caller,
+        address indexed parentVault,
+        uint256[] durations,
+        bytes32 preSalt,
+        address indexed midnightAdapter,
+        address enterGateFactory
+    );
 
     /* FUNCTIONS */
 
     function midnight() external view returns (address);
-    function durations(uint256 index) external view returns (uint256);
-    function durationsLength() external view returns (uint256);
-    function midnightAdapter(address parentVault) external view returns (address);
-    function isMidnightAdapter(address account) external view returns (bool);
-    function createMidnightAdapter(address parentVault) external returns (address);
+    function isCreated(address account) external view returns (bool);
+    function createMidnightAdapter(
+        address parentVault,
+        uint256[] memory durations,
+        address enterGateFactory,
+        bytes32 preSalt
+    ) external returns (address);
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -25,7 +25,7 @@ contract RealizeLossTest is BaseTest {
         vault.addAdapter(address(adapter));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        SafeERC20Lib.safeApprove(address(underlyingToken), address(vault), type(uint256).max);
 
         increaseAbsoluteCap(expectedIdData[0], type(uint128).max);
         increaseAbsoluteCap(expectedIdData[1], type(uint128).max);

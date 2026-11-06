@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
 // inspired by https://github.com/a16z/erc4626-tests/blob/ac485460e014f22807c1ff687e0b4dc3af96ee40/ERC4626.test.sol#L251-L317

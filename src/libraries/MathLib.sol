@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -48,6 +48,13 @@ library MathLib {
         require(x <= type(uint64).max, ErrorsLib.CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint64).max.
         return uint64(x);
+    }
+
+    /// @dev Casts from uint256 to uint72, reverting if input number is too large.
+    function toUint72(uint256 x) internal pure returns (uint72) {
+        require(x <= type(uint72).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint72).max.
+        return uint72(x);
     }
 
     /// @dev Casts from uint256 to uint128, reverting if input number is too large.

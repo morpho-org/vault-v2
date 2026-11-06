@@ -1,3 +1,5 @@
 *.spec linguist-language=Solidity
 *.conf linguist-detectable
 *.conf linguist-language=JSON5
+test/** linguist-generated
+test/integration/MidnightAdapterIntegrationTest.sol -linguist-generated

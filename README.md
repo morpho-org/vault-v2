@@ -35,8 +35,8 @@ Relative caps only constrain allocations, so they can be exceeded because of wit
 The allocator is responsible for ensuring that users can withdraw their assets at any time.
 This is done by managing the available idle liquidity and an optional liquidity adapter.
 
-Additionally, users can make use of the `forceDeallocate` function to withdraw from the vault if there are liquid markets, assuming that they are willing to pay the corresponding penalty.
-Indeed, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
+Additionally, depositors can make use of the `forceDeallocate` function to withdraw from the vault if there are liquid markets, assuming that they are willing to pay the corresponding penalty.
+Indeed, the `forceDeallocate` function allows to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
 
 When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
@@ -57,6 +57,7 @@ Also, a configuration can be _abdicated_, meaning that it won't be able to be se
 In-kind redemption is a mechanism that reduces the position of the user in the vault and increases their position in an underlying market.
 Exits through in-kind redemptions allow to exit the vault with the underlying position at any time, even when no underlying markets are liquid.
 Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
+With the Midnight adapter, the user instead buys the adapter's credit through `forceDeallocate`, at face value plus Midnight's settlement fee, then withdraws from the vault and repays the flashloan.
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
@@ -121,10 +122,13 @@ Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](h
 Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
 Peripheral contracts are available in [src/periphery](./src/periphery/).
 
+Formal verification of Vault V2 is done with the [Certora Prover](https://www.certora.com/prover).
+See the [Certora README](./certora/README.md) for the full list of verified properties and the modeling assumptions they rely on.
+
 ## Audits
 
 All audits are stored in the [audits](./audits/)' folder.
 
 ## License
 
-Files in this repository are publicly available under license `GPL-2.0-or-later`, see [`LICENSE`](./LICENSE).
+`src/VaultV2.sol` and `src/VaultV2Factory.sol` are under `GPL-2.0-or-later` (see [`LICENSE`](./LICENSE)); all other files are under `MIT` (see [`LICENSE-MIT`](./LICENSE-MIT)).

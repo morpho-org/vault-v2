@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
@@ -104,7 +104,9 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assets = bound(assets, initialInIdle + 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.TransferReverted.selector);
+        vm.expectRevert(
+            underlyingTokenType == 1 ? ErrorsLib.TransferReturnedFalse.selector : ErrorsLib.TransferReverted.selector
+        );
         vault.allocate(address(adapter), abi.encode(marketParams1), assets);
     }
 
