@@ -587,7 +587,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
                 shortfallAllowance -= shortfall;
-                emit ConsumeShortfallAllowance(id, shortfall);
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);

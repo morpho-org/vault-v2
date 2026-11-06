@@ -802,8 +802,6 @@ contract MidnightAdapterTest is Test {
 
         if (shortfall > 0) {
             vm.expectEmit(address(adapter));
-            emit IMidnightAdapterBase.ConsumeShortfallAllowance(marketId, shortfall);
-            vm.expectEmit(address(adapter));
             emit IMidnightAdapterBase.ReduceRate(marketId, newRate);
         }
         vm.expectEmit(address(adapter));
