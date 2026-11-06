@@ -26,7 +26,9 @@ struct MarketData {
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
-    event Constructor(address indexed parentVault, address indexed midnight, uint256[] durations);
+    event Constructor(
+        address indexed parentVault, address indexed midnight, uint256[] durations, address enterGateFactory
+    );
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Accept(bytes4 indexed selector, bytes data);
@@ -115,7 +117,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function minNetBuyRate() external view returns (uint64);
     function noSalesWithShortfall() external view returns (bool);
     function inProgressBuyMarketId() external view returns (bytes32);
-    function inProgressBuyBoughtNetCredit() external view returns (uint256);
+    function inProgressBuyNetCredit() external view returns (uint256);
+    function inProgressBuyNetRate() external view returns (uint72);
     function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -141,7 +144,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
