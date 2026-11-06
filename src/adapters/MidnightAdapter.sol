@@ -35,7 +35,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
+/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across markets by decreasing their rates, stopping once the shortfall is covered, so the adapter's amortized value decreases only by the received assets.
 /// @dev ForceSellable sales do not reduce rates; they realize shortfalls as instant losses.
 /// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net credit is stale.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
