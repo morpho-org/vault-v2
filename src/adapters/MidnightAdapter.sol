@@ -485,14 +485,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
             uint72 oldNetRate = _marketData.netRate;
-            bool isNewMarket = newNetCredit > 0 && oldNetCredit == 0;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
                     (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + oldNetRate * ttm) + buyerAssets;
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
-            if (isNewMarket) {
+            if (newNetCredit > 0 && oldNetCredit == 0) {
                 require(marketIds.length < MAX_MARKETS, TooManyMarkets());
                 _marketData.maturity = market.maturity.toUint40();
                 // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
@@ -504,10 +503,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
 
-            if (isNewMarket && market.enterGate != address(0) && enterGateFactory != address(0)) {
+            if (newNetCredit > 0 && oldNetCredit == 0) {
                 require(
-                    IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                        && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
+                    market.enterGate == address(0) || enterGateFactory == address(0)
+                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
                     IncorrectEnterGate()
                 );
             }
