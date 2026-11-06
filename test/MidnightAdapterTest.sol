@@ -4877,24 +4877,35 @@ contract MidnightAdapterTest is Test {
         }
         uint256 assetsBefore = adapter.realAssets();
         uint256[] memory expectedRates = new uint256[](offers.length);
+        uint256 remainingInterest = totalInterest;
+        uint256 increase;
         for (uint256 i; i < offers.length; i++) {
             uint256 interest = values[i][0] - values[i][1];
-            uint256 share = shortfall.mulDivUp(interest, totalInterest);
+            uint256 share = (shortfall - increase).mulDivUp(interest, remainingInterest);
+            remainingInterest -= interest;
             uint256 newValue = values[i][1] + share;
             expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
-            assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), 1, "proportional share");
+            uint256 absorbed = values[i][0].mulDivDown(WAD, WAD + expectedRates[i] * values[i][2]) - values[i][1];
+            assertGe(absorbed, share, "the market absorbs at least its share");
+            assertApproxEqAbs(absorbed, shortfall.mulDivDown(interest, totalInterest), tolerance, "proportional share");
+            increase += absorbed;
             vm.expectEmit(address(adapter));
             emit IMidnightAdapterBase.ReduceRate(_marketId(offers[i].market), expectedRates[i]);
+            if (increase >= shortfall) break;
         }
         uint256 allowanceBefore = adapter.shortfallAllowance();
         sellUnits(offers[0].market, sold, tick);
-        uint256 increase;
         for (uint256 i; i < offers.length; i++) {
             assertEq(adapter.marketData(_marketId(offers[i].market)).netRate, expectedRates[i], "proportional rate");
-            increase += values[i][0].mulDivDown(WAD, WAD + expectedRates[i] * values[i][2]) - values[i][1];
         }
         assertApproxEqAbs(adapter.realAssets(), assetsBefore - proceeds, tolerance, "only proceeds leave realAssets");
         assertGe(increase, shortfall, "allowance consumption covers the shortfall");
+        uint256 last = offers.length - 1;
+        assertLe(
+            increase,
+            shortfall + values[last][0] * values[last][2] / WAD + 1,
+            "excess bounded by the last rate rounding"
+        );
         assertEq(
             allowanceBefore - adapter.shortfallAllowance(), increase, "allowance consumed by the realAssets increase"
         );
