@@ -5049,7 +5049,7 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    function testNestedShortfallSaleWithSaleInProgress() public {
+    function testNestedShortfallSaleRevertsWithSaleInProgress() public {
         Offer memory outer = buy(30 days, 100e18, MAX_TICK / 2);
         Offer memory inner = buy(60 days, 100e18, MAX_TICK / 2);
         Offer memory absorber = buy(90 days, 100e18, MAX_TICK / 2);
@@ -5061,35 +5061,6 @@ contract MidnightAdapterTest is Test {
         uint256 outerRate = adapter.marketData(_marketId(outer.market)).netRate;
         uint256 absorberRate = adapter.marketData(_marketId(absorber.market)).netRate;
         uint256 outerSold = assertNestedSaleCapacity(outer.market, inner.market, absorber.market);
-
-        SaleCallback callback = new SaleCallback(address(midnight), address(loanToken), address(parentVault));
-        deal(address(loanToken), address(callback), 1_000e18);
-        pushNestedSell(callback, inner.market, bytes4(0));
-
-        callbackSale(makeSellOffer(outer.market, outerSold, MAX_TICK), callback);
-
-        assertLt(adapter.marketData(_marketId(outer.market)).netRate, outerRate, "outer market absorbs");
-        assertEq(adapter.marketData(_marketId(inner.market)).netCredit, 0, "nested sale completes");
-        assertLt(adapter.marketData(_marketId(absorber.market)).netRate, absorberRate, "third market absorbs");
-    }
-
-    function testNestedShortfallSaleRevertsWithSaleInProgressAfterLoss() public {
-        Offer memory outer = buy(30 days, 100e18, MAX_TICK / 2);
-        Offer memory inner = buy(60 days, 100e18, MAX_TICK / 2);
-        Offer memory absorber = buy(90 days, 100e18, MAX_TICK / 2);
-        skip(1 days);
-        withdrawToVault(outer.market, 0);
-        withdrawToVault(inner.market, 0);
-        withdrawToVault(absorber.market, 0);
-
-        uint256 outerRate = adapter.marketData(_marketId(outer.market)).netRate;
-        uint256 absorberRate = adapter.marketData(_marketId(absorber.market)).netRate;
-        uint256 outerSold = assertNestedSaleCapacity(outer.market, inner.market, absorber.market);
-        stdstore.enable_packed_slots()
-            .target(address(midnight))
-            .sig("lossFactor(bytes32)")
-            .with_key(_marketId(outer.market))
-            .checked_write(uint256(1));
 
         SaleCallback callback = new SaleCallback(address(midnight), address(loanToken), address(parentVault));
         deal(address(loanToken), address(callback), 1_000e18);
