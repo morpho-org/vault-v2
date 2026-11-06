@@ -38,7 +38,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 /// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
 /// @dev ForceSellable sales do not reduce rates; they realize shortfalls as instant losses.
 /// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net credit is stale.
-/// @dev A sale with a shortfall consumes shortfallAllowance by the shortfall the markets absorb, which can exceed the sale's shortfall by rounding.
+/// @dev A sale with a shortfall consumes shortfallAllowance by the shortfall the markets absorb.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
@@ -130,7 +130,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
     /// @dev Total shortfall of sales that markets can absorb.
-    /// @dev A sale's absorbed shortfall is the increase of the markets' amortized values, which exceeds the sale's shortfall by rounding.
+    /// @dev A sale's absorbed shortfall is the increase of the markets' amortized values, which can exceed the sale's shortfall by rounding.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint256 public shortfallAllowance;
 
