@@ -611,7 +611,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
                 uint256 remainingInterest = totalInterest;
-                for (uint256 i; i < length && absorbedShortfall < shortfall; i++) {
+                for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
                     uint256 amortizedValue = amortizedValues[i];
                     if (netCredit == amortizedValue) continue;
@@ -626,6 +626,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     absorbedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
                     emit ReduceRate(otherMarketId, newRate);
+                    if (absorbedShortfall >= shortfall) break;
                 }
                 require(absorbedShortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
                 shortfallAllowance -= absorbedShortfall;
