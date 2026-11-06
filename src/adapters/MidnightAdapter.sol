@@ -500,6 +500,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             } else if (newNetCredit == 0 && oldNetCredit > 0) {
                 removeMarket(id);
             }
+
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
 
