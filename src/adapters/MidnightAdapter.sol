@@ -720,8 +720,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint40 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
-                netCredit = inProgressBuyNetCredit;
-                netRate = inProgressBuyNetRate;
+                (netCredit, netRate) = (inProgressBuyNetCredit, inProgressBuyNetRate);
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
             } else {
