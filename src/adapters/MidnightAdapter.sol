@@ -586,10 +586,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            uint256 discount = WAD + _marketData.netRate * ttm;
-            uint256 soldAmortizedValue = (newNetCredit + soldNetCredit).mulDivDown(WAD, discount)
-                - uint256(newNetCredit).mulDivDown(WAD, discount);
-            shortfall = soldAmortizedValue.zeroFloorSub(sellerAssets);
+            shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
                 shortfallAllowance -= shortfall;
@@ -620,13 +617,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = netCredits[i];
                     uint256 amortizedValue = amortizedValues[i];
                     if (netCredit == amortizedValue) continue;
-                    uint256 newAmortizedValue = amortizedValue
-                        + MathLib.min(shortfall.mulDivUp(netCredit - amortizedValue, totalInterest), remainingShortfall);
+                    uint256 targetAmortizedValue = amortizedValue
+                        + MathLib.min(remainingShortfall, shortfall.mulDivUp(netCredit - amortizedValue, totalInterest));
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint72 newRate =
-                        (netCredit - newAmortizedValue).mulDivDown(WAD, newAmortizedValue * otherTtm).toUint72();
+                        (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * otherTtm).toUint72();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     remainingShortfall = remainingShortfall.zeroFloorSub(
