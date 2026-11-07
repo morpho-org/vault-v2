@@ -102,9 +102,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true so forceDeallocate unadmits in the buy callback.
     bool public transient inForceDeallocate;
-    /// @dev Purchase excluded from realAssets during onBuy callback, before allocate.
+    /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
-    uint256 public transient inProgressBuyBoughtNetCredit;
+    uint256 public transient inProgressBuyNetCredit;
+    uint72 public transient inProgressBuyNetRate;
 
     /* TIMELOCKS STORAGE */
 
@@ -129,7 +130,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint64 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
-    /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed, so this is a guardrail, not a strict bound.
+    /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint256 public shortfallAllowance;
 
@@ -176,6 +177,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        // 68 bytes = 4-byte selector + two 32-byte arguments for increaseTimelock/decreaseTimelock.
+        require(data.length <= 68, DataTooLong());
         require(executableAt[data] == 0, DataAlreadyPending());
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
@@ -488,37 +491,39 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
+            uint72 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (id, boughtNetCredit);
-
+            if (newNetCredit > 0) {
+                uint256 amortizedValue =
+                    (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
+                // Can revert if amortized bought credit rounds to zero and the buy cost 0 assets.
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+            }
             if (newNetCredit > 0 && oldNetCredit == 0) {
                 require(marketIds.length < MAX_MARKETS, TooManyMarkets());
                 _marketData.maturity = market.maturity.toUint40();
                 // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
                 _marketData.index = uint8(marketIds.length);
                 marketIds.push(id);
-                // List the market before the gate calls. The stored net credit is already non-zero.
-                if (market.enterGate != address(0) && enterGateFactory != address(0)) {
-                    require(
-                        IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory),
-                        IncorrectEnterGate()
-                    );
-                }
             } else if (newNetCredit == 0 && oldNetCredit > 0) {
                 removeMarket(id);
             }
 
+            (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
+            (id, newNetCredit - boughtNetCredit, oldNetRate);
+
+            if (newNetCredit > 0 && oldNetCredit == 0) {
+                require(
+                    market.enterGate == address(0) || enterGateFactory == address(0)
+                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                    IncorrectEnterGate()
+                );
+            }
+
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
-            (inProgressBuyMarketId, inProgressBuyBoughtNetCredit) = (bytes32(0), 0);
-
-            if (newNetCredit > 0) {
-                uint256 amortizedValue =
-                    (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + _marketData.netRate * ttm) + buyerAssets;
-                // Can revert if amortized bought credit rounds to zero and the buy cost 0 assets.
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
-            }
+            (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) = (bytes32(0), 0, 0);
 
             (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
             if (fundingAdapter == address(this)) {
@@ -754,16 +759,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
-            uint72 netRate = _marketData.netRate;
+            uint72 netRate;
             uint40 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
-                netCredit = storedNetCredit - inProgressBuyBoughtNetCredit;
+                (netCredit, netRate) = (inProgressBuyNetCredit, inProgressBuyNetRate);
             } else if (IMidnight(midnight).lossFactor(marketId) == 0) {
                 netCredit = storedNetCredit;
+                netRate = _marketData.netRate;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
+                netRate = _marketData.netRate;
             }
             // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint72 * uint40) are << 2^256.
             // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow either.
