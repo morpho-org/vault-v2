@@ -14,7 +14,7 @@ struct MarketData {
     uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling.
+    /// @dev When activated, netRate isn't reduced on losses due to selling this market.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
@@ -40,7 +40,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetMinNetBuyRate(uint256 newMinNetBuyRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
-    event SetNoSalesWithShortfall(bool newNoSalesWithShortfall);
+    event SetShortfallAllowance(uint256 newShortfallAllowance);
     event SetMaxNetSellRate(uint256 newMaxNetSellRate);
     event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
@@ -54,8 +54,13 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
-        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 newNetRate
+        bytes32 indexed marketId,
+        uint256 sellerAssets,
+        uint256 soldNetCredit,
+        uint256 newNetCredit,
+        uint256 shortfallAllowanceDecrease
     );
+    event ReduceRate(bytes32 indexed marketId, uint256 newRate);
 
     /* ERRORS */
 
@@ -87,7 +92,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NonEmptyCallbackData();
     error OtherSellInProgress();
     error NetBuyRateTooLow();
-    error SalesWithShortfallDisabled();
+    error ShortfallAllowanceExceeded();
     error ShortfallTooHigh();
     error SelfAllocationOnly();
     error SellInProgress();
@@ -115,7 +120,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
-    function noSalesWithShortfall() external view returns (bool);
+    function shortfallAllowance() external view returns (uint256);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
     function inProgressBuyNetRate() external view returns (uint72);
@@ -132,7 +137,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
-    function setNoSalesWithShortfall(bool newNoSalesWithShortfall) external;
+    function setShortfallAllowance(uint256 newShortfallAllowance) external;
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
