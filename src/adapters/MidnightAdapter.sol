@@ -496,7 +496,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
                     (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
-                // Can revert if amortized bought credit rounds to zero and the buy cost 0 assets.
+                // Can revert if pre-buy amortized credit and buyerAssets are both 0.
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
             if (newNetCredit > 0 && oldNetCredit == 0) {
