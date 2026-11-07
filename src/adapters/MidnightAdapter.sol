@@ -35,7 +35,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across markets by decreasing their rates, stopping once the shortfall is covered, so the adapter's amortized value decreases only by the received assets.
+/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
 /// @dev ForceSellable sales do not reduce rates; they realize shortfalls as instant losses.
 /// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net credit is stale.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
@@ -612,24 +612,19 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     totalInterest += netCredit - amortizedValue;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
-                uint256 remainingShortfall = shortfall;
                 for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
                     uint256 amortizedValue = amortizedValues[i];
                     if (netCredit == amortizedValue) continue;
-                    uint256 targetAmortizedValue = amortizedValue
-                        + MathLib.min(remainingShortfall, shortfall.mulDivUp(netCredit - amortizedValue, totalInterest));
+                    uint256 targetAmortizedValue =
+                        amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
-                    uint72 newRate =
-                        (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * otherTtm).toUint72();
+                    uint72 newRate = (netCredit - targetAmortizedValue)
+                        .mulDivDown(WAD, targetAmortizedValue * otherMarketData.maturity.zeroFloorSub(block.timestamp))
+                        .toUint72();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
-                    remainingShortfall = remainingShortfall.zeroFloorSub(
-                        netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue
-                    );
-                    if (remainingShortfall == 0) break;
                 }
             }
         }
