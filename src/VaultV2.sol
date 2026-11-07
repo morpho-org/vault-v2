@@ -106,6 +106,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and decreaseTimelock for the same selector).
+/// @dev Due to calldata costs, submissions with large padding that need to be revoked may require deploying a dedicated revoker contract with the sentinel role.
 ///
 /// ABDICATION
 /// @dev When a timelocked function is abdicated, it can't be called anymore.
