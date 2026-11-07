@@ -705,6 +705,61 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).minForceSellPrice, newMinForceSellPrice, "min price unchanged");
     }
 
+    function testForceRemoveNotAuthorized(address caller) public {
+        vm.assume(caller != curator);
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.forceRemove(offer.market);
+    }
+
+    function testForceRemoveRequiresForceSellable() public {
+        Offer memory offer = buy(7 days, 1e18);
+        vm.expectRevert(IMidnightAdapterBase.NotForceSellable.selector);
+        vm.prank(curator);
+        adapter.forceRemove(offer.market);
+    }
+
+    function testForceRemove() public {
+        Offer memory first = buy(1 days, 1e18);
+        Offer memory second = buy(7 days, 2e18);
+        bytes32 marketId = _marketId(first.market);
+        uint128 creditBefore = midnight.credit(marketId, address(adapter));
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 allocationBefore = parentVault.allocation(adapter.adapterId());
+        setForceSellable(marketId);
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ForceRemove(marketId, 1e18);
+        vm.prank(curator);
+        adapter.forceRemove(first.market);
+
+        MarketData memory data = adapter.marketData(marketId);
+        assertEq(data.netCredit, 0, "written off");
+        assertEq(data.netRate, 0, "rate reset");
+        assertEq(data.maturity, 0, "maturity reset");
+        assertTrue(data.forceSellable, "force sellable preserved");
+        assertEq(adapter.marketIdsLength(), 1, "one market remains");
+        assertEq(adapter.marketIds(0), _marketId(second.market), "remaining market");
+        assertEq(adapter.marketData(_marketId(second.market)).index, 0, "remaining market index");
+        assertEq(midnight.credit(marketId, address(adapter)), creditBefore, "Midnight credit unchanged");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
+        assertEq(parentVault.allocation(adapter.adapterId()), allocationBefore - 1e18, "allocation written off");
+
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        withdrawToVault(first.market, 0);
+    }
+
+    function testForceRemoveLastMarket() public {
+        Offer memory offer = buy(7 days, 1e18);
+        setForceSellable(_marketId(offer.market));
+        vm.prank(curator);
+        adapter.forceRemove(offer.market);
+        assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
+        assertEq(adapter.realAssets(), 0, "written off");
+        assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
+    }
+
     function testForceSellablePreventsBuys(bool takerBuy) public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(offer.market);
@@ -3690,9 +3745,8 @@ contract MidnightAdapterTest is Test {
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
 
-        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
-        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 1);
         midnight.touchMarket(otherMarket);
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
@@ -3729,6 +3783,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
@@ -3759,7 +3814,7 @@ contract MidnightAdapterTest is Test {
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.addAdapter, (address(hookedAdapter))));
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(hookedAdapter), true)));
         submitAndCall(hookedVault, abi.encodeCall(IVaultV2.setIsAllocator, (signerAllocator, true)));
-        Market memory gatedMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
+        Market memory gatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
         gatedMarket.loanToken = address(hookedToken);
         gatedMarket.enterGate = wrapper;
         bytes[] memory idDatas = new bytes[](4);
@@ -3775,26 +3830,13 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
 
-        // The ungated market provides the shared adapter and collateral-token allocations.
-        Market memory ungatedMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
-        ungatedMarket.loanToken = address(hookedToken);
-        increaseFamilyCap(hookedVault, ungatedMarket);
-        Offer memory ungatedSellOffer = makeExternalOffer(ungatedMarket, false, 1e18, MAX_TICK);
-        vm.prank(signerAllocator);
-        hookedAdapter.take(ungatedSellOffer, "", ungatedSellOffer.maxUnits, abi.encode(address(0), hex""));
-        assertGt(midnight.credit(_marketId(ungatedMarket), address(hookedAdapter)), 0);
-
-        // A sibling market provides an allocation for the gated family's id without credit in gatedMarket.
-        Market memory gatedAllocationMarket = makeBuyOffer(12 hours, 1e18, MAX_TICK).market;
-        gatedAllocationMarket.loanToken = address(hookedToken);
-        gatedAllocationMarket.enterGate = wrapper;
+        // The attack needs the adapter to manage to get whitelisted: only then can it hold credit in the gated market, and only force deallocations of held markets reach the funding transfer.
         gate.setIsWhitelisted(true, address(hookedAdapter), true);
-        Offer memory gatedSellOffer = makeExternalOffer(gatedAllocationMarket, false, 1e18, MAX_TICK);
+        Offer memory gatedSellOffer = makeExternalOffer(gatedMarket, false, 1e18, MAX_TICK);
         vm.prank(signerAllocator);
         hookedAdapter.take(gatedSellOffer, "", gatedSellOffer.maxUnits, abi.encode(address(0), hex""));
-        assertGt(midnight.credit(_marketId(gatedAllocationMarket), address(hookedAdapter)), 0);
-
-        midnight.touchMarket(gatedMarket);
+        uint256 heldCredit = midnight.credit(_marketId(gatedMarket), address(hookedAdapter));
+        assertGt(heldCredit, 0);
         address buyer = makeForceDeallocateBuyer(hookedAdapter);
         hookedVault.deposit(1e18, buyer);
 
@@ -3814,7 +3856,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(hookedToken.attackAttempted());
         assertEq(hookedToken.attackRevert(), IMidnight.BuyerGatedFromIncreasingCredit.selector);
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0);
-        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), 0);
+        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), heldCredit);
     }
 
     function testEnterGateFactoryDisabled(bool adapterIsMaker) public {
