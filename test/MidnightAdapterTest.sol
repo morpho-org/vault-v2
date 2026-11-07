@@ -817,8 +817,7 @@ contract MidnightAdapterTest is Test {
         sold = bound(sold, 1, maxSold);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         uint256 discount = 1e18 + rate * ttm;
-        uint256 shortfall = (uint256(100e18).mulDivDown(1e18, discount) - (100e18 - sold).mulDivDown(1e18, discount))
-        .zeroFloorSub(proceeds);
+        uint256 shortfall = sold.mulDivUp(1e18, discount).zeroFloorSub(proceeds);
         uint256 newAmortizedValue = (100e18 - sold).mulDivDown(1e18, discount) + shortfall;
         uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
         uint256 assetsBefore = adapter.realAssets();
