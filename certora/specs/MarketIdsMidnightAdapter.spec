@@ -13,6 +13,8 @@ methods {
 
     // Resolved so that strong invariants are not checked at this call, which is in the middle of market list updates.
     function _.lossFactor(bytes32) external => NONDET;
+    function _.liquidationLocked(bytes32, address) external => NONDET;
+    function _.updatePositionView(MidnightAdapter.Market, bytes32, address) external => NONDET;
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
