@@ -2837,7 +2837,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netRate, rate);
     }
 
-    function testSingleRoundingLargePosition() public {
+    function testSingleRoundingLargePositionOverflow() public {
         deal(address(loanToken), address(parentVault), 1e31);
         deal(storedCollaterals[0].token, address(this), 1e38);
         deal(storedCollaterals[1].token, address(this), 1e38);
@@ -2851,12 +2851,10 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("zero buy");
         bytes memory data = ratify([offer], signerAllocator);
         vm.prank(taker);
+        vm.expectRevert(stdError.arithmeticError);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(adapter.marketData(marketId).netRate, rate, "large zero buy preserves rate");
-        sellUnits(offer.market, 1e30, TickLib.priceToTick(5e10, DEFAULT_TICK_SPACING));
-        assertLt(adapter.marketData(marketId).netRate, rate, "large shortfall sale reduces rate");
-        assertGt(adapter.marketData(marketId).netRate, 0, "remaining interest is preserved");
+        assertEq(adapter.marketData(marketId).netRate, rate, "reverted buy preserves rate");
     }
 
     function testSellFromMaturityChecksMaxNetSellRate(

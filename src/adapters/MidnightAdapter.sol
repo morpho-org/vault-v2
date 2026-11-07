@@ -9,7 +9,6 @@ import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.so
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
-import {Math} from "../../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
@@ -498,10 +497,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 // netRate = (newNetCredit - amortizedValue) / (amortizedValue * ttm)
                 uint256 discount = WAD + oldNetRate * ttm;
                 uint256 amortizedValueTimesDiscount = (newNetCredit - boughtNetCredit) * WAD + buyerAssets * discount;
-                _marketData.netRate = (Math.mulDiv(
-                            newNetCredit * discount - amortizedValueTimesDiscount, WAD, amortizedValueTimesDiscount
-                        ) / ttm)
-                .toUint72();
+                _marketData.netRate = (newNetCredit * discount - amortizedValueTimesDiscount)
+                    .mulDivDown(WAD, amortizedValueTimesDiscount * ttm)
+                    .toUint72();
             }
             if (newNetCredit > 0 && oldNetCredit == 0) {
                 require(marketIds.length < MAX_MARKETS, TooManyMarkets());
@@ -631,12 +629,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 discount = WAD + otherMarketData.netRate * otherTtm;
                     uint256 targetAmortizedValueTimesDiscount =
                         netCredit * WAD + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest) * discount;
-                    uint72 newRate = (Math.mulDiv(
-                                netCredit * discount - targetAmortizedValueTimesDiscount,
-                                WAD,
-                                targetAmortizedValueTimesDiscount
-                            ) / otherTtm)
-                    .toUint72();
+                    uint72 newRate = (netCredit * discount - targetAmortizedValueTimesDiscount)
+                        .mulDivDown(WAD, targetAmortizedValueTimesDiscount * otherTtm)
+                        .toUint72();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                 }
