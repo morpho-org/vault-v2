@@ -177,6 +177,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        // 68 bytes = 4-byte selector + two 32-byte arguments for increaseTimelock/decreaseTimelock.
+        require(data.length <= 68, DataTooLong());
         require(executableAt[data] == 0, DataAlreadyPending());
 
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
