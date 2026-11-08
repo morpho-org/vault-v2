@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../../lib/forge-std/src/Test.sol";
 import {IEnterSubGate} from "../../src/periphery/gates/interfaces/IEnterSubGate.sol";
 import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";

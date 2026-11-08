@@ -88,11 +88,13 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         adapter.setIsSubRatifier(address(priceSubRatifier), true);
         vm.prank(curator);
         adapter.setMaxNetSellRate(1e18 / uint256(365 days));
+        vm.prank(curator);
+        adapter.setShortfallAllowance(type(uint256).max);
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
-        _increaseCaps(abi.encode("collateralParams", collateralParams));
-        _increaseCaps(abi.encode("rcfThreshold", uint256(0)));
+        Market memory market = _market(0);
+        _increaseCaps(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         deal(address(underlyingToken), depositor, initialAssets);
@@ -148,7 +150,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.repay(market, units, borrower, address(0), "");
         vm.stopPrank();
 
-        adapter.withdrawToVault(market, units);
+        vm.prank(allocator);
+        vault.deallocate(address(adapter), abi.encode(market), units);
         uint256 shares = vault.balanceOf(depositor);
         vm.startPrank(depositor);
         vault.redeem(shares, depositor, depositor);
@@ -355,6 +358,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         );
         _increaseCaps(abi.encode("this", address(gatedAdapter)));
         _increaseCaps(abi.encode("this/duration", address(gatedAdapter), 7 days));
+        _increaseCaps(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
         uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
         Offer memory borrowerOffer = Offer({
             market: market,

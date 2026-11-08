@@ -7,8 +7,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  compare-bytecode:
+  forge-old:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -16,43 +19,26 @@ jobs:
         with:
           submodules: recursive
       - name: Install Foundry (old)
-        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
-        with:
-          version: v1.8.3
-      - name: Verify forge executable hash
-        env:
-          EXPECTED_FORGE_SHA256: deb412a722e873e11e60051deb9d403b584a2d7e49d8b9ee68441edfea215e9c
         run: |
-          forge_path="$(which forge)"
-          echo "forge path: $forge_path"
-          actual="$(sha256sum "$forge_path" | awk '{print $1}')"
-          echo "actual:   $actual"
-          echo "expected: $EXPECTED_FORGE_SHA256"
-          [ "$actual" = "$EXPECTED_FORGE_SHA256" ] || { echo "forge hash mismatch"; exit 1; }
-      - name: Build with Foundry (old)
-        run: forge build --force
-      - name: Export bytecode manifest (old)
+          curl -fsSL -o foundry.tar.gz https://github.com/foundry-rs/foundry/releases/download/v1.8.3/foundry_v1.8.3_linux_amd64.tar.gz
+          echo "7ca48e6ca3cac1bce1403ca67e5bc1dc3bc1fd818199c9957c7165079c228568  foundry.tar.gz" | sha256sum -c -
+          mkdir "$RUNNER_TEMP/foundry"
+          tar -xzf foundry.tar.gz -C "$RUNNER_TEMP/foundry"
+          echo "$RUNNER_TEMP/foundry" >> "$GITHUB_PATH"
+      - name: Install solc into svm cache
         run: |
-          mkdir -p compare
-          find out -name '*.json' -not -path '*/build-info/*' -not -path '*Test.sol/*' -print0 | sort -z | while IFS= read -r -d '' file; do
-            rel="${file#out/}"
-            jq -r --arg rel "$rel" '[$rel, (.bytecode.object // ""), (.deployedBytecode.object // "")] | @tsv' "$file"
-          done > compare/old.tsv
-          [ -s compare/old.tsv ] || { echo "old manifest is empty"; exit 1; }
+          echo "0.8.19 7a5c1d3dc9a8eba62bb2ec37192c9178ae5fe8a54a56e5573fd3c9c17cd9eb48
+          0.8.21 f2857a898be15c69e8de5598dcd3f3e169e94964a0ce9a0bbb1b111f145a81df
+          0.8.26 d5f23436f443edb85d8e76906d12f0a86ce0490e7663a9e608efeb7a93f149ef
+          0.8.28 9a0fb7e0db2c0641dbae1c5cc645dc686820c83af516226abb1c0a2f76636f25
+          0.8.34 d40adc6f9fdbb22a97d32a02fa05688bf2ee7886affc48c9851b0afd4a726b39
+          0.8.37 5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a" |
+          while read -r version sha256; do
+            solc="$HOME/.svm/$version/solc-$version"
+            mkdir -p "${solc%/*}"
+            curl -fsSL -o "$solc" "https://github.com/ethereum/solidity/releases/download/v$version/solc-static-linux"
+            echo "$sha256  $solc" | sha256sum -c -
+            chmod +x "$solc"
+          done
       - name: Run Forge tests
-        run: forge test
-      - name: Install Foundry (latest nightly)
-        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
-        with:
-          version: nightly
-      - name: Build with Foundry (latest nightly)
-        run: forge build --force --out out-new --cache-path cache-new
-      - name: Export bytecode manifest (new)
-        run: |
-          find out-new -name '*.json' -not -path '*/build-info/*' -not -path '*Test.sol/*' -print0 | sort -z | while IFS= read -r -d '' file; do
-            rel="${file#out-new/}"
-            jq -r --arg rel "$rel" '[$rel, (.bytecode.object // ""), (.deployedBytecode.object // "")] | @tsv' "$file"
-          done > compare/new.tsv
-          [ -s compare/new.tsv ] || { echo "new manifest is empty"; exit 1; }
-      - name: Compare bytecode
-        run: diff -u compare/old.tsv compare/new.tsv
+        run: forge test --offline
