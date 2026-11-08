@@ -497,6 +497,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 // netRate = (newNetCredit - amortizedValue) / (amortizedValue * ttm)
                 uint256 discount = WAD + oldNetRate * ttm;
                 uint256 amortizedValueTimesDiscount = (newNetCredit - boughtNetCredit) * WAD + buyerAssets * discount;
+                // Can revert if pre-buy net credit and buyerAssets are both 0.
                 _marketData.netRate = (newNetCredit * discount - amortizedValueTimesDiscount)
                     .mulDivDown(WAD, amortizedValueTimesDiscount * ttm)
                     .toUint72();
@@ -611,7 +612,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
-                    uint256 amortizedValue = netCredit.mulDivUp(
+                    uint256 amortizedValue = netCredit.mulDivDown(
                         WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
                     );
                     netCredits[i] = netCredit;
@@ -629,7 +630,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 discount = WAD + otherMarketData.netRate * otherTtm;
                     uint256 targetAmortizedValueTimesDiscount =
                         netCredit * WAD + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest) * discount;
-                    uint72 newRate = (netCredit * discount - targetAmortizedValueTimesDiscount)
+                    // Rounded-down amortized values can allocate more than the exact remaining interest.
+                    uint72 newRate = (netCredit * discount)
+                        .zeroFloorSub(targetAmortizedValueTimesDiscount)
                         .mulDivDown(WAD, targetAmortizedValueTimesDiscount * otherTtm)
                         .toUint72();
                     otherMarketData.netRate = newRate;

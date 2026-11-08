@@ -816,8 +816,9 @@ contract MidnightAdapterTest is Test {
         uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - proceeds;
-        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        uint256 discount = 1e18 + rate * ttm;
+        uint256 shortfall = sold.mulDivUp(1e18, discount).zeroFloorSub(proceeds);
+        uint256 newAmortizedValue = (100e18 - sold).mulDivDown(1e18, discount) + shortfall;
         uint256 newRate = shortfall == 0 ? rate : (100e18 - sold - newAmortizedValue) * 1e18 / (newAmortizedValue * ttm);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
@@ -835,7 +836,7 @@ contract MidnightAdapterTest is Test {
         assertEq(data.netRate, newRate, "rate decreases");
         assertEq(loanToken.balanceOf(address(parentVault)), balanceBefore + proceeds);
         assertGe(adapter.realAssets(), assetsBefore - proceeds, "amortized value decreases by the proceeds");
-        assertLe(adapter.realAssets() - (assetsBefore - proceeds), (100e18 - sold) * ttm / 1e18 + 2, "rounding");
+        assertLe(adapter.realAssets() - (assetsBefore - proceeds), (100e18 - sold) * ttm / 1e18 + 1, "rounding");
         skip(ttm);
         assertEq(adapter.realAssets(), 100e18 - sold, "accrues to net credit at maturity");
     }
@@ -851,8 +852,9 @@ contract MidnightAdapterTest is Test {
         uint256 tick = TickLib.priceToTick(bound(price, 0.5e18, 0.9e18), DEFAULT_TICK_SPACING);
         uint256 maxSold = ((100e18 - adapter.realAssets()) * 1e18 - 2e18) / (1e18 - TickLib.tickToPrice(tick));
         sold = bound(sold, 1, maxSold);
-        uint256 shortfall = sold.mulDivUp(1e18, 1e18 + rate * ttm) - sold.mulDivUp(TickLib.tickToPrice(tick), 1e18);
-        uint256 newAmortizedValue = (100e18 - sold).mulDivUp(1e18, 1e18 + rate * ttm) + shortfall;
+        uint256 discount = 1e18 + rate * ttm;
+        uint256 shortfall = sold.mulDivUp(1e18, discount).zeroFloorSub(sold.mulDivUp(TickLib.tickToPrice(tick), 1e18));
+        uint256 newAmortizedValue = (100e18 - sold).mulDivDown(1e18, discount) + shortfall;
         bool remainingRateTooLow = newAmortizedValue > 100e18 - sold;
         uint256 newRate = shortfall == 0
             ? rate
@@ -925,7 +927,7 @@ contract MidnightAdapterTest is Test {
         while (high - low > 1) {
             uint256 mid = (low + high) / 2;
             uint256 units = 2 * mid.mulDivDown(1e18, 2 * (1e36 / (1e18 + rate * 30 days) - 0.5e18));
-            uint256 newAmortizedValue = (100e18 - units).mulDivUp(1e18, 1e18 + rate * 30 days)
+            uint256 newAmortizedValue = (100e18 - units).mulDivDown(1e18, 1e18 + rate * 30 days)
                 + units.mulDivUp(1e18, 1e18 + rate * 30 days) - units / 2;
             if (newAmortizedValue <= 100e18 - units) low = mid;
             else high = mid;
@@ -986,7 +988,7 @@ contract MidnightAdapterTest is Test {
 
         MarketData memory after_ = adapter.marketData(marketId);
         assertEq(after_.netCredit, uint256(before.netCredit) + 50e18);
-        uint256 amortizedValue = uint256(before.netCredit).mulDivUp(1e18, 1e18 + before.netRate * 30 days) + 50e18;
+        uint256 amortizedValue = uint256(before.netCredit).mulDivDown(1e18, 1e18 + before.netRate * 30 days) + 50e18;
         assertEq(
             after_.netRate, (after_.netCredit - amortizedValue) * 1e18 / (amortizedValue * 30 days), "rate is diluted"
         );
@@ -1114,7 +1116,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buyAtDiscount(30 days, 100e18);
         bytes32 marketId = _marketId(offer.market);
         uint256 amortizedValue =
-            uint256(100e18).mulDivUp(1e18, 1e18 + adapter.marketData(marketId).netRate * 30 days) + 50e18;
+            uint256(100e18).mulDivDown(1e18, 1e18 + adapter.marketData(marketId).netRate * 30 days) + 50e18;
         uint256 averageRate = (150e18 - amortizedValue) * 1e18 / (amortizedValue * 30 days);
         Offer memory freeCredit = makeBuyOffer(30 days, 50e18, MAX_TICK);
         freeCredit.group = bytes32(vm.randomUint());
@@ -2767,27 +2769,30 @@ contract MidnightAdapterTest is Test {
         take(offer);
 
         uint256 paid2 = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 amortizedValue = liveNetCredit.mulDivUp(1e18, 1e18 + rate * duration) + paid2;
+        uint256 amortizedValue = liveNetCredit.mulDivDown(1e18, 1e18 + rate * duration) + paid2;
         uint256 newRate = (liveNetCredit + units - amortizedValue) * 1e18 / (amortizedValue * duration);
         uint256 expectedValue = (liveNetCredit + units).mulDivDown(1e18, 1e18 + newRate * duration);
         assertEq(adapter.realAssets(), expectedValue);
         assertEq(adapter.marketData(marketId).netCredit, liveNetCredit + units);
     }
 
-    function testTakeRoundingShortfallRevertsWhenRemainingInterestRoundsAway() public {
+    function testTakeRoundingShortfallUsesInterestThatRoundsDown() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
+        bytes32 marketId = _marketId(offer.market);
+        assertEq(adapter.marketData(marketId).netCredit, 10);
         assertEq(adapter.realAssets(), 9);
         parentVault.setTotalAssets(10);
 
+        // Selling 5 units for 4 lowers the amortized value from 9 to 4 at the old rate, a shortfall of 1.
+        // The remaining 5 units are worth 4 in realAssets, so their 1 wei of remaining interest absorbs it.
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5, "");
-        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 10);
-        assertEq(adapter.realAssets(), 9);
-        assertEq(loanToken.balanceOf(address(parentVault)), 1);
+        assertEq(adapter.marketData(marketId).netCredit, 5);
+        assertEq(adapter.marketData(marketId).netRate, 0, "all remaining interest is used");
+        assertEq(adapter.realAssets(), 5);
+        assertEq(loanToken.balanceOf(address(parentVault)), 5);
     }
 
     function testTakeSaleRoundsValueUp() public {
@@ -2811,13 +2816,20 @@ contract MidnightAdapterTest is Test {
         uint256 rate = adapter.marketData(marketId).netRate;
         assertEq(uint256(10).mulDivDown(1e18, 1e18 + rate * 30 days), 9);
         assertEq(uint256(10).mulDivUp(1e18, 1e18 + rate * 30 days), 10);
+        assertEq(adapter.realAssets(), 9);
 
         buyAdditionalCredit(offer.market, 10);
 
         assertEq(loanToken.balanceOf(address(parentVault)), 1, "paid at par");
         assertEq(adapter.marketData(marketId).netCredit, 20);
-        assertGt(adapter.marketData(marketId).netRate, 0, "carried interest kept");
-        assertEq(adapter.realAssets(), 19);
+        uint256 discount = WAD + rate * 30 days;
+        uint256 valueTimesDiscount = 10 * WAD + 10 * discount;
+        assertEq(
+            adapter.marketData(marketId).netRate,
+            (20 * discount - valueTimesDiscount).mulDivDown(WAD, valueTimesDiscount * 30 days),
+            "carried interest kept without intermediate rounding"
+        );
+        assertEq(adapter.realAssets(), 19, "held plus paid");
     }
 
     function testZeroUnitBuyKeepsNetRate(uint256 assets, uint256 elapsed) public {
@@ -3042,7 +3054,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 totalNetCredit = uint256(first.maxUnits) + second.maxUnits;
-        uint256 amortizedValue = uint256(first.maxUnits).mulDivUp(1e18, 1e18 + firstRate * 15 days) + paid;
+        uint256 amortizedValue = uint256(first.maxUnits).mulDivDown(1e18, 1e18 + firstRate * 15 days) + paid;
         uint256 rate = (totalNetCredit - amortizedValue) * 1e18 / (amortizedValue * 15 days);
         uint256 valueAfter = totalNetCredit.mulDivDown(1e18, 1e18 + rate * 15 days);
         assertEq(adapter.realAssets(), valueAfter, "second purchase updates the rate");
@@ -4869,7 +4881,7 @@ contract MidnightAdapterTest is Test {
         uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = uint256(dataA.netCredit).mulDivUp(TickLib.tickToPrice(tick), WAD);
         uint256 loss = amortizedValueA - proceeds;
-        uint256 amortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 amortizedValueB = uint256(dataB.netCredit).mulDivDown(WAD, WAD + dataB.netRate * ttmB);
         uint256 capacityB = uint256(dataB.netCredit).zeroFloorSub(amortizedValueB);
         uint256 newRateB = expectedRateAfterShortfall(dataB.netCredit, dataB.netRate, ttmB, loss);
         assertGt(loss, 0, "sale has a shortfall");
@@ -4914,7 +4926,7 @@ contract MidnightAdapterTest is Test {
                 shortfall = sold.mulDivUp(WAD, WAD + data.netRate * ttm) - proceeds;
                 credit -= sold;
             }
-            uint256 value = credit.mulDivUp(WAD, WAD + data.netRate * ttm);
+            uint256 value = credit.mulDivDown(WAD, WAD + data.netRate * ttm);
             values[i] = [credit, value, ttm, uint256(data.netRate)];
             totalInterest += credit - value;
             tolerance += credit * ttm / WAD + 3;
@@ -4950,9 +4962,9 @@ contract MidnightAdapterTest is Test {
         uint256 amortizedValue = sold.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
         uint256 loss = amortizedValue - proceeds;
-        uint256 remainingAmortizedValueA = remainingA.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
+        uint256 remainingAmortizedValueA = remainingA.mulDivDown(WAD, WAD + dataA.netRate * ttmA);
         uint256 capacityA = remainingA.zeroFloorSub(remainingAmortizedValueA);
-        uint256 amortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 amortizedValueB = uint256(dataB.netCredit).mulDivDown(WAD, WAD + dataB.netRate * ttmB);
         uint256 capacityB = uint256(dataB.netCredit).zeroFloorSub(amortizedValueB);
         uint256 newRateA = expectedRateAfterShortfall(
             remainingA, dataA.netRate, ttmA, loss.mulDivUp(capacityA, capacityA + capacityB)
@@ -4980,8 +4992,8 @@ contract MidnightAdapterTest is Test {
         MarketData memory dataA = adapter.marketData(marketIdA);
         MarketData memory dataB = adapter.marketData(marketIdB);
         uint256 creditA = dataA.netCredit - 20;
-        uint256 valueA = creditA.mulDivUp(WAD, WAD + dataA.netRate * 30 days);
-        uint256 valueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * 60 days);
+        uint256 valueA = creditA.mulDivDown(WAD, WAD + dataA.netRate * 30 days);
+        uint256 valueB = uint256(dataB.netCredit).mulDivDown(WAD, WAD + dataB.netRate * 60 days);
         uint256 tick = TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = uint256(20).mulDivUp(TickLib.tickToPrice(tick), WAD);
         uint256 shortfall = uint256(20).mulDivUp(WAD, WAD + dataA.netRate * 30 days) - proceeds;
@@ -4996,8 +5008,11 @@ contract MidnightAdapterTest is Test {
         uint256 rateB = adapter.marketData(marketIdB).netRate;
         assertEq(rateA, expectedRateAfterShortfall(creditA, dataA.netRate, 30 days, shareA));
         assertEq(rateB, expectedRateAfterShortfall(dataB.netCredit, dataB.netRate, 60 days, shareB));
-        assertGt(rateA, (creditA - valueA - shareA).mulDivDown(WAD, (valueA + shareA) * 30 days));
-        assertGt(rateB, (dataB.netCredit - valueB - shareB).mulDivDown(WAD, (valueB + shareB) * 60 days));
+        uint256 doubleRoundedRateA = (creditA - valueA - shareA).mulDivDown(WAD, (valueA + shareA) * 30 days);
+        uint256 doubleRoundedRateB = (dataB.netCredit - valueB - shareB).mulDivDown(WAD, (valueB + shareB) * 60 days);
+        assertLe(rateA, doubleRoundedRateA);
+        assertLe(rateB, doubleRoundedRateB);
+        assertTrue(rateA < doubleRoundedRateA || rateB < doubleRoundedRateB, "intermediate rounding changes a rate");
         assertEq(adapter.shortfallAllowance(), allowanceBefore - shortfall, "allowance rounding unchanged");
     }
 
@@ -5025,16 +5040,16 @@ contract MidnightAdapterTest is Test {
         uint256 amortizedValue = sold.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(tick), WAD);
         uint256 loss = amortizedValue - proceeds;
-        uint256 remainingAmortizedValueA = remainingA.mulDivUp(WAD, WAD + dataA.netRate * ttmA);
+        uint256 remainingAmortizedValueA = remainingA.mulDivDown(WAD, WAD + dataA.netRate * ttmA);
         uint256 capacityA = remainingA.zeroFloorSub(remainingAmortizedValueA);
-        uint256 amortizedValueB = netCreditB.mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 amortizedValueB = netCreditB.mulDivDown(WAD, WAD + dataB.netRate * ttmB);
         uint256 capacityB = netCreditB.zeroFloorSub(amortizedValueB);
         uint256 newRateA = expectedRateAfterShortfall(
             remainingA, dataA.netRate, ttmA, loss.mulDivUp(capacityA, capacityA + capacityB)
         );
         uint256 reductionB = loss.mulDivUp(capacityB, capacityA + capacityB);
         uint256 newRateB = expectedRateAfterShortfall(netCreditB, dataB.netRate, ttmB, reductionB);
-        uint256 staleAmortizedValueB = uint256(dataB.netCredit).mulDivUp(WAD, WAD + dataB.netRate * ttmB);
+        uint256 staleAmortizedValueB = uint256(dataB.netCredit).mulDivDown(WAD, WAD + dataB.netRate * ttmB);
         uint256 staleReductionB = loss.mulDivUp(
             uint256(dataB.netCredit).zeroFloorSub(staleAmortizedValueB),
             capacityA + uint256(dataB.netCredit).zeroFloorSub(staleAmortizedValueB)
@@ -5086,7 +5101,7 @@ contract MidnightAdapterTest is Test {
         uint256 proceeds = uint256(dataA.netCredit).mulDivUp(TickLib.tickToPrice(tick), WAD);
         uint256 loss = amortizedValue - proceeds;
         uint256 amortizedValueAbsorber =
-            uint256(dataAbsorber.netCredit).mulDivUp(WAD, WAD + dataAbsorber.netRate * ttmAbsorber);
+            uint256(dataAbsorber.netCredit).mulDivDown(WAD, WAD + dataAbsorber.netRate * ttmAbsorber);
         uint256 newRate = (uint256(dataAbsorber.netCredit) - (amortizedValueAbsorber + loss))
         .mulDivDown(WAD, (amortizedValueAbsorber + loss) * ttmAbsorber);
         assertEq(adapter.marketData(maturedId).maturity, block.timestamp - 1 days, "market B has matured");
@@ -5363,7 +5378,9 @@ contract MidnightAdapterTest is Test {
         returns (uint256)
     {
         uint256 discount = WAD + rate * ttm;
-        return (credit * rate * ttm - shortfall * discount).mulDivDown(WAD, (credit * WAD + shortfall * discount) * ttm);
+        return (credit * rate * ttm)
+            .zeroFloorSub(shortfall * discount)
+            .mulDivDown(WAD, (credit * WAD + shortfall * discount) * ttm);
     }
 
     function buyShortfallMarkets() internal returns (Offer memory offerA, Offer memory offerB) {
