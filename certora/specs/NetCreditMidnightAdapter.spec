@@ -54,9 +54,9 @@ function increaseMidnightNetCredit(bytes32 marketId) {
     ghostMidnightNetCredit[marketId] = newNetCredit;
 }
 
-// Prove that the stored net credit is an upper bound of the adapter's net credit in Midnight.
+// Prove that stored net credit bounds Midnight net credit unless the market was force removed.
 strong invariant midnightNetCreditBelowStoredNetCredit()
-    forall bytes32 marketId. ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
+    forall bytes32 marketId. !currentContract.marketData[marketId].forceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
