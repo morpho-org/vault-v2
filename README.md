@@ -66,7 +66,7 @@ Midnight also charges its settlement fee for in-kind redemptions.
 
 ### Non-custodial guarantees
 
-Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#timelocks).
 These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
 
 ### Gates
