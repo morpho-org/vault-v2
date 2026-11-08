@@ -352,7 +352,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Irreversibly removes a force sellable market without moving its Midnight credit.
-    /// @dev Withdrawals, sales and force deallocations of the market then revert. Unless bad debt lowers the net credit to zero, buys also revert.
+    /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
     function forceRemove(Market memory market) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         bytes32 marketId = IdLib.toId(market);
@@ -361,6 +361,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         emit ForceRemove(marketId, oldNetCredit);
         _marketData.netCredit = 0;
+        _marketData.forceRemoved = true;
         if (oldNetCredit > 0) removeMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
@@ -442,9 +443,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             MarketData storage _marketData = marketData[marketId];
             uint256 oldNetCredit = _marketData.netCredit;
-            require(oldNetCredit > 0, ForceRemoved());
+            require(!_marketData.forceRemoved, ForceRemoved());
             _marketData.netCredit = newNetCredit;
-            if (newNetCredit == 0) removeMarket(marketId);
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
@@ -508,7 +509,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
-            require(oldNetCredit > 0 || newNetCredit == boughtNetCredit, ForceRemoved());
+            require(!_marketData.forceRemoved, ForceRemoved());
             uint72 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -651,8 +652,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        require(oldNetCredit > 0, ForceRemoved());
-        if (newNetCredit == 0) removeMarket(id);
+        require(!_marketData.forceRemoved, ForceRemoved());
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -680,9 +681,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
-        require(oldNetCredit > 0, ForceRemoved());
+        require(!marketData[marketId].forceRemoved, ForceRemoved());
         marketData[marketId].netCredit = newNetCredit;
-        if (newNetCredit == 0) removeMarket(marketId);
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
