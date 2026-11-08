@@ -26,18 +26,15 @@ The adapter trades in three ways:
 - **As a maker**: Any user on Midnight fills an offer that the adapter made and that an enabled [sub-ratifier](#sub-ratifiers) approved.
 - **In-kind redemption**: During `forceDeallocate`, the adapter sells credit to a vault shareholder. See [In-kind Redemptions and Enter Gates](#in-kind-redemptions-and-enter-gates).
 
-While Midnight executes a sale by the adapter in a market, no offer made by the adapter in that market can be filled, and calls to the adapter's `take` function for that market revert.
+While the adapter sells in a market, fills of its maker offers and calls to its `take` function in that market revert.
+A sale that absorbs a shortfall also reverts if the adapter is selling in another active market (`OtherSellInProgress`).
 
-When the adapter buys credit, the callback data of the trade selects the funding source.
-For a taker trade, the callback data is `takerCallbackData`.
-For a maker trade, the callback data is `offer.callbackData`.
-The funding sources are:
+On buys, callback data (`takerCallbackData` for takers, `offer.callbackData` for makers) selects the funding source:
 
 - `abi.encode(address(0), "")`: Uses idle assets from the parent vault.
 - `abi.encode(fundingAdapter, fundingData)`: Deallocates assets from `fundingAdapter` on the parent vault, then allocates them to the Midnight adapter.
-- `abi.encode(address(this), abi.encode(fundingMarket))`: Withdraws repaid assets from `fundingMarket` on the adapter. To do this, the adapter calls `deallocate` on the parent vault with `data` that requests a withdrawal from `fundingMarket`.
+- `abi.encode(address(this), abi.encode(fundingMarket))`: Calls internal `withdrawToVault` for `fundingMarket`, then reports the IDs and net credit change through vault `deallocate`. The vault pulls the withdrawn assets; the adapter calls vault `allocate` to pull them back.
 
-The adapter must have an allocator role so a trade can deallocate assets from any adapter of the parent vault.
 Allocators control the callback data:
 
 - For a taker trade, the allocator who calls `take` sets the callback data.
@@ -45,8 +42,8 @@ Allocators control the callback data:
 
 Borrowers repay a market directly or through liquidations, possibly before maturity.
 Allocators and sentinels can withdraw the repaid assets to the idle assets of the vault.
-To do this, they call `deallocate` on the parent vault with `data` that requests a withdrawal from `market`.
-Anyone can also do this by calling `forceDeallocate` with the same `data`. In that case, the vault charges its `forceDeallocate` penalty.
+To do this, they call `deallocate` on the parent vault with `data = abi.encode(market)`.
+`forceDeallocate` sells credit to a shareholder instead; it does not withdraw repaid assets from Midnight.
 
 ### Sub-ratifiers
 
@@ -73,36 +70,35 @@ The result is the _amortized value_ of the market:
 assets = floor(netCredit / (1 + netRate * ttm))
 ```
 
-When the adapter buys credit, it updates `netRate`.
-The new amortized value of the market is then its previous amortized value plus the paid assets.
-The adapter rounds `netRate` down and realizes any rounding remainder immediately.
+On buys, the adapter adjusts `netRate` to increase amortized value by the paid assets, ignoring rounding.
+The adapter rounds rates down on buys and sales that absorb a shortfall, and rounds up each market's shortfall share.
+These roundings increase amortized value and can reduce interest by more than the consumed `shortfallAllowance`.
 
-When the adapter sells credit, the _shortfall_ is the amortized value of the sold net credit minus the sale assets, or zero if the sale assets are higher.
+The _shortfall_ of a sale is the sold net credit's amortized value, rounded up, minus the received assets, floored at zero.
 
-- If the shortfall is zero, `netRate` does not change. The adapter realizes any gain immediately.
-- If the shortfall is more than zero, the adapter does not realize it immediately:
-  - The amortized value of the market decreases only by the sale assets.
-  - The adapter decreases `netRate` on the remaining net credit, so the market earns less interest until maturity.
-  - The shortfall must not be more than the remaining unearned interest of the market. Otherwise, the sale reverts (`ShortfallTooHigh`).
+- Without a shortfall, `netRate` stays unchanged and the adapter realizes any gain immediately.
+- Otherwise, unless the market is [force-sellable](#allocator-operational-constraints-and-force-sellable-markets), the adapter absorbs the shortfall:
+  - The sale reverts if the shortfall exceeds `shortfallAllowance` (`ShortfallAllowanceExceeded`) or the remaining interest across markets, calculated after the sale with amortized values rounded up (`ShortfallTooHigh`).
+  - The adapter deducts the shortfall from `shortfallAllowance` and reduces each market's remaining unearned interest proportionally, including force-sellable markets.
+  - It lowers `netRate` so that, ignoring rounding, its total amortized value decreases only by the received assets.
 
 If a market takes bad debt on Midnight (`lossFactor` changes), `realAssets` immediately uses the reduced net credit.
 Loss realization leaves `netRate` unchanged. Both the amortized value and the remaining unearned interest decrease in the same proportion as net credit.
 
-The gas cost of `realAssets` increases with the number of active markets, because `realAssets` reads `lossFactor` and possibly net credit from Midnight for each market.
-The parent vault calls `realAssets` at each interest accrual, so many active markets make most vault operations more expensive.
+`realAssets` and sales that absorb a shortfall read loss-adjusted net credit and cost more gas as active markets increase.
+The vault calls `realAssets` at interest accrual, so this also affects most vault operations.
 
 ### Caps and Duration Caps
 
 On each allocation and deallocation, the adapter reports the change in stored `netCredit` to the cap system of the parent vault for these market IDs (`ids(market)`):
 
 - Adapter
-- Liquidator gate (if non-zero)
-- RCF threshold
+- Family: the ordered collateral configurations (`collateralParams`), RCF threshold, and liquidator gate
 - Each collateral token
-- Each collateral configuration
 
 The adapter can buy credit in a market only if each of these IDs has a non-zero absolute cap on the parent vault.
-With these caps, the curator selects the gates, RCF thresholds, and collaterals that the adapter accepts.
+The curator uses family caps to approve combinations, not individual parameters.
+Markets that differ only by maturity or enter gate share the same family ID.
 
 To limit maturity risk, the adapter has up to 8 strictly increasing durations (`durations`).
 These durations are set at deployment.
@@ -151,27 +147,29 @@ The curator can set non-timelocked operational constraints on the adapter to lim
 
 - **Min net buy rate** (`minNetBuyRate`): Minimum simple net interest rate on buys, relative to paid assets.
 - **Max net sell rate** (`maxNetSellRate`): Maximum simple net interest rate on sales. The rate is relative to the assets that the adapter receives.
-- **No sales with shortfall** (`noSalesWithShortfall`): If `true`, forbids sales with a shortfall.
+- **Shortfall allowance** (`shortfallAllowance`): Remaining asset-denominated shortfall budget across markets. It starts at zero and does not refill automatically.
+
+A sale can consume the old allowance before `setShortfallAllowance` replaces it. Set it to zero first, then set the new value after checking consumption.
 
 The curator can set `forceSellable` on a market (timelocked).
 For example, use it after maturity: then `ttm` is zero, and rate-based discounts do not allow sales below face value.
 When `forceSellable` is `true` for a market:
 
 - The adapter cannot buy credit in that market.
-- Sales ignore `maxNetSellRate` and `noSalesWithShortfall`. Instead, each sale must receive at least `minForceSellPrice` per unit of sold net credit.
-- The adapter realizes sale losses immediately. It does not decrease `netRate`.
+- Sales ignore `maxNetSellRate` and do not consume `shortfallAllowance`. Instead, each sale must receive at least `minForceSellPrice` per unit of sold net credit.
+- The adapter realizes sale losses immediately, without decreasing any market's `netRate`.
 
 ### Timelocks
 
 The adapter has its own timelock system (`submit`, `revoke`, `increaseTimelock`, `decreaseTimelock`, `abdicate`).
-This system works like the timelock system in [VaultV2](../VaultV2.sol).
+This system works like the timelock system in [VaultV2](../VaultV2.sol), but `submit` rejects data longer than 68 bytes (`DataTooLong`).
 After the timelock of a submitted change expires, anyone can execute the change.
 Before the curator adds a `MidnightAdapter` to a vault, it must set the adapter timelocks to match the non-custodial guarantees of the vault.
 The curator must also check that no unsafe actions are pending.
 Calling `increaseTimelock` does not change the adapter's `executableAt` values for pending actions.
 
 The timelocked curator functions on the adapter are `increaseTimelock`, `decreaseTimelock`, `abdicate`, `increaseMaxTtm`, `setForceSellable`, and `setSkimRecipient`.
-The setters of the operational constraints (`setMinNetBuyRate`, `setMaxNetSellRate`, `setNoSalesWithShortfall`, `setMinForceSellPrice`) are not timelocked.
+The setters of the operational constraints (`setMinNetBuyRate`, `setMaxNetSellRate`, `setShortfallAllowance`, `setMinForceSellPrice`) are not timelocked.
 
 ### Roles
 
@@ -181,7 +179,7 @@ The adapter reads roles directly from its `parentVault`:
   - Submits timelocked changes (`increaseMaxTtm`, `setForceSellable`, `setSkimRecipient`, `increaseTimelock`, `decreaseTimelock`, `abdicate`).
   - Revokes pending timelocked changes (`revoke`).
   - Decreases `maxTtm` (`decreaseMaxTtm`) and unsets `forceSellable` (`unsetForceSellable`).
-  - Sets the allocator operational constraints (`minNetBuyRate`, `maxNetSellRate`, `noSalesWithShortfall`, `minForceSellPrice`).
+  - Sets the allocator operational constraints (`minNetBuyRate`, `maxNetSellRate`, `shortfallAllowance`, `minForceSellPrice`).
 - **Allocators**:
   - Call `take`.
   - Withdraw repaid assets to the vault (`deallocate`).
