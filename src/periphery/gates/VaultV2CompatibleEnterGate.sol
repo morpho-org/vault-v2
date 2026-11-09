@@ -48,9 +48,17 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     /// @dev The seller must authorize the offer. Bought credit cannot be recovered from this gate.
-    function buyAtZero(Offer memory offer, bytes memory ratifierData, uint256 units) external {
+    /// @dev An optional callback pays settlement fees as Midnight's payer; this gate never approves token spending.
+    function buyAtZero(
+        Offer memory offer,
+        bytes memory ratifierData,
+        uint256 units,
+        address feePayerCallback,
+        bytes memory callbackData
+    ) external {
         require(!offer.buy && offer.tick == 0 && offer.market.enterGate == address(this), IncorrectOffer());
-        IMidnight(offer.market.midnight).take(offer, ratifierData, units, address(this), address(0), address(0), hex"");
+        IMidnight(offer.market.midnight)
+            .take(offer, ratifierData, units, address(this), address(0), feePayerCallback, callbackData);
         emit BuyAtZero(msg.sender, IdLib.toId(offer.market), units);
     }
 

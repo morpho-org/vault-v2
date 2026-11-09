@@ -25,5 +25,11 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     function addAdmitterFactory(address factory) external;
     function admit(address user, address factory) external;
     function unadmit() external;
-    function buyAtZero(Offer memory offer, bytes memory ratifierData, uint256 units) external;
+    function buyAtZero(
+        Offer memory offer,
+        bytes memory ratifierData,
+        uint256 units,
+        address feePayerCallback,
+        bytes memory callbackData
+    ) external;
 }

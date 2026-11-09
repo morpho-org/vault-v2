@@ -3465,10 +3465,19 @@ contract MidnightAdapterTest is Test {
 
     /* ENTER GATES */
 
-    function testEnterGateBuyAtZero(bool matured) public {
+    function testEnterGateBuyAtZero(bool matured, bool settlementFee) public {
         (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
         bytes32 marketId = _marketId(boughtOffer.market);
         if (matured) vm.warp(boughtOffer.market.maturity + 1);
+        address feePayer;
+        uint256 fee;
+        if (settlementFee) {
+            midnight.setMarketSettlementFee(marketId, matured ? 0 : 2, CBP);
+            fee = 1e18 * CBP / WAD;
+            feePayer = address(new SaleCallback(address(midnight), address(loanToken), address(realVault)));
+            deal(address(loanToken), feePayer, fee);
+        }
+        uint256 midnightBalanceBefore = loanToken.balanceOf(address(midnight));
         Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
         bytes memory data = ratify([offer], signerAllocator);
         vm.mockCallRevert(
@@ -3484,7 +3493,7 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(wrapper));
         emit IVaultV2CompatibleEnterGate.BuyAtZero(recipient, marketId, 1e18);
         vm.prank(recipient);
-        wrapper.buyAtZero(offer, data, 1e18);
+        wrapper.buyAtZero(offer, data, 1e18, feePayer, hex"cafe");
 
         assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter fully exited");
         assertEq(midnight.credit(marketId, address(wrapper)), 1e18, "gate owns abandoned credit");
@@ -3499,12 +3508,16 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault receives no proceeds");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter receives no proceeds");
         assertEq(loanToken.balanceOf(address(wrapper)), 0, "gate needs no funds");
+        assertEq(loanToken.allowance(address(wrapper), address(midnight)), 0, "gate never approves spending");
+        assertEq(loanToken.balanceOf(address(midnight)), midnightBalanceBefore + fee, "Midnight receives the fee");
+        assertEq(midnight.claimableSettlementFee(address(loanToken)), fee, "fee is accounted");
+        if (settlementFee) assertEq(loanToken.balanceOf(feePayer), 0, "external payer pays only the fee");
     }
 
     function testEnterGateBuyAtZeroPartialSale() public {
         (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
         Offer memory offer = makeSellOffer(boughtOffer.market, 0.4e18, 0);
-        wrapper.buyAtZero(offer, ratify([offer], signerAllocator), offer.maxUnits);
+        wrapper.buyAtZero(offer, ratify([offer], signerAllocator), offer.maxUnits, address(0), "");
 
         bytes32 marketId = _marketId(offer.market);
         assertEq(midnight.credit(marketId, address(adapter)), 0.6e18);
@@ -3515,7 +3528,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0.6e18);
     }
 
-    function testEnterGateBuyAtZeroRejectsSettlementFee(bool funded) public {
+    function testEnterGateBuyAtZeroRejectsSettlementFeeWithoutPayer(bool funded) public {
         (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
         uint256 gateBalance = funded ? 1e18 : 0;
         deal(address(loanToken), address(wrapper), gateBalance);
@@ -3525,12 +3538,28 @@ contract MidnightAdapterTest is Test {
         bytes memory data = ratify([offer], signerAllocator);
 
         vm.expectRevert();
-        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        wrapper.buyAtZero(offer, data, offer.maxUnits, address(0), "");
 
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
         assertEq(midnight.credit(_marketId(offer.market), address(wrapper)), 0, "no credit received");
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation unchanged");
         assertEq(loanToken.balanceOf(address(wrapper)), gateBalance, "gate does not pay fees");
+    }
+
+    function testEnterGateBuyAtZeroRejectsUnfundedFeePayer() public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        midnight.setMarketSettlementFee(_marketId(boughtOffer.market), 2, CBP);
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        bytes memory data = ratify([offer], signerAllocator);
+        SaleCallback feePayer = new SaleCallback(address(midnight), address(loanToken), address(realVault));
+
+        vm.expectRevert();
+        wrapper.buyAtZero(offer, data, offer.maxUnits, address(feePayer), "");
+
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
+        assertEq(midnight.credit(_marketId(offer.market), address(wrapper)), 0, "no credit received");
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation unchanged");
+        assertEq(midnight.claimableSettlementFee(address(loanToken)), 0, "fee rolled back");
     }
 
     function testEnterGateBuyAtZeroRespectsMinimumPrice() public {
@@ -3541,7 +3570,7 @@ contract MidnightAdapterTest is Test {
         bytes memory data = ratify([offer], signerAllocator);
 
         vm.expectRevert(IMidnightAdapterBase.ForceSellPriceTooLow.selector);
-        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        wrapper.buyAtZero(offer, data, offer.maxUnits, address(0), "");
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
     }
 
@@ -3552,7 +3581,7 @@ contract MidnightAdapterTest is Test {
         bytes memory data = ratify([offer], signerAllocator);
 
         vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
-        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        wrapper.buyAtZero(offer, data, offer.maxUnits, address(0), "");
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
     }
 
@@ -3564,7 +3593,7 @@ contract MidnightAdapterTest is Test {
         priceRatifier.setIsRootRatified(address(adapter), root(offer), false, signerAllocator);
 
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
-        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        wrapper.buyAtZero(offer, data, offer.maxUnits, address(0), "");
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
     }
 

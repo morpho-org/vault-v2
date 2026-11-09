@@ -8,7 +8,7 @@ import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhit
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
-import {Offer} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnight, Offer} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 
 /// forge-config: default.isolate = false
 contract VaultV2CompatibleEnterGateTest is Test {
@@ -61,7 +61,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         offer.market.enterGate = address(wrapper);
         offer.buy = true;
         vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
-        wrapper.buyAtZero(offer, "", 1);
+        wrapper.buyAtZero(offer, "", 1, address(0), "");
     }
 
     function testBuyAtZeroRequiresOwnGate(address gate) public {
@@ -69,7 +69,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
         Offer memory offer;
         offer.market.enterGate = gate;
         vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
-        wrapper.buyAtZero(offer, "", 1);
+        wrapper.buyAtZero(offer, "", 1, address(0), "");
     }
 
     function testBuyAtZeroRequiresZeroTick(uint16 tick) public {
@@ -78,7 +78,18 @@ contract VaultV2CompatibleEnterGateTest is Test {
         offer.market.enterGate = address(wrapper);
         offer.tick = tick;
         vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
-        wrapper.buyAtZero(offer, "", 1);
+        wrapper.buyAtZero(offer, "", 1, address(0), "");
+    }
+
+    function testBuyAtZeroForwardsCallback(address callback, bytes memory callbackData) public {
+        Offer memory offer;
+        offer.market.enterGate = address(wrapper);
+        offer.market.midnight = makeAddr("midnight");
+        bytes memory takeData =
+            abi.encodeCall(IMidnight.take, (offer, hex"1234", 1, address(wrapper), address(0), callback, callbackData));
+        vm.mockCall(offer.market.midnight, takeData, abi.encode(0, 0));
+        vm.expectCall(offer.market.midnight, takeData, 1);
+        wrapper.buyAtZero(offer, hex"1234", 1, callback, callbackData);
     }
 
     function testAddAdmitterFactory(address factory) public {
