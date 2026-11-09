@@ -3659,7 +3659,7 @@ contract MidnightAdapterTest is Test {
         take(boughtOffer);
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
-        // The gate factory answers true once, then false. The adapter unadmits the gate it recorded anyway.
+        // The gate factory answers true once, then false. The adapter unadmits the gate anyway.
         bytes[] memory answers = new bytes[](2);
         answers[0] = abi.encode(true);
         answers[1] = abi.encode(false);
@@ -3671,7 +3671,7 @@ contract MidnightAdapterTest is Test {
         realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
 
         assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
-        assertEq(adapter.admittingGate(), address(0));
+        assertFalse(adapter.admitting());
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
     }
 

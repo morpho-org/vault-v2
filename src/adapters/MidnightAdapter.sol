@@ -101,8 +101,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true during forceDeallocate's take, cleared in the buy callback.
     bool public transient inForceDeallocate;
-    /// @dev Gate that admits the taker of forceDeallocate's take, unadmitted in the buy callback.
-    address public transient admittingGate;
+    /// @dev Set to true after admitting the taker of forceDeallocate's take, cleared in the buy callback.
+    bool public transient admitting;
     /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;
@@ -419,7 +419,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
-                admittingGate = market.enterGate;
+                admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
@@ -474,10 +474,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (inForceDeallocate) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             inForceDeallocate = false;
-            address gate = admittingGate;
-            if (gate != address(0)) {
-                admittingGate = address(0);
-                IVaultV2CompatibleEnterGate(gate).unadmit();
+            if (admitting) {
+                admitting = false;
+                IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
             require(buyer == address(this), NotSelf());
