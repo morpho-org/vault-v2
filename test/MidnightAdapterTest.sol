@@ -40,6 +40,7 @@ import {
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {VaultV2CompatibleEnterGate} from "../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
+import {IVaultV2CompatibleEnterGate} from "../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {VaultV2CompatibleEnterGateFactory} from "../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
@@ -3463,6 +3464,113 @@ contract MidnightAdapterTest is Test {
     }
 
     /* ENTER GATES */
+
+    function testEnterGateBuyAtZero(bool matured) public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        bytes32 marketId = _marketId(boughtOffer.market);
+        if (matured) vm.warp(boughtOffer.market.maturity + 1);
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.mockCallRevert(
+            wrapper.subGate(), abi.encodeWithSelector(IEnterSubGate.creditIncreaseAllowed.selector), "broken gate"
+        );
+        for (uint256 i; i < boughtOffer.market.collateralParams.length; i++) {
+            vm.mockCallRevert(
+                boughtOffer.market.collateralParams[i].oracle, abi.encodeWithSignature("price()"), "broken oracle"
+            );
+        }
+        assertEq(TickLib.tickToPrice(offer.tick), 0, "zero price is representable");
+
+        vm.expectEmit(address(wrapper));
+        emit IVaultV2CompatibleEnterGate.BuyAtZero(recipient, marketId, 1e18);
+        vm.prank(recipient);
+        wrapper.buyAtZero(offer, data, 1e18);
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter fully exited");
+        assertEq(midnight.credit(marketId, address(wrapper)), 1e18, "gate owns abandoned credit");
+        assertEq(midnight.debt(marketId, address(wrapper)), 0, "gate has no debt");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "stored credit cleared");
+        assertEq(adapter.marketIdsLength(), 0, "market removed normally");
+        assertEq(adapter.realAssets(), 0, "value written off");
+        bytes32[] memory ids = adapter.ids(offer.market);
+        for (uint256 i; i < ids.length; i++) {
+            assertEq(realVault.allocation(ids[i]), 0, "cap allocation cleared");
+        }
+        assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault receives no proceeds");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter receives no proceeds");
+        assertEq(loanToken.balanceOf(address(wrapper)), 0, "gate needs no funds");
+    }
+
+    function testEnterGateBuyAtZeroPartialSale() public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        Offer memory offer = makeSellOffer(boughtOffer.market, 0.4e18, 0);
+        wrapper.buyAtZero(offer, ratify([offer], signerAllocator), offer.maxUnits);
+
+        bytes32 marketId = _marketId(offer.market);
+        assertEq(midnight.credit(marketId, address(adapter)), 0.6e18);
+        assertEq(midnight.credit(marketId, address(wrapper)), 0.4e18);
+        assertEq(adapter.marketData(marketId).netCredit, 0.6e18);
+        assertEq(adapter.marketIdsLength(), 1);
+        assertEq(realVault.allocation(adapter.adapterId()), 0.6e18);
+        assertEq(adapter.realAssets(), 0.6e18);
+    }
+
+    function testEnterGateBuyAtZeroRequiresZeroPayment(bool settlementFee) public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        if (settlementFee) midnight.setMarketSettlementFee(_marketId(boughtOffer.market), 2, CBP);
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, settlementFee ? 0 : MAX_TICK);
+        bytes memory data = ratify([offer], signerAllocator);
+
+        vm.expectRevert(IVaultV2CompatibleEnterGate.NonZeroBuyAssets.selector);
+        wrapper.buyAtZero(offer, data, offer.maxUnits);
+
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
+        assertEq(midnight.credit(_marketId(offer.market), address(wrapper)), 0, "no credit received");
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation unchanged");
+    }
+
+    function testEnterGateBuyAtZeroRespectsMinimumPrice() public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        vm.prank(curator);
+        adapter.setMinForceSellPrice(_marketId(boughtOffer.market), 1);
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        bytes memory data = ratify([offer], signerAllocator);
+
+        vm.expectRevert(IMidnightAdapterBase.ForceSellPriceTooLow.selector);
+        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
+    }
+
+    function testEnterGateBuyAtZeroRequiresForceSellable() public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        unsetForceSellable(_marketId(boughtOffer.market));
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        bytes memory data = ratify([offer], signerAllocator);
+
+        vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
+        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
+    }
+
+    function testEnterGateBuyAtZeroRequiresRatification() public {
+        (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.prank(signerAllocator);
+        priceRatifier.setIsRootRatified(address(adapter), root(offer), false, signerAllocator);
+
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
+        wrapper.buyAtZero(offer, data, offer.maxUnits);
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
+    }
+
+    function setUpGateZeroPriceSale() internal returns (VaultV2CompatibleEnterGate wrapper, Offer memory offer) {
+        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        wrapper = VaultV2CompatibleEnterGate(createVaultV2CompatibleEnterGate(gateFactory, gate));
+        offer = makeEnterGateBuyOffer(address(wrapper), true);
+        take(offer);
+        setForceSellable(_marketId(offer.market));
+    }
 
     function testEnterGateNoGate(bool adapterIsMaker) public {
         setUpEnterGateRealVault(true);

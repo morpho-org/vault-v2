@@ -8,6 +8,8 @@ import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhit
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
+import {Market, Offer} from "../../lib/midnight/src/interfaces/IMidnight.sol";
+import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
 
 /// forge-config: default.isolate = false
 contract VaultV2CompatibleEnterGateTest is Test {
@@ -43,6 +45,44 @@ contract VaultV2CompatibleEnterGateTest is Test {
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
         assertTrue(wrapper.canAdmit(address(adapterFactory)));
+    }
+
+    function testGateCanAlwaysIncreaseOwnCredit() public {
+        vm.mockCallRevert(
+            address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (address(wrapper))), "gate reverted"
+        );
+        assertTrue(wrapper.canIncreaseCredit(address(wrapper)));
+        wrapper.unadmit();
+        assertTrue(wrapper.canIncreaseCredit(address(wrapper)));
+        assertFalse(wrapper.canIncreaseDebt(address(wrapper)));
+    }
+
+    function testBuyAtZeroRequiresSellOffer() public {
+        Offer memory offer;
+        offer.market.enterGate = address(wrapper);
+        offer.buy = true;
+        vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
+        wrapper.buyAtZero(offer, "", 1);
+    }
+
+    function testBuyAtZeroRequiresOwnGate(address gate) public {
+        vm.assume(gate != address(wrapper));
+        Offer memory offer;
+        offer.market.enterGate = gate;
+        vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
+        wrapper.buyAtZero(offer, "", 1);
+    }
+
+    function testZeroBuyCallback() public view {
+        Market memory market;
+        assertEq(wrapper.onBuy(bytes32(0), market, 0, 1, 0, address(wrapper), ""), CALLBACK_SUCCESS);
+    }
+
+    function testBuyCallbackRejectsPayment(uint256 assets) public {
+        assets = bound(assets, 1, type(uint256).max);
+        Market memory market;
+        vm.expectRevert(IVaultV2CompatibleEnterGate.NonZeroBuyAssets.selector);
+        wrapper.onBuy(bytes32(0), market, assets, 1, 0, address(wrapper), "");
     }
 
     function testAddAdmitterFactory(address factory) public {
@@ -153,7 +193,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testCreditForwarded(address account, bool allowed) public {
-        vm.assume(account != address(0));
+        vm.assume(account != address(0) && account != address(wrapper));
         subGate.setIsWhitelisted(true, account, allowed);
         subGate.setIsWhitelisted(false, account, !allowed);
         vm.expectCall(address(subGate), abi.encodeCall(IEnterSubGate.creditIncreaseAllowed, (account)));
