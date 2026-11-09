@@ -784,7 +784,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
             // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow.
             unchecked {
-                assets += netCredit.mulDivUp(WAD, WAD + netRate * maturity.zeroFloorSub(block.timestamp));
+                uint256 discount = WAD + netRate * maturity.zeroFloorSub(block.timestamp);
+                assets += (netCredit * WAD + (discount - 1)) / discount;
             }
         }
         return assets;
