@@ -6,8 +6,10 @@ import MidnightAdapterProofs.Operations
 `VaultV2.accrueInterestView` with the MidnightAdapter as the only adapter, no performance fee and
 no management fee. `_totalAssets`, `totalSupply` and `virtualShares` are left unchanged by
 `allocate`/`deallocate` (the trade's own accrual runs on the pre-trade state, through
-`inProgressBuy*` on buys), so the trade only changes `realAssets`. The theorems compare, at any
-later time, the vault's share price after the trade with the share price without it.
+`inProgressBuy*` on buys), so the trade only changes `realAssets`. The theorems compare the vault's
+share price after the trade with the share price without it, at the trade's timestamp: each market's
+`ttm` is the one the trade used. Later accruals re-discount at a smaller `ttm`, and rate rounding can
+then leave the traded state a few units of assets below the untraded one; that isn't covered.
 -/
 
 namespace MidnightAdapterProofs
