@@ -895,11 +895,28 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("removed buy");
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
-        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
         take(offer);
 
         assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "removal is permanent");
         assertEq(adapter.marketIdsLength(), 0, "market not reinserted");
+    }
+
+    function testNonNormalBuyRejectsBeforeCreditValidation(bool removed) public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        setForceSellable(marketId);
+        if (removed) forceRemove(marketId);
+
+        vm.expectRevert(IMidnightAdapterBase.UnauthorizedBuy.selector);
+        vm.prank(address(midnight));
+        adapter.onBuy(marketId, offer.market, 1, 0, 1, address(adapter), "");
+
+        assertTrue(
+            adapter.marketData(marketId).status == (removed ? MarketStatus.ForceRemoved : MarketStatus.ForceSellable),
+            "status unchanged"
+        );
+        assertEq(adapter.marketData(marketId).netCredit, removed ? 0 : 1e18, "credit unchanged");
     }
 
     function testForceRemovePreventsSell(bool forceDeallocation) public {
