@@ -514,7 +514,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
-                    (newNetCredit - boughtNetCredit).mulDivUp(WAD, WAD + oldNetRate * ttm) + buyerAssets;
+                    (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
+                // Can revert if pre-buy amortized credit and buyerAssets are both 0.
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
             }
             if (newNetCredit > 0 && oldNetCredit == 0) {
@@ -627,7 +628,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
-                    uint256 amortizedValue = netCredit.mulDivUp(
+                    uint256 amortizedValue = netCredit.mulDivDown(
                         WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
                     );
                     netCredits[i] = netCredit;
