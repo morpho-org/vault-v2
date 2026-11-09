@@ -4933,6 +4933,62 @@ contract MidnightAdapterTest is Test {
         assertApproxEqAbs(adapter.realAssets(), assetsBefore - proceeds, tolerance, "only proceeds leave realAssets");
     }
 
+    function testShortfallStopsWhenFullyAllocated(bool oneUnitShortfall) public {
+        Offer memory offerA = buy(30 days, 100, MAX_TICK / 2);
+        Offer memory offerB = buy(60 days, 100, MAX_TICK / 2);
+        Offer memory offerC = buy(90 days, 300, MAX_TICK / 2);
+        bytes32 marketIdA = _marketId(offerA.market);
+        bytes32 marketIdB = _marketId(offerB.market);
+        bytes32 marketIdC = _marketId(offerC.market);
+        uint256 rateA = adapter.marketData(marketIdA).netRate;
+        uint256 rateB = adapter.marketData(marketIdB).netRate;
+        uint256 rateC = adapter.marketData(marketIdC).netRate;
+        uint256 shortfall = oneUnitShortfall ? 1 : 2;
+        uint256 allowanceBefore = adapter.shortfallAllowance();
+        uint256 tick = oneUnitShortfall ? MAX_TICK / 2 : TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING);
+
+        vm.recordLogs();
+        sellUnits(offerA.market, oneUnitShortfall ? 2 : 31, tick);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(adapter.shortfallAllowance(), allowanceBefore - shortfall, "shortfall consumed");
+        assertLt(adapter.marketData(marketIdA).netRate, rateA, "market A absorbs one unit");
+        if (oneUnitShortfall) assertEq(adapter.marketData(marketIdB).netRate, rateB, "market B is skipped");
+        else assertLt(adapter.marketData(marketIdB).netRate, rateB, "market B absorbs the second unit");
+        assertEq(adapter.marketData(marketIdC).netRate, rateC, "market C is skipped");
+        uint256 reduceRateEvents;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(adapter) && logs[i].topics[0] == keccak256("ReduceRate(bytes32,uint256)")) {
+                assertNotEq(logs[i].topics[1], marketIdC, "market C does not emit ReduceRate");
+                reduceRateEvents++;
+            }
+        }
+        assertEq(reduceRateEvents, shortfall, "one ReduceRate event per unit");
+    }
+
+    function testShortfallCapsLastReduction() public {
+        Offer memory offerA = buy(30 days, 100, MAX_TICK / 2);
+        Offer memory offerB = buy(60 days, 100, MAX_TICK / 2);
+        MarketData memory dataA = adapter.marketData(_marketId(offerA.market));
+        bytes32 marketIdB = _marketId(offerB.market);
+        MarketData memory dataB = adapter.marketData(marketIdB);
+        uint256 creditA = dataA.netCredit - 31;
+        uint256 interestA = creditA - creditA.mulDivUp(WAD, WAD + dataA.netRate * 30 days);
+        uint256 discountB = WAD + dataB.netRate * 60 days;
+        uint256 interestB = dataB.netCredit - uint256(dataB.netCredit).mulDivUp(WAD, discountB);
+        assertEq(uint256(2).mulDivUp(interestA, interestA + interestB), 1, "market A receives one unit");
+        assertEq(uint256(2).mulDivUp(interestB, interestA + interestB), 2, "market B rounds up to two units");
+        uint256 targetAmortizedValueTimesDiscount = uint256(dataB.netCredit) * WAD + discountB;
+        uint256 expectedRateB = (uint256(dataB.netCredit) * discountB - targetAmortizedValueTimesDiscount)
+        .mulDivDown(WAD, targetAmortizedValueTimesDiscount * 60 days);
+        uint256 allowanceBefore = adapter.shortfallAllowance();
+
+        sellUnits(offerA.market, 31, TickLib.priceToTick(0.45e18, DEFAULT_TICK_SPACING));
+
+        assertEq(adapter.shortfallAllowance(), allowanceBefore - 2, "shortfall is two");
+        assertEq(adapter.marketData(marketIdB).netRate, expectedRateB, "market B receives only the remaining unit");
+    }
+
     function testShortfallSharedAcrossTwoMarkets() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);
