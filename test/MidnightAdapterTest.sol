@@ -9,7 +9,7 @@ import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {newTokenOfType} from "./mocks/TokenMocks.sol";
 import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
-import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
