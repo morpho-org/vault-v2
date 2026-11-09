@@ -24,7 +24,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate) and to self-fund buys.
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), write off markets and self-fund buys.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
@@ -351,18 +351,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
     }
 
-    /// @dev Irreversibly removes a force sellable market without moving its Midnight credit.
+    /// @dev Irreversibly removes a market without moving its Midnight credit.
     /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
-    function forceRemove(Market memory market) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        bytes32 marketId = IdLib.toId(market);
+    function forceRemove(bytes32 marketId) external {
+        timelocked();
         MarketData storage _marketData = marketData[marketId];
-        require(_marketData.forceSellable, NotForceSellable());
         uint256 oldNetCredit = _marketData.netCredit;
         emit ForceRemove(marketId, oldNetCredit);
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
         if (oldNetCredit > 0) removeMarket(marketId);
+        Market memory market = IMidnight(midnight).toMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
     }

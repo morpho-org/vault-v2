@@ -92,7 +92,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
-    error NotForceSellable();
     error NonEmptyCallbackData();
     error OtherSellInProgress();
     error NetBuyRateTooLow();
@@ -154,7 +153,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
-    function forceRemove(Market memory market) external;
+    function forceRemove(bytes32 marketId) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);

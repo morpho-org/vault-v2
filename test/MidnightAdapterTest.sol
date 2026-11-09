@@ -706,19 +706,74 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).minForceSellPrice, newMinForceSellPrice, "min price unchanged");
     }
 
-    function testForceRemoveNotAuthorized(address caller) public {
-        vm.assume(caller != curator);
-        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
-        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+    function testForceRemoveNotSubmitted(address caller, bytes32 marketId) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(caller);
-        adapter.forceRemove(offer.market);
+        adapter.forceRemove(marketId);
     }
 
-    function testForceRemoveRequiresForceSellable() public {
+    function testForceRemoveRequiresOwnApproval() public {
         Offer memory offer = buy(7 days, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.NotForceSellable.selector);
+        bytes32 marketId = _marketId(offer.market);
+        setForceSellable(marketId);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(curator);
-        adapter.forceRemove(offer.market);
+        adapter.forceRemove(marketId);
+    }
+
+    function testForceRemoveTimelock(address caller) public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        submitTimelock(IMidnightAdapterBase.forceRemove.selector, 1 days);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        assertEq(data.length, 36, "calldata fits submit limit");
+        vm.prank(curator);
+        adapter.submit(data);
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.forceRemove(bytes32(uint256(marketId) ^ 1));
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.forceRemove(marketId);
+        skip(1 days);
+        vm.prank(caller);
+        adapter.forceRemove(marketId);
+
+        assertTrue(adapter.marketData(marketId).forceRemoved, "removed after delay");
+        assertEq(adapter.executableAt(data), 0, "approval consumed");
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.forceRemove(marketId);
+    }
+
+    function testForceRemoveRevoked(bool sentinel) public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+        address revoker = sentinel ? makeAddr("sentinel") : curator;
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(revoker).checked_write(true);
+        }
+        vm.prank(revoker);
+        adapter.revoke(data);
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.forceRemove(marketId);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "not removed");
+    }
+
+    function testForceRemoveAbdicated() public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        vm.startPrank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.abdicate, (IMidnightAdapterBase.forceRemove.selector)));
+        vm.stopPrank();
+        adapter.abdicate(IMidnightAdapterBase.forceRemove.selector);
+
+        vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
+        adapter.forceRemove(marketId);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "not removed");
     }
 
     function testForceRemove() public {
@@ -728,18 +783,18 @@ contract MidnightAdapterTest is Test {
         uint128 creditBefore = midnight.credit(marketId, address(adapter));
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 allocationBefore = parentVault.allocation(adapter.adapterId());
-        setForceSellable(marketId);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.ForceRemove(marketId, 1e18);
-        vm.prank(curator);
-        adapter.forceRemove(first.market);
+        adapter.forceRemove(marketId);
 
         MarketData memory data = adapter.marketData(marketId);
         assertEq(data.netCredit, 0, "written off");
         assertEq(data.netRate, 0, "rate reset");
         assertEq(data.maturity, 0, "maturity reset");
-        assertTrue(data.forceSellable, "force sellable preserved");
+        assertFalse(data.forceSellable, "force sellable not required");
         assertTrue(data.forceRemoved, "force removed");
         assertEq(adapter.marketIdsLength(), 1, "one market remains");
         assertEq(adapter.marketIds(0), _marketId(second.market), "remaining market");
@@ -747,6 +802,10 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, address(adapter)), creditBefore, "Midnight credit unchanged");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
         assertEq(parentVault.allocation(adapter.adapterId()), allocationBefore - 1e18, "allocation written off");
+        bytes32[] memory ids = adapter.ids(first.market);
+        for (uint256 i; i < ids.length; i++) {
+            assertEq(parentVault.allocation(ids[i]), allocationBefore - 1e18, "cap allocation written off");
+        }
 
         vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         withdrawToVault(first.market, 0);
@@ -754,20 +813,48 @@ contract MidnightAdapterTest is Test {
 
     function testForceRemoveLastMarket() public {
         Offer memory offer = buy(7 days, 1e18);
-        setForceSellable(_marketId(offer.market));
-        vm.prank(curator);
-        adapter.forceRemove(offer.market);
+        forceRemove(_marketId(offer.market));
         assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
         assertEq(adapter.realAssets(), 0, "written off");
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
+    }
+
+    function testForceRemoveRealVaultWithSentinelAfterAllocatorRevocation() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        adapter.forceRemove(marketId);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "failed removal rolled back");
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "credit retained");
+        assertGt(adapter.executableAt(data), 0, "approval retained");
+
+        vm.prank(owner);
+        realVault.setIsSentinel(address(adapter), true);
+        adapter.forceRemove(marketId);
+
+        assertFalse(realVault.isAllocator(address(adapter)), "allocator not restored");
+        assertTrue(adapter.marketData(marketId).forceRemoved, "force removed");
+        assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
+        assertEq(adapter.realAssets(), 0, "written off");
+        bytes32[] memory ids = adapter.ids(offer.market);
+        for (uint256 i; i < ids.length; i++) {
+            assertEq(realVault.allocation(ids[i]), 0, "cap allocation cleared");
+        }
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "Midnight credit unchanged");
+        assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault balance unchanged");
     }
 
     function testForceRemovePreventsBuy(bool zeroCredit) public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
         setForceSellable(marketId);
-        vm.prank(curator);
-        adapter.forceRemove(offer.market);
+        forceRemove(marketId);
         unsetForceSellable(marketId);
         if (zeroCredit) setMidnightCredit(marketId, address(adapter), 0);
 
@@ -784,8 +871,7 @@ contract MidnightAdapterTest is Test {
     function testForceRemovePreventsSell(bool forceDeallocation) public {
         Offer memory offer = buy(7 days, 1e18);
         setForceSellable(_marketId(offer.market));
-        vm.prank(curator);
-        adapter.forceRemove(offer.market);
+        forceRemove(_marketId(offer.market));
 
         if (forceDeallocation) {
             deal(address(loanToken), address(this), 0.5e18);
@@ -804,8 +890,7 @@ contract MidnightAdapterTest is Test {
         Offer memory remaining = buy(1 days, 1e18);
         bytes32 marketId = _marketId(removed.market);
         setForceSellable(marketId);
-        vm.prank(curator);
-        adapter.forceRemove(removed.market);
+        forceRemove(marketId);
         unsetForceSellable(marketId);
         setShortfallAllowance(1e18);
 
@@ -5646,6 +5731,12 @@ contract MidnightAdapterTest is Test {
     function unsetForceSellable(bytes32 marketId) internal {
         vm.prank(curator);
         adapter.unsetForceSellable(marketId);
+    }
+
+    function forceRemove(bytes32 marketId) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        adapter.forceRemove(marketId);
     }
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) internal {
