@@ -799,6 +799,32 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "credit unchanged");
     }
 
+    function testForceRemovedSaleRejectsBeforeShortfallAccounting() public {
+        Offer memory removed = buy(7 days, 1e18);
+        Offer memory remaining = buy(1 days, 1e18);
+        bytes32 marketId = _marketId(removed.market);
+        setForceSellable(marketId);
+        vm.prank(curator);
+        adapter.forceRemove(removed.market);
+        unsetForceSellable(marketId);
+        setShortfallAllowance(1e18);
+
+        Offer memory offer = makeSellOffer(removed.market, 0.5e18, discountTick);
+        bytes memory data = ratify([offer], signerAllocator);
+        vm.mockCall(
+            address(midnight),
+            abi.encodeCall(IMidnight.liquidationLocked, (_marketId(remaining.market), address(adapter))),
+            abi.encode(true)
+        );
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        vm.prank(taker);
+        midnight.take(offer, data, offer.maxUnits, taker, address(0), address(0), "");
+
+        assertEq(adapter.marketData(marketId).netCredit, 0, "written off");
+        assertEq(adapter.marketIdsLength(), 1, "remaining market retained");
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "credit unchanged");
+    }
+
     function testEmptyMarketIsNotForceRemoved() public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 2e18);

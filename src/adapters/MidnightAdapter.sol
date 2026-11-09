@@ -602,6 +602,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
+        require(!_marketData.forceRemoved, ForceRemoved());
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         uint256 shortfall;
@@ -653,7 +654,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        require(!_marketData.forceRemoved, ForceRemoved());
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
