@@ -627,6 +627,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                    // newRate = (netCredit - targetAmortizedValue) / (targetAmortizedValue * otherTtm)
                     uint256 discount = WAD + otherMarketData.netRate * otherTtm;
                     uint256 targetAmortizedValueTimesDiscount =
                         netCredit * WAD + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest) * discount;
