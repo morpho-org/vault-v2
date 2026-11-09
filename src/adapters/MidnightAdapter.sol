@@ -15,8 +15,7 @@ import {
     IMidnightAdapterBase,
     IMidnightAdapterStaticTyping,
     MarketData,
-    FORCE_SELLABLE,
-    FORCE_REMOVED
+    MarketStatus
 } from "./interfaces/IMidnightAdapter.sol";
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
@@ -269,7 +268,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
-        marketData[marketId].forceFlags |= FORCE_SELLABLE;
+        MarketData storage _marketData = marketData[marketId];
+        require(_marketData.status != MarketStatus.ForceRemoved, ForceRemoved());
+        _marketData.status = MarketStatus.ForceSellable;
         emit SetForceSellable(marketId);
     }
 
@@ -278,7 +279,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-        marketData[marketId].forceFlags &= ~FORCE_SELLABLE;
+        MarketData storage _marketData = marketData[marketId];
+        require(_marketData.status != MarketStatus.ForceRemoved, ForceRemoved());
+        _marketData.status = MarketStatus.Normal;
         emit UnsetForceSellable(msg.sender, marketId);
     }
 
@@ -365,7 +368,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         emit ForceRemove(marketId, oldNetCredit);
         _marketData.netCredit = 0;
-        _marketData.forceFlags |= FORCE_REMOVED;
+        _marketData.status = MarketStatus.ForceRemoved;
         if (oldNetCredit > 0) removeMarket(marketId);
         Market memory market = IMidnight(midnight).toMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
@@ -448,7 +451,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(marketId);
             MarketData storage _marketData = marketData[marketId];
             uint256 oldNetCredit = _marketData.netCredit;
-            require((_marketData.forceFlags & FORCE_REMOVED) == 0, ForceRemoved());
+            require(_marketData.status != MarketStatus.ForceRemoved, ForceRemoved());
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -507,14 +510,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 ttm = market.maturity - block.timestamp;
             require(ttm <= maxTtm, BuyTtmTooHigh());
             MarketData storage _marketData = marketData[id];
-            require((_marketData.forceFlags & FORCE_SELLABLE) == 0, UnauthorizedBuy());
+            require(_marketData.status != MarketStatus.ForceSellable, UnauthorizedBuy());
             uint256 boughtNetCredit = units - pendingFeeIncrease;
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
             require((boughtNetCredit - buyerAssets) * WAD >= minNetBuyRate * ttm * buyerAssets, NetBuyRateTooLow());
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
-            require((_marketData.forceFlags & FORCE_REMOVED) == 0, ForceRemoved());
+            require(_marketData.status != MarketStatus.ForceRemoved, ForceRemoved());
             uint72 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -607,11 +610,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
-        require((_marketData.forceFlags & FORCE_REMOVED) == 0, ForceRemoved());
+        require(_marketData.status != MarketStatus.ForceRemoved, ForceRemoved());
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         uint256 shortfall;
-        if ((_marketData.forceFlags & FORCE_SELLABLE) != 0) {
+        if (_marketData.status == MarketStatus.ForceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
@@ -687,7 +690,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
-        require((marketData[marketId].forceFlags & FORCE_REMOVED) == 0, ForceRemoved());
+        require(marketData[marketId].status != MarketStatus.ForceRemoved, ForceRemoved());
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);

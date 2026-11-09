@@ -7,8 +7,11 @@ import {Market, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol"
 import {IBuyCallback, ISellCallback} from "../../../lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 
-uint8 constant FORCE_SELLABLE = 1;
-uint8 constant FORCE_REMOVED = 2;
+enum MarketStatus {
+    Normal,
+    ForceSellable,
+    ForceRemoved
+}
 
 struct MarketData {
     uint128 netCredit;
@@ -16,11 +19,9 @@ struct MarketData {
     uint72 netRate;
     uint40 maturity;
     uint8 index;
-    /// @dev Bitmask of FORCE_SELLABLE and FORCE_REMOVED.
-    /// @dev FORCE_SELLABLE allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
-    /// @dev When activated, netRate isn't reduced on losses due to selling this market.
-    /// @dev When activated, buying is prevented.
-    uint8 forceFlags;
+    /// @dev ForceSellable allows selling down to minForceSellPrice, also after maturity, without reducing netRate or allowing buys.
+    /// @dev ForceRemoved permanently prevents buys, withdrawals, sales and force deallocations.
+    MarketStatus status;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
     uint256 minForceSellPrice;
 }
@@ -174,7 +175,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
             uint72 netRate,
             uint40 maturity,
             uint8 index,
-            uint8 forceFlags,
+            MarketStatus status,
             uint256 minForceSellPrice
         );
 }

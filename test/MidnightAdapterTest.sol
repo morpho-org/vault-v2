@@ -18,8 +18,7 @@ import {
     IMidnightAdapter,
     IMidnightAdapterBase,
     MarketData,
-    FORCE_SELLABLE,
-    FORCE_REMOVED
+    MarketStatus
 } from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {
     IMidnightAdapterPriceRatifierV1
@@ -315,7 +314,7 @@ contract MidnightAdapterTest is Test {
         assertEq(marketData.maturity, 0, "maturity");
         assertEq(marketData.index, 0, "index");
         assertEq(midnight.lossFactor(marketId), 0, "no bad debt");
-        assertEq(marketData.forceFlags, 0, "force flags");
+        assertTrue(marketData.status == MarketStatus.Normal, "normal status");
     }
 
     function testGetMarketData() public {
@@ -630,7 +629,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(caller);
         adapter.unsetForceSellable(marketId);
         assertTrue(
-            (adapter.marketData(marketId).forceFlags & FORCE_SELLABLE) != 0, "unauthorized caller cannot disable"
+            adapter.marketData(marketId).status == MarketStatus.ForceSellable, "unauthorized caller cannot disable"
         );
 
         address authorizedCaller = curator;
@@ -649,7 +648,7 @@ contract MidnightAdapterTest is Test {
         adapter.unsetForceSellable(marketId);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1, "no Accept event");
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, 0, "setting updated");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "setting updated");
     }
 
     function testUnsetForceSellableWhenAbdicated(bytes32 marketId) public {
@@ -665,7 +664,7 @@ contract MidnightAdapterTest is Test {
         adapter.abdicate(selector);
 
         unsetForceSellable(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, 0, "curator can disable");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "curator can disable");
 
         vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
         adapter.setForceSellable(marketId);
@@ -688,7 +687,7 @@ contract MidnightAdapterTest is Test {
             vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         }
         adapter.setForceSellable(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, 0);
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal);
     }
 
     function testForceSellablePreservesMarketData(bool newForceSellable, uint256 newMinForceSellPrice) public {
@@ -705,11 +704,13 @@ contract MidnightAdapterTest is Test {
         assertEq(after_.netRate, before.netRate, "rate unchanged");
         assertEq(after_.maturity, before.maturity, "maturity unchanged");
         assertEq(after_.index, before.index, "index unchanged");
-        assertEq((after_.forceFlags & FORCE_SELLABLE) != 0, newForceSellable, "setting updated");
+        assertEq(after_.status == MarketStatus.ForceSellable, newForceSellable, "setting updated");
 
         sell(first.market, 1e18);
         assertEq(adapter.marketData(marketId).index, 0, "updated index");
-        assertEq((adapter.marketData(marketId).forceFlags & FORCE_SELLABLE) != 0, newForceSellable, "setting unchanged");
+        assertEq(
+            adapter.marketData(marketId).status == MarketStatus.ForceSellable, newForceSellable, "setting unchanged"
+        );
         assertEq(adapter.marketData(marketId).minForceSellPrice, newMinForceSellPrice, "min price unchanged");
     }
 
@@ -719,24 +720,32 @@ contract MidnightAdapterTest is Test {
         adapter.forceRemove(marketId);
     }
 
-    function testForceFlagsRemainIndependent(bool initiallyForceSellable) public {
+    function testForceRemovedStatusIsTerminal(bool initiallyForceSellable, bool sentinel) public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
         if (initiallyForceSellable) setForceSellable(marketId);
 
         forceRemove(marketId);
-        assertEq(
-            adapter.marketData(marketId).forceFlags,
-            FORCE_REMOVED | (initiallyForceSellable ? FORCE_SELLABLE : 0),
-            "removal preserves force sellable"
-        );
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "removed status");
 
-        setForceSellable(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags, FORCE_REMOVED | FORCE_SELLABLE, "both flags set");
-        unsetForceSellable(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags, FORCE_REMOVED, "unsetting preserves removal");
-        setForceSellable(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags, FORCE_REMOVED | FORCE_SELLABLE, "setting preserves removal");
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setForceSellable, (marketId));
+        vm.prank(curator);
+        adapter.submit(data);
+        uint256 executableAt = adapter.executableAt(data);
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        adapter.setForceSellable(marketId);
+        assertEq(adapter.executableAt(data), executableAt, "approval retained");
+
+        address caller = curator;
+        if (sentinel) {
+            caller = makeAddr("forceSellableSentinel");
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        vm.prank(caller);
+        adapter.unsetForceSellable(marketId);
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "removal remains permanent");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "still written off");
     }
 
     function testForceRemoveRequiresOwnApproval() public {
@@ -765,7 +774,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(caller);
         adapter.forceRemove(marketId);
 
-        assertTrue((adapter.marketData(marketId).forceFlags & FORCE_REMOVED) != 0, "removed after delay");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "removed after delay");
         assertEq(adapter.executableAt(data), 0, "approval consumed");
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.forceRemove(marketId);
@@ -786,7 +795,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.forceRemove(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_REMOVED, 0, "not removed");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "not removed");
     }
 
     function testForceRemoveAbdicated() public {
@@ -800,7 +809,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.Abdicated.selector);
         adapter.forceRemove(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_REMOVED, 0, "not removed");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "not removed");
     }
 
     function testForceRemove() public {
@@ -821,7 +830,7 @@ contract MidnightAdapterTest is Test {
         assertEq(data.netCredit, 0, "written off");
         assertEq(data.netRate, 0, "rate reset");
         assertEq(data.maturity, 0, "maturity reset");
-        assertEq(data.forceFlags, FORCE_REMOVED, "force removed without force sellable");
+        assertTrue(data.status == MarketStatus.ForceRemoved, "force removed without force sellable");
         assertEq(adapter.marketIdsLength(), 1, "one market remains");
         assertEq(adapter.marketIds(0), _marketId(second.market), "remaining market");
         assertEq(adapter.marketData(_marketId(second.market)).index, 0, "remaining market index");
@@ -856,7 +865,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         adapter.forceRemove(marketId);
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_REMOVED, 0, "failed removal rolled back");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "failed removal rolled back");
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "credit retained");
         assertGt(adapter.executableAt(data), 0, "approval retained");
 
@@ -865,7 +874,7 @@ contract MidnightAdapterTest is Test {
         adapter.forceRemove(marketId);
 
         assertFalse(realVault.isAllocator(address(adapter)), "allocator not restored");
-        assertTrue((adapter.marketData(marketId).forceFlags & FORCE_REMOVED) != 0, "force removed");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "force removed");
         assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
         assertEq(adapter.realAssets(), 0, "written off");
         bytes32[] memory ids = adapter.ids(offer.market);
@@ -881,7 +890,6 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(offer.market);
         setForceSellable(marketId);
         forceRemove(marketId);
-        unsetForceSellable(marketId);
         if (zeroCredit) setMidnightCredit(marketId, address(adapter), 0);
 
         offer.group = bytes32("removed buy");
@@ -890,15 +898,14 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         take(offer);
 
-        assertTrue((adapter.marketData(marketId).forceFlags & FORCE_REMOVED) != 0, "removal is permanent");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceRemoved, "removal is permanent");
         assertEq(adapter.marketIdsLength(), 0, "market not reinserted");
     }
 
-    function testForceRemovePreventsSell(bool forceDeallocation, bool retainForceSellable) public {
+    function testForceRemovePreventsSell(bool forceDeallocation) public {
         Offer memory offer = buy(7 days, 1e18);
         setForceSellable(_marketId(offer.market));
         forceRemove(_marketId(offer.market));
-        if (!retainForceSellable) unsetForceSellable(_marketId(offer.market));
 
         if (forceDeallocation) {
             deal(address(loanToken), address(this), 0.5e18);
@@ -918,7 +925,6 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(removed.market);
         setForceSellable(marketId);
         forceRemove(marketId);
-        unsetForceSellable(marketId);
         setShortfallAllowance(1e18);
 
         Offer memory offer = makeSellOffer(removed.market, 0.5e18, discountTick);
@@ -942,7 +948,7 @@ contract MidnightAdapterTest is Test {
         Offer memory second = buy(7 days, 2e18);
         sell(first.market, 1e18);
 
-        assertEq(adapter.marketData(_marketId(first.market)).forceFlags & FORCE_REMOVED, 0, "normal removal");
+        assertTrue(adapter.marketData(_marketId(first.market)).status == MarketStatus.Normal, "normal removal");
         withdrawToVault(first.market, 0);
         Offer memory zeroSale = makeSellOffer(first.market, 1e18, MAX_TICK);
         bytes memory data = ratify([zeroSale], signerAllocator);
@@ -1041,13 +1047,13 @@ contract MidnightAdapterTest is Test {
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(second.market, 1e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(secondMarketId).forceFlags & FORCE_SELLABLE, 0, "other market protected");
+        assertTrue(adapter.marketData(secondMarketId).status == MarketStatus.Normal, "other market protected");
         assertEq(adapter.marketData(secondMarketId).netCredit, 1e18);
 
         unsetForceSellable(firstMarketId);
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
         sellUnits(first.market, 1e18, MAX_TICK / 2);
-        assertEq(adapter.marketData(firstMarketId).forceFlags & FORCE_SELLABLE, 0, "override disabled");
+        assertTrue(adapter.marketData(firstMarketId).status == MarketStatus.Normal, "override disabled");
         assertEq(adapter.marketData(firstMarketId).netCredit, 1e18);
 
         sellUnits(first.market, 1e18, MAX_TICK);
@@ -2873,7 +2879,9 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, 0, 0)));
+            assertEq(
+                abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, MarketStatus.Normal, 0))
+            );
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -2915,7 +2923,10 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0);
         sell(soldOffer.market, 1e18);
 
-        assertEq(abi.encode(adapter.marketData(_marketId(soldOffer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(soldOffer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, MarketStatus.Normal, 0))
+        );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
         for (uint256 i = 0; i < 249; i++) {
@@ -3117,7 +3128,7 @@ contract MidnightAdapterTest is Test {
             uint256 shortfall = soldUnits - proceeds;
             assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "position partially sold");
             assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit reduced");
-            assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, FORCE_SELLABLE, "setting retained");
+            assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceSellable, "setting retained");
             assertEq(adapter.marketIdsLength(), 1, "market retained");
             assertEq(
                 assetsBefore + vaultBalanceBefore - assetsAfter - loanToken.balanceOf(address(parentVault)),
@@ -3127,7 +3138,7 @@ contract MidnightAdapterTest is Test {
         } else {
             assertEq(midnight.credit(marketId, address(adapter)), 1e18, "position unchanged");
             assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit unchanged");
-            assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, 0, "setting disabled");
+            assertTrue(adapter.marketData(marketId).status == MarketStatus.Normal, "setting disabled");
             assertEq(adapter.marketIdsLength(), 1, "market retained");
             assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
             assertEq(adapter.realAssets(), assetsBefore, "assets unchanged");
@@ -3187,7 +3198,10 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, MarketStatus.Normal, 0))
+        );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
     }
@@ -4842,7 +4856,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, buyer), 1e18, "buyer received credit");
         assertEq(adapter.marketIdsLength(), 0, "market removed");
         assertEq(adapter.realAssets(), 0, "adapter realAssets cleared");
-        assertEq(adapter.marketData(marketId).forceFlags & FORCE_SELLABLE, FORCE_SELLABLE, "setting retained");
+        assertTrue(adapter.marketData(marketId).status == MarketStatus.ForceSellable, "setting retained");
         assertEq(realVault.totalAssets(), 9e18, "loss realized");
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
@@ -5061,7 +5075,10 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
-        assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, 0, 0)));
+        assertEq(
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, MarketStatus.Normal, 0))
+        );
     }
 
     function testFullSaleBelowAmortizedValueUsesOtherMarketRate() public {
@@ -5467,7 +5484,7 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 2, "two cache slots");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), 1e18, "packed net credit");
-        assertEq(uint8(packed >> 248), FORCE_SELLABLE, "force flags share first slot");
+        assertEq(uint8(packed >> 248), uint8(MarketStatus.ForceSellable), "status shares first slot");
         assertEq(uint256(vm.load(address(adapter), reads[1])), type(uint256).max, "full-width minimum price");
     }
 

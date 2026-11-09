@@ -56,7 +56,7 @@ function increaseMidnightNetCredit(bytes32 marketId) {
 
 // Prove that stored net credit bounds Midnight net credit unless the market was force removed.
 strong invariant midnightNetCreditBelowStoredNetCredit()
-    forall bytes32 marketId. (currentContract.marketData[marketId].forceFlags & 2) == 0 => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
+    forall bytes32 marketId. currentContract.marketData[marketId].status != MidnightAdapter.MarketStatus.ForceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
