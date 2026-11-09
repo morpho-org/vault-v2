@@ -5,14 +5,13 @@ pragma solidity 0.8.37;
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
 import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
-import {IMidnight, Market, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnight, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
-import {CALLBACK_SUCCESS} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
-/// @dev The gate can irrecoverably buy credit in its own markets for zero assets, including settlement fees, independently of the subgate.
+/// @dev The gate can irrecoverably buy credit in its own markets at price zero, independently of the subgate.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
 
@@ -50,19 +49,9 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
 
     /// @dev The seller must authorize the offer. Bought credit cannot be recovered from this gate.
     function buyAtZero(Offer memory offer, bytes memory ratifierData, uint256 units) external {
-        require(!offer.buy && offer.market.enterGate == address(this), IncorrectOffer());
-        IMidnight(offer.market.midnight)
-            .take(offer, ratifierData, units, address(this), address(0), address(this), hex"");
+        require(!offer.buy && offer.tick == 0 && offer.market.enterGate == address(this), IncorrectOffer());
+        IMidnight(offer.market.midnight).take(offer, ratifierData, units, address(this), address(0), address(0), hex"");
         emit BuyAtZero(msg.sender, IdLib.toId(offer.market), units);
-    }
-
-    function onBuy(bytes32, Market memory, uint256 buyerAssets, uint256, uint256, address, bytes memory)
-        external
-        pure
-        returns (bytes32)
-    {
-        require(buyerAssets == 0, NonZeroBuyAssets());
-        return CALLBACK_SUCCESS;
     }
 
     function canIncreaseCredit(address account) external view returns (bool) {

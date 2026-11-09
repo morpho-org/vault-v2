@@ -8,8 +8,7 @@ import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhit
 import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
-import {Market, Offer} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {Offer} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 
 /// forge-config: default.isolate = false
 contract VaultV2CompatibleEnterGateTest is Test {
@@ -73,16 +72,13 @@ contract VaultV2CompatibleEnterGateTest is Test {
         wrapper.buyAtZero(offer, "", 1);
     }
 
-    function testZeroBuyCallback() public view {
-        Market memory market;
-        assertEq(wrapper.onBuy(bytes32(0), market, 0, 1, 0, address(wrapper), ""), CALLBACK_SUCCESS);
-    }
-
-    function testBuyCallbackRejectsPayment(uint256 assets) public {
-        assets = bound(assets, 1, type(uint256).max);
-        Market memory market;
-        vm.expectRevert(IVaultV2CompatibleEnterGate.NonZeroBuyAssets.selector);
-        wrapper.onBuy(bytes32(0), market, assets, 1, 0, address(wrapper), "");
+    function testBuyAtZeroRequiresZeroTick(uint16 tick) public {
+        tick = uint16(bound(tick, 1, type(uint16).max));
+        Offer memory offer;
+        offer.market.enterGate = address(wrapper);
+        offer.tick = tick;
+        vm.expectRevert(IVaultV2CompatibleEnterGate.IncorrectOffer.selector);
+        wrapper.buyAtZero(offer, "", 1);
     }
 
     function testAddAdmitterFactory(address factory) public {

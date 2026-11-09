@@ -3515,18 +3515,22 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0.6e18);
     }
 
-    function testEnterGateBuyAtZeroRequiresZeroPayment(bool settlementFee) public {
+    function testEnterGateBuyAtZeroRejectsSettlementFee(bool funded) public {
         (VaultV2CompatibleEnterGate wrapper, Offer memory boughtOffer) = setUpGateZeroPriceSale();
-        if (settlementFee) midnight.setMarketSettlementFee(_marketId(boughtOffer.market), 2, CBP);
-        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, settlementFee ? 0 : MAX_TICK);
+        uint256 gateBalance = funded ? 1e18 : 0;
+        deal(address(loanToken), address(wrapper), gateBalance);
+        assertEq(loanToken.allowance(address(wrapper), address(midnight)), 0);
+        midnight.setMarketSettlementFee(_marketId(boughtOffer.market), 2, CBP);
+        Offer memory offer = makeSellOffer(boughtOffer.market, 1e18, 0);
         bytes memory data = ratify([offer], signerAllocator);
 
-        vm.expectRevert(IVaultV2CompatibleEnterGate.NonZeroBuyAssets.selector);
+        vm.expectRevert();
         wrapper.buyAtZero(offer, data, offer.maxUnits);
 
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale rolled back");
         assertEq(midnight.credit(_marketId(offer.market), address(wrapper)), 0, "no credit received");
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation unchanged");
+        assertEq(loanToken.balanceOf(address(wrapper)), gateBalance, "gate does not pay fees");
     }
 
     function testEnterGateBuyAtZeroRespectsMinimumPrice() public {

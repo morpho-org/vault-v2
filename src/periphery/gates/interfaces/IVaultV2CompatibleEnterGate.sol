@@ -3,10 +3,9 @@
 pragma solidity >=0.5.0;
 
 import {IEnterGate} from "../../../../lib/midnight/src/interfaces/IGate.sol";
-import {IBuyCallback} from "../../../../lib/midnight/src/interfaces/ICallbacks.sol";
 import {Offer} from "../../../../lib/midnight/src/interfaces/IMidnight.sol";
 
-interface IVaultV2CompatibleEnterGate is IEnterGate, IBuyCallback {
+interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* EVENTS */
 
     event AddAdmitterFactory(address indexed factory);
@@ -17,7 +16,6 @@ interface IVaultV2CompatibleEnterGate is IEnterGate, IBuyCallback {
 
     error Unauthorized();
     error IncorrectOffer();
-    error NonZeroBuyAssets();
 
     /* FUNCTIONS */
 
