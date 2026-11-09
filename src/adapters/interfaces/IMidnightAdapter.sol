@@ -16,7 +16,7 @@ enum MarketStatus {
 struct MarketData {
     uint128 netCredit;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
-    uint72 netRate;
+    uint64 netRate;
     uint40 maturity;
     uint8 index;
     /// @dev ForceSellable allows selling down to minForceSellPrice, also after maturity, without reducing netRate or allowing buys.
@@ -131,7 +131,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function shortfallAllowance() external view returns (uint256);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
-    function inProgressBuyNetRate() external view returns (uint72);
+    function inProgressBuyNetRate() external view returns (uint64);
     function maxNetSellRate() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -172,7 +172,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint72 netRate,
+            uint64 netRate,
             uint40 maturity,
             uint8 index,
             MarketStatus status,

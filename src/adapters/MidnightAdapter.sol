@@ -110,7 +110,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;
-    uint72 public transient inProgressBuyNetRate;
+    uint64 public transient inProgressBuyNetRate;
 
     /* TIMELOCKS STORAGE */
 
@@ -517,13 +517,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
-            uint72 oldNetRate = _marketData.netRate;
+            uint64 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
                     (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
                 // Can revert if pre-buy amortized credit and buyerAssets are both 0.
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint72();
+                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
             }
             if (newNetCredit > 0 && oldNetCredit == 0) {
                 require(marketIds.length < MAX_MARKETS, TooManyMarkets());
@@ -652,9 +652,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    uint72 newRate = (netCredit - targetAmortizedValue)
+                    uint64 newRate = (netCredit - targetAmortizedValue)
                         .mulDivDown(WAD, targetAmortizedValue * otherMarketData.maturity.zeroFloorSub(block.timestamp))
-                        .toUint72();
+                        .toUint64();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                 }
@@ -787,7 +787,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
-            uint72 netRate;
+            uint64 netRate;
             uint40 maturity = _marketData.maturity;
             uint256 netCredit;
             if (marketId == inProgressBuyMarketId) {
@@ -800,7 +800,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = currentNetCredit(marketId);
                 netRate = _marketData.netRate;
             }
-            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint72 * uint40) are << 2^256.
+            // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint64 * uint40) are << 2^256.
             // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow either.
             unchecked {
                 assets += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));

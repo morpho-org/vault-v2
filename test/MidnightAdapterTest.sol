@@ -1363,14 +1363,29 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
-    function testBuyNetRateAboveUint64() public {
+    function testBuyNetRateAboveUint64Reverts() public {
         uint256 tick = TickLib.priceToTick(0.01e18, DEFAULT_TICK_SPACING);
-        Offer memory offer = buy(1, 1e18, tick);
-        MarketData memory data = adapter.marketData(_marketId(offer.market));
+        Offer memory offer = makeBuyOffer(1, 1e18, tick);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
 
-        assertGt(data.netRate, type(uint64).max, "rate exceeds uint64");
-        assertEq(data.maturity, offer.market.maturity, "maturity");
-        assertApproxEqAbs(adapter.realAssets(), 1e18, 1, "assets");
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
+    }
+
+    function testBuyNetRateUint64Boundary(bool overflow) public {
+        Offer memory offer = makeBuyOffer(1, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        uint256 rate = uint256(type(uint64).max) + (overflow ? 1 : 0);
+        uint256 credit = 1e18 + rate;
+        setMidnightCredit(marketId, address(adapter), credit);
+
+        if (overflow) vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vm.prank(address(midnight));
+        adapter.onBuy(marketId, offer.market, 1e18, credit, 0, address(adapter), offer.callbackData);
+
+        assertEq(adapter.marketData(marketId).netRate, overflow ? 0 : rate, "checked rate");
+        assertEq(adapter.marketData(marketId).netCredit, overflow ? 0 : credit, "credit rolled back on overflow");
     }
 
     function testBuyNetRateOverflowReverts() public {
@@ -5489,19 +5504,30 @@ contract MidnightAdapterTest is Test {
         assertEq(reads[1], reads[2], "maxNetSellRate shares the same slot");
     }
 
-    function testMarketDataPacking() public {
+    function testMarketDataPacking(bool forceSellable, bool forceRemoved) public {
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        setForceSellable(marketId);
+        if (forceSellable) setForceSellable(marketId);
         setMinForceSellPrice(marketId, type(uint256).max);
+        if (forceRemoved) forceRemove(marketId);
 
         vm.record();
-        assertEq(adapter.marketData(marketId).netCredit, 1e18, "netCredit");
+        MarketData memory data = adapter.marketData(marketId);
+        assertEq(data.netCredit, forceRemoved ? 0 : 1e18, "netCredit");
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         assertEq(reads.length, 2, "two cache slots");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
-        assertEq(uint128(packed), 1e18, "packed net credit");
-        assertEq(uint8(packed >> 248), uint8(MarketStatus.ForceSellable), "status shares first slot");
+        assertEq(uint128(packed), data.netCredit, "packed net credit");
+        assertEq(uint64(packed >> 128), data.netRate, "packed net rate");
+        assertEq(
+            uint8(packed >> 240),
+            uint8(
+                forceRemoved
+                    ? MarketStatus.ForceRemoved
+                    : (forceSellable ? MarketStatus.ForceSellable : MarketStatus.Normal)
+            ),
+            "status shares first slot"
+        );
         assertEq(uint256(vm.load(address(adapter), reads[1])), type(uint256).max, "full-width minimum price");
     }
 
