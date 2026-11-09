@@ -15,8 +15,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.1.2/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
       - name: Build Lean proofs
-        uses: leanprover/lean-action@fe408643ea7367d8c0404a8be3975bb145f5fb64 # v1.7.0
-        with:
-          lake-package-directory: lean
-          use-mathlib-cache: true
+        working-directory: lean
+        run: |
+          lake exe cache get
+          lake build
