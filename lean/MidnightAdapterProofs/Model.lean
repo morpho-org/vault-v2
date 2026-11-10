@@ -4,7 +4,11 @@ import Mathlib
 # Adapter operations don't decrease the vault's real assets
 
 Model of a VaultV2 whose only adapter is a MidnightAdapter, with no bad debt in any market (`lossFactor == 0`, so `realAssets` reads the stored net credit and Midnight's net credit moves only by the traded amounts).
-Arithmetic is the contracts' unbounded-integer arithmetic with their exact rounding; overflow and every other `require` failure make the call revert, so they need no modeling.
+Arithmetic uses unbounded integers with the contracts' exact rounding.
+Public modeled operations return `none` for the encoded reverting conditions and `some` for successful state transitions.
+The theorems cover every non-reverting modeled call, subject to the stated scope and accounting assumptions.
+Other authorization, configuration, token, liquidity and overflow checks are outside this state abstraction.
+The `*State` helpers describe only successful arithmetic transitions.
 
 Time is fixed within a transaction, so each market has a fixed time to maturity `ttm`.
 Adapter `allocate` is a no-op, setters and `skim` leave the modeled fields unchanged, and `take` routes through `onBuy` or `onSell`.
@@ -84,7 +88,7 @@ def recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : Stat
 /-- A buy funded from the vault's idle assets (`fundingAdapter == address(0)`).
 `onBuy` accrues at `MidnightAdapter.sol:525` using pre-buy credit and rate (`512-513,769-770`).
 The later `allocateInternal` accrual (`VaultV2.sol:542`) reuses `firstTotalAssets` (`627`). -/
-def buy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
+def buyState (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
   { recordBuy s m buyerAssets boughtNetCredit with
     idle := s.idle - buyerAssets
     totalAssets := newTotalAssets s
@@ -93,7 +97,7 @@ def buy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :
 /-- `withdrawToVault`: Midnight withdraws `assets` of matured or repaid credit, which the vault pulls.
 Used by `deallocate` and by self-funded buys.
 Neither `MidnightAdapter.sol:658-675` nor `VaultV2.deallocateInternal` (`567-585`) accrues. -/
-def withdraw (s : State ι) (m : ι) (assets : ℕ) : State ι :=
+def withdrawState (s : State ι) (m : ι) (assets : ℕ) : State ι :=
   { s with
     idle := s.idle + assets
     netCredit := Function.update s.netCredit m (s.netCredit m - assets) }
@@ -111,8 +115,8 @@ def recordForceDeallocate (s : State ι) (m : ι) (assets soldNetCredit : ℕ) :
 
 /-- A self-funded buy (`fundingAdapter == address(this)`) records the buy, withdraws from the funding market, and pays `buyerAssets` from the vault.
 The pre-buy accrual at `MidnightAdapter.sol:525` precedes the funding withdrawal (`528-531`), and the later allocation reuses the cached accrual. -/
-def selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
-  let s₁ := withdraw (recordBuy s m buyerAssets boughtNetCredit) fundingMarket buyerAssets
+def selfFundedBuyState (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
+  let s₁ := withdrawState (recordBuy s m buyerAssets boughtNetCredit) fundingMarket buyerAssets
   { s₁ with
     idle := s₁.idle - buyerAssets
     totalAssets := newTotalAssets s
@@ -125,7 +129,7 @@ def shortfall (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : ℕ :
 /-- `onSell` in a market that is not forceSellable: the vault receives `sellerAssets` for `soldNetCredit`; if the sale has a shortfall, visited markets' rates are reduced so that their amortized values grow by their shares (rounded up) of the shortfall, in proportion to their remaining interest.
 Markets are visited in index order, stopping once the realized increase covers the shortfall.
 `onSell` ends with `deallocate` (`MidnightAdapter.sol:643-649`), whose vault path (`VaultV2.sol:567-585`) does not accrue. -/
-def sell [LinearOrder ι] (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :=
+def sellState [LinearOrder ι] (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :=
   let remainingNetCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
   let sf := shortfall s m sellerAssets soldNetCredit
   let amortizedValues := fun i => amortizedValue (remainingNetCredit i) (s.netRate i) (s.ttm i)
@@ -154,8 +158,8 @@ def previewWithdraw (s : State ι) (assets : ℕ) : ℕ :=
 /-- Accrual followed by the penalty withdrawal to the vault itself (`src/VaultV2.sol:750-798`).
 `s` is the post-deallocation state, and the self-transfer leaves `realAssets` unchanged.
 If `exit` needs liquidity, assume its extra deallocation preserves this value; this is exact for matured or fully repaid credit withdrawn at face value.
-The theorems require sufficient total assets and supply for the checked subtractions, and positive virtual shares as set by the constructor. -/
-def penaltyExit (s : State ι) (penalty : ℕ) : State ι :=
+`penaltyExit` checks sufficient total assets and supply, while positive virtual shares remain a constructor invariant. -/
+def penaltyExitState (s : State ι) (penalty : ℕ) : State ι :=
   { s with
     totalAssets := newTotalAssets s - penalty
     totalSupply := s.totalSupply - previewWithdraw s penalty
@@ -164,7 +168,65 @@ def penaltyExit (s : State ι) (penalty : ℕ) : State ι :=
 /-- Force deallocation followed by accrual and the penalty-share burn.
 `VaultV2.sol:794-796` deallocates first, then `withdraw` accrues (`751`) and burns penalty shares (`780-781`).
 `accrueInterest` stores the accrued assets and resets `lastUpdate` at `VaultV2.sol:610-618`. -/
-def forceDeallocate (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ) : State ι :=
-  penaltyExit (recordForceDeallocate s m assets soldNetCredit) penalty
+def forceDeallocateState (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ) : State ι :=
+  penaltyExitState (recordForceDeallocate s m assets soldNetCredit) penalty
+
+/-- A buy succeeds only when its loss check and idle-funded transfer succeed.
+`BuyAtLoss` reverts at `src/adapters/MidnightAdapter.sol:489`.
+The transfer of `buyerAssets` fails with insufficient idle assets at `src/VaultV2.sol:544`. -/
+def buy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : Option (State ι) :=
+  if buyerAssets ≤ boughtNetCredit ∧ buyerAssets ≤ s.idle then
+    some (buyState s m buyerAssets boughtNetCredit)
+  else none
+
+/-- A withdrawal succeeds only when its modeled credit subtraction is defined.
+Midnight's actual checked subtraction requires `units ≤ credit` at `lib/midnight/src/Midnight.sol:486`.
+The modeled `assets ≤ netCredit` condition is stronger, so this abstraction covers fewer withdrawal cases. -/
+def withdraw (s : State ι) (m : ι) (assets : ℕ) : Option (State ι) :=
+  if assets ≤ s.netCredit m then some (withdrawState s m assets) else none
+
+/-- A self-funded buy propagates the funding withdrawal's revert.
+`BuyAtLoss` reverts at `src/adapters/MidnightAdapter.sol:489`.
+The funding withdrawal at `MidnightAdapter.sol:530` uses the stronger modeled check documented by `withdraw`. -/
+def selfFundedBuy (s : State ι) (m fundingMarket : ι)
+    (buyerAssets boughtNetCredit : ℕ) : Option (State ι) := do
+  if buyerAssets ≤ boughtNetCredit then
+    let s₁ ← withdraw (recordBuy s m buyerAssets boughtNetCredit) fundingMarket buyerAssets
+    pure { s₁ with
+      idle := s₁.idle - buyerAssets
+      totalAssets := newTotalAssets s
+      elapsed := 0 }
+  else none
+
+/-- A sale succeeds only when credit remains nonnegative and the shortfall can be covered.
+Seller credit is checked when reduced in `lib/midnight/src/Midnight.sol:400`; the model excludes debt-increasing sales.
+`ShortfallTooHigh` checks `shortfall ≤ totalInterest` at `src/adapters/MidnightAdapter.sol:619`, using post-sale net credits (`610-617`).
+The on-chain check runs only for positive shortfall; for zero shortfall it holds automatically. -/
+def sell [LinearOrder ι] (s : State ι) (m : ι)
+    (sellerAssets soldNetCredit : ℕ) : Option (State ι) :=
+  let remainingNetCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
+  let totalInterest := ∑ i, (remainingNetCredit i -
+    amortizedValue (remainingNetCredit i) (s.netRate i) (s.ttm i))
+  if soldNetCredit ≤ s.netCredit m ∧
+      shortfall s m sellerAssets soldNetCredit ≤ totalInterest then
+    some (sellState s m sellerAssets soldNetCredit)
+  else none
+
+/-- The penalty exit reverts when either checked accounting subtraction underflows.
+The asset subtraction is at `src/VaultV2.sol:781`.
+The share burn at `VaultV2.sol:780` checks total supply at `873`. -/
+def penaltyExit (s : State ι) (penalty : ℕ) : Option (State ι) :=
+  if penalty ≤ newTotalAssets s ∧ previewWithdraw s penalty ≤ s.totalSupply then
+    some (penaltyExitState s penalty)
+  else none
+
+/-- Force deallocation propagates the penalty exit's checked-subtraction reverts.
+The reduce-only take at `src/adapters/MidnightAdapter.sol:407,425` rejects seller debt increases at `lib/midnight/src/Midnight.sol:380-382`.
+The model checks the resulting net-credit decrease against the starting net credit. -/
+def forceDeallocate (s : State ι) (m : ι)
+    (assets soldNetCredit penalty : ℕ) : Option (State ι) :=
+  if soldNetCredit ≤ s.netCredit m then
+    penaltyExit (recordForceDeallocate s m assets soldNetCredit) penalty
+  else none
 
 end MidnightAdapterProofs

@@ -88,7 +88,7 @@ omit [Fintype ι] in
 omit [Fintype ι] in
 @[simp] lemma recordBuy_ttm (s : State ι) (m : ι) (a b : ℕ) : (recordBuy s m a b).ttm = s.ttm := rfl
 omit [Fintype ι] in
-@[simp] lemma withdraw_idle (s : State ι) (m : ι) (a : ℕ) : (withdraw s m a).idle = s.idle + a := rfl
+@[simp] lemma withdraw_idle (s : State ι) (m : ι) (a : ℕ) : (withdrawState s m a).idle = s.idle + a := rfl
 
 /-- Recording a buy increases the adapter's value by at least `buyerAssets`. -/
 theorem realAssets_recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ)
@@ -113,15 +113,15 @@ theorem realAssets_recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredi
 
 theorem realAssets_buy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ)
     (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) (hIdle : buyerAssets ≤ s.idle) :
-    realAssets s ≤ realAssets (buy s m buyerAssets boughtNetCredit) := by
+    realAssets s ≤ realAssets (buyState s m buyerAssets boughtNetCredit) := by
   have := realAssets_recordBuy s m buyerAssets boughtNetCredit hBuyAtLoss
-  unfold realAssets buy at *
+  unfold realAssets buyState at *
   simp only [recordBuy_idle] at *
   omega
 
 theorem realAssets_withdraw (s : State ι) (m : ι) (assets : ℕ) (h : assets ≤ s.netCredit m) :
-    realAssets s ≤ realAssets (withdraw s m assets) := by
-  unfold realAssets withdraw
+    realAssets s ≤ realAssets (withdrawState s m assets) := by
+  unfold realAssets withdrawState
   have := sum_le_sum_add (f := fun i => amortizedValue (s.netCredit i) (s.netRate i) (s.ttm i))
     (g := fun i => amortizedValue (Function.update s.netCredit m (s.netCredit m - assets) i) (s.netRate i) (s.ttm i))
     m assets (by intro i hi; simp [Function.update_of_ne hi])
@@ -137,19 +137,19 @@ theorem realAssets_recordForceDeallocate (s : State ι) (m : ι) (assets soldNet
     (hSold : soldNetCredit ≤ s.netCredit m) (hAssets : soldNetCredit ≤ assets) :
     realAssets s ≤ realAssets (recordForceDeallocate s m assets soldNetCredit) := by
   have h := realAssets_withdraw s m soldNetCredit hSold
-  unfold realAssets withdraw recordForceDeallocate at *
+  unfold realAssets withdrawState recordForceDeallocate at *
   dsimp only at *
   omega
 
 theorem realAssets_selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ)
     (hBuyAtLoss : buyerAssets ≤ boughtNetCredit)
     (hWithdrawable : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).netCredit fundingMarket) :
-    realAssets s ≤ realAssets (selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit) := by
+    realAssets s ≤ realAssets (selfFundedBuyState s m fundingMarket buyerAssets boughtNetCredit) := by
   have h1 := realAssets_recordBuy s m buyerAssets boughtNetCredit hBuyAtLoss
   have h2 := realAssets_withdraw _ fundingMarket buyerAssets hWithdrawable
-  unfold realAssets selfFundedBuy at *
+  unfold realAssets selfFundedBuyState at *
   simp only [withdraw_idle, recordBuy_idle] at *
-  unfold withdraw at *
+  unfold withdrawState at *
   omega
 
 section
@@ -193,7 +193,7 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
     (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
         ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) :
-    realAssets s ≤ realAssets (sell s m sellerAssets soldNetCredit) := by
+    realAssets s ≤ realAssets (sellState s m sellerAssets soldNetCredit) := by
   set c' := Function.update s.netCredit m (s.netCredit m - soldNetCredit) with hc'
   set sf := shortfall s m sellerAssets soldNetCredit with hsf
   set v := fun i => amortizedValue (c' i) (s.netRate i) (s.ttm i) with hv
@@ -263,7 +263,7 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
         omega
       · simp only [add_zero]
         exact le_refl _
-    unfold realAssets sell
+    unfold realAssets sellState
     simp only [← hc', ← hsf, hpos, true_and]
     change s.idle + ∑ i, amortizedValue (s.netCredit i) (s.netRate i) (s.ttm i) ≤
       s.idle + sellerAssets + ∑ i, amortizedValue (c' i)
@@ -271,7 +271,7 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
         (s.ttm i)
     omega
   · have : sf = 0 := by omega
-    unfold realAssets sell
+    unfold realAssets sellState
     simp only [← hc', ← hsf, hpos, false_and, ite_false]
     have : ∑ i, v i = ∑ i, amortizedValue (c' i) (s.netRate i) (s.ttm i) := rfl
     omega
@@ -319,7 +319,7 @@ lemma sharePrice_accrued {s s' : State ι} (h : realAssets s ≤ realAssets s')
 
 omit [DecidableEq ι] in
 lemma newTotalAssets_penaltyExit (s : State ι) (p : ℕ) :
-    newTotalAssets (penaltyExit s p) = newTotalAssets s - p := by
+    newTotalAssets (penaltyExitState s p) = newTotalAssets s - p := by
   have h : newTotalAssets s ≤ realAssets s := min_le_left _ _
   change min (realAssets s) (newTotalAssets s - p +
     mulDivDown ((newTotalAssets s - p) * 0) s.maxRate WAD) = newTotalAssets s - p
@@ -330,7 +330,7 @@ omit [DecidableEq ι] in
 lemma penaltyExit_ratio (s : State ι) (p : ℕ)
     (hPenalty : p ≤ newTotalAssets s)
     (hShares : previewWithdraw s p ≤ s.totalSupply) :
-    (newTotalAssets s + 1) * ((penaltyExit s p).totalSupply + s.virtualShares) ≤
+    (newTotalAssets s + 1) * ((penaltyExitState s p).totalSupply + s.virtualShares) ≤
       (newTotalAssets s - p + 1) * (s.totalSupply + s.virtualShares) := by
   have hround := le_mulDivUp_mul p (s.totalSupply + s.virtualShares)
     (newTotalAssets s + 1) (by omega)
@@ -338,22 +338,22 @@ lemma penaltyExit_ratio (s : State ι) (p : ℕ)
     previewWithdraw s p * (newTotalAssets s + 1) at hround
   have hp := Nat.sub_add_cancel hPenalty
   have hs := Nat.sub_add_cancel hShares
-  dsimp only [penaltyExit]
+  dsimp only [penaltyExitState]
   nlinarith
 
 omit [DecidableEq ι] in
 lemma sharePrice_penaltyExit (s : State ι) (p : ℕ)
     (hVirtual : 0 < s.virtualShares) (hPenalty : p ≤ newTotalAssets s)
     (hShares : previewWithdraw s p ≤ s.totalSupply) :
-    sharePrice s ≤ sharePrice (penaltyExit s p) := by
+    sharePrice s ≤ sharePrice (penaltyExitState s p) := by
   unfold sharePrice
   rw [newTotalAssets_penaltyExit]
-  apply (div_le_div_iff₀ (by positivity) (by dsimp only [penaltyExit]; positivity)).mpr
+  apply (div_le_div_iff₀ (by positivity) (by dsimp only [penaltyExitState]; positivity)).mpr
   exact_mod_cast penaltyExit_ratio s p hPenalty hShares
 
 theorem realAssets_forceDeallocate (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ)
     (hSold : soldNetCredit ≤ s.netCredit m) (hAssets : soldNetCredit ≤ assets) :
-    realAssets s ≤ realAssets (forceDeallocate s m assets soldNetCredit penalty) :=
+    realAssets s ≤ realAssets (forceDeallocateState s m assets soldNetCredit penalty) :=
   realAssets_recordForceDeallocate s m assets soldNetCredit hSold hAssets
 
 end MidnightAdapterProofs

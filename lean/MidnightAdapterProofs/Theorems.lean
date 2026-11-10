@@ -15,41 +15,35 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- A buy funded from idle assets doesn't decrease the share price. -/
 def SharePriceBuy : Prop :=
-  ∀ (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ),
-    (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) → (hBuyLessThanIdle : buyerAssets ≤ s.idle) →
-    sharePrice s ≤ sharePrice (buy s m buyerAssets boughtNetCredit)
+  ∀ (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) (s' : State ι),
+    buy s m buyerAssets boughtNetCredit = some s' →
+    sharePrice s ≤ sharePrice s'
 
 /-- A self-funded buy doesn't decrease the share price. -/
 def SharePriceSelfFundedBuy : Prop :=
-  ∀ (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ),
-    (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) →
-    (hWithdrawLessThanNetCredit : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).netCredit fundingMarket) →
-    sharePrice s ≤ sharePrice (selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit)
+  ∀ (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ) (s' : State ι),
+    selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit = some s' →
+    sharePrice s ≤ sharePrice s'
 
 /-- A sale in a market that isn't forceSellable doesn't decrease the share price. -/
 def SharePriceSell [LinearOrder ι] : Prop :=
-  ∀ (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ),
-    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) →
-    (hShortfallLessThanTotalInterest : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
-      shortfall s m sellerAssets soldNetCredit
-        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) →
-    sharePrice s ≤ sharePrice (sell s m sellerAssets soldNetCredit)
+  ∀ (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) (s' : State ι),
+    sell s m sellerAssets soldNetCredit = some s' →
+    sharePrice s ≤ sharePrice s'
 
 /-- Withdrawing credit to the vault doesn't decrease the share price. -/
 def SharePriceWithdraw : Prop :=
-  ∀ (s : State ι) (m : ι) (assets : ℕ),
-    (hWithdrawLessThanNetCredit : assets ≤ s.netCredit m) →
-    sharePrice s ≤ sharePrice (withdraw s m assets)
+  ∀ (s : State ι) (m : ι) (assets : ℕ) (s' : State ι),
+    withdraw s m assets = some s' →
+    sharePrice s ≤ sharePrice s'
 
 /-- Force deallocation, including accrual and the penalty exit, doesn't decrease the share price.
 Any extra liquidity withdrawal is assumed to preserve real assets as specified by `penaltyExit`. -/
 def SharePriceForceDeallocate : Prop :=
-  ∀ (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ),
-    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) → (hSoldLessThanAssets : soldNetCredit ≤ assets) →
+  ∀ (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ) (s' : State ι),
+    forceDeallocate s m assets soldNetCredit penalty = some s' →
+    (hSoldLessThanAssets : soldNetCredit ≤ assets) →
     (hPositiveVirtualShares : 0 < s.virtualShares) →
-    (hPenaltyLessThanTotalAssets : penalty ≤ newTotalAssets (recordForceDeallocate s m assets soldNetCredit)) →
-    (hBurnedSharesLessThanSupply : previewWithdraw (recordForceDeallocate s m assets soldNetCredit) penalty
-      ≤ s.totalSupply) →
-    sharePrice s ≤ sharePrice (forceDeallocate s m assets soldNetCredit penalty)
+    sharePrice s ≤ sharePrice s'
 
 end MidnightAdapterProofs

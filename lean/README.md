@@ -2,6 +2,9 @@
 
 Proofs that, in a VaultV2 whose only adapter is a MidnightAdapter, with no bad debt and no performance or management fee, buys, withdrawals, force deallocations and sales outside forceSellable markets don't decrease the share price at the time of the operation.
 The comparison uses the unrounded rational share price.
+Reverting modeled calls return `none`, and successful calls return `some` of the resulting state.
+The theorems cover every non-reverting modeled call within the documented scope.
+Withdrawals conservatively require assets not to exceed net credit, a stronger condition than Midnight's credit check.
 The proofs cover operations that perform the transaction's first vault accrual.
 If the vault has already accrued earlier in the same transaction (`firstTotalAssets != 0`), `accrueInterestView` returns the cached `_totalAssets`, and that case is not modeled.
 One state contains the vault accounting, its idle balance and the adapter's market data.
