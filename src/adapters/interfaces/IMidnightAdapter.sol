@@ -54,11 +54,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
     event Sell(
-        bytes32 indexed marketId,
-        uint256 sellerAssets,
-        uint256 soldNetCredit,
-        uint256 newNetCredit,
-        uint256 shortfall
+        bytes32 indexed marketId, uint256 sellerAssets, uint256 soldNetCredit, uint256 newNetCredit, uint256 shortfall
     );
     event ReduceRate(bytes32 indexed marketId, uint256 newRate);
 
