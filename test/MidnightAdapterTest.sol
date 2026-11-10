@@ -923,6 +923,62 @@ contract MidnightAdapterTest is Test {
         assertGt(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault received the proceeds");
     }
 
+    function testForceRemovedSaleHasNoShortfall() public {
+        Offer memory removed = buy(7 days, 1e18);
+        Offer memory remaining = buy(1 days, 1e18);
+        bytes32 marketId = _marketId(removed.market);
+        forceRemove(marketId);
+        setShortfallAllowance(1e18);
+        uint256 remainingNetRate = adapter.marketData(_marketId(remaining.market)).netRate;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+
+        take(makeSellOffer(removed.market, 0.5e18, discountTick));
+
+        assertEq(adapter.shortfallAllowance(), 1e18, "allowance not consumed");
+        assertEq(adapter.marketData(_marketId(remaining.market)).netRate, remainingNetRate, "rate not reduced");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "written off");
+        assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "Midnight credit sold");
+        assertGt(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault received the proceeds");
+    }
+
+    function testForceRemovedOverridesMaxNetSellRate() public {
+        Offer memory initial = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        deal(address(loanToken), taker, 1e18);
+
+        setMaxNetSellRate(0);
+        vm.expectRevert(IMidnightAdapterBase.NetSellRateTooHigh.selector);
+        sellUnits(initial.market, 0.5e18, tick);
+
+        forceRemove(marketId);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        sellUnits(initial.market, 0.5e18, tick);
+        assertEq(adapter.marketData(marketId).netCredit, 0, "written off");
+        assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
+        assertGt(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault received the proceeds");
+    }
+
+    /// @dev The sale is priced exactly at minForceSellPrice, so one wei higher reverts.
+    function testForceRemovedMinForceSellPriceBoundary(bool postMaturity) public {
+        uint256 tick = MAX_TICK - 4;
+        uint256 price = TickLib.tickToPrice(tick);
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        forceRemove(marketId);
+        if (postMaturity) skip(31 days);
+        deal(address(loanToken), taker, 1e18);
+
+        setMinForceSellPrice(marketId, price + 1);
+        vm.expectRevert(IMidnightAdapterBase.ForceSellPriceTooLow.selector);
+        sellUnits(initial.market, 1e18, tick);
+
+        setMinForceSellPrice(marketId, price);
+        sellUnits(initial.market, 1e18, tick);
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "Midnight credit sold");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "written off");
+    }
+
     function testEmptyMarketIsNotForceRemoved() public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 2e18);

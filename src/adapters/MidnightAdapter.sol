@@ -354,6 +354,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Irreversibly makes the adapter count its credit in the market as 0.
     /// @dev Takes effect at the next withdrawal, sale or force deallocation of the market (e.g. a deallocation of 0 assets).
     /// @dev Buys in the market then revert.
+    /// @dev Sales in the market are then bounded by minForceSellPrice and do not reduce rates, as in forceSellable markets.
     /// @dev Recovery is still possible later, received assets will be accounted as a donation.
     function forceRemove(bytes32 marketId) external {
         timelocked();
@@ -597,7 +598,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         uint256 shortfall;
-        if (_marketData.forceSellable) {
+        if (_marketData.forceSellable || _marketData.forceRemoved) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
