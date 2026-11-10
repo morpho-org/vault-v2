@@ -24,7 +24,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), write off markets and self-fund buys.
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate) and to self-fund buys.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
@@ -351,19 +351,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
     }
 
-    /// @dev Irreversibly removes a market without moving its Midnight credit.
-    /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
+    /// @dev Irreversibly makes the adapter read its Midnight net credit in the market as 0, without moving this credit.
+    /// @dev The stored net credit, realAssets() and the vault's allocations change at the next withdrawal, sale or force deallocation of the market. An allocator or sentinel can call the vault's deallocate with 0 assets for this.
+    /// @dev Buys of the market then revert. Assets later withdrawn or sold from the market still go to the vault.
     function forceRemove(bytes32 marketId) external {
         timelocked();
-        MarketData storage _marketData = marketData[marketId];
-        uint256 oldNetCredit = _marketData.netCredit;
-        emit ForceRemove(marketId, oldNetCredit);
-        _marketData.netCredit = 0;
-        _marketData.forceRemoved = true;
-        if (oldNetCredit > 0) removeMarket(marketId);
-        Market memory market = IMidnight(midnight).toMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
+        marketData[marketId].forceRemoved = true;
+        emit ForceRemove(marketId);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -440,10 +434,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
-            MarketData storage _marketData = marketData[marketId];
-            uint256 oldNetCredit = _marketData.netCredit;
-            require(!_marketData.forceRemoved, ForceRemoved());
-            _marketData.netCredit = newNetCredit;
+            uint256 oldNetCredit = marketData[marketId].netCredit;
+            marketData[marketId].netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
@@ -502,13 +494,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(ttm <= maxTtm, BuyTtmTooHigh());
             MarketData storage _marketData = marketData[id];
             require(!_marketData.forceSellable, UnauthorizedBuy());
+            require(!_marketData.forceRemoved, ForceRemoved());
             uint256 boughtNetCredit = units - pendingFeeIncrease;
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
             require((boughtNetCredit - buyerAssets) * WAD >= minNetBuyRate * ttm * buyerAssets, NetBuyRateTooLow());
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
-            require(!_marketData.forceRemoved, ForceRemoved());
             uint64 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -601,7 +593,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         MarketData storage _marketData = marketData[id];
-        require(!_marketData.forceRemoved, ForceRemoved());
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         uint256 shortfall;
@@ -681,7 +672,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 oldNetCredit = marketData[marketId].netCredit;
-        require(!marketData[marketId].forceRemoved, ForceRemoved());
         marketData[marketId].netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
@@ -696,9 +686,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the adapter's net credit position in marketId.
+    /// @dev Returns the adapter's net credit position in marketId, or 0 if the market is force removed.
     /// @dev It does not change with time, so any market struct with maturity 0 will work.
     function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
+        if (marketData[marketId].forceRemoved) return 0;
         Market memory dummyMarket;
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
