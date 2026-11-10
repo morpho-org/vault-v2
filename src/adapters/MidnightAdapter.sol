@@ -597,7 +597,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 shortfallAllowance -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
-                uint256[] memory amortizedValues = new uint256[](length);
+                uint256[] memory interests = new uint256[](length);
                 uint256 totalInterest;
                 for (uint256 i; i < length; i++) {
                     bytes32 otherMarketId = marketIdAt(i);
@@ -609,27 +609,32 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
-                    uint256 amortizedValue = netCredit.mulDivDown(
-                        WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
-                    );
+                    uint256 interest = netCredit
+                        - netCredit.mulDivDown(
+                            WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
+                        );
                     netCredits[i] = netCredit;
-                    amortizedValues[i] = amortizedValue;
-                    totalInterest += netCredit - amortizedValue;
+                    interests[i] = interest;
+                    totalInterest += interest;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
+                // Each market absorbs at most its interest, and the markets together absorb exactly the shortfall.
+                uint256 remainingShortfall = shortfall;
                 for (uint256 i; i < length; i++) {
+                    uint256 interest = interests[i];
+                    if (interest == 0) continue;
+                    uint256 reduction = MathLib.min(remainingShortfall, shortfall.mulDivUp(interest, totalInterest));
                     uint256 netCredit = netCredits[i];
-                    uint256 amortizedValue = amortizedValues[i];
-                    if (netCredit == amortizedValue) continue;
-                    uint256 targetAmortizedValue =
-                        amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
+                    uint256 targetAmortizedValue = netCredit - interest + reduction;
                     uint72 newRate = (netCredit - targetAmortizedValue)
                         .mulDivDown(WAD, targetAmortizedValue * otherMarketData.maturity.zeroFloorSub(block.timestamp))
                         .toUint72();
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
+                    remainingShortfall -= reduction;
+                    if (remainingShortfall == 0) break;
                 }
             }
         }
