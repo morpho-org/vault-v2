@@ -819,6 +819,8 @@ contract MidnightAdapterTest is Test {
     function testForceRemoveLastMarket() public {
         Offer memory offer = buy(7 days, 1e18);
         forceRemove(_marketId(offer.market));
+        assertEq(adapter.realAssets(), 0, "counted as 0");
+        assertEq(adapter.marketIdsLength(), 1, "market still tracked");
         withdrawToVault(offer.market, 0);
         assertEq(adapter.marketIdsLength(), 0, "no tracked markets");
         assertEq(adapter.realAssets(), 0, "written off");

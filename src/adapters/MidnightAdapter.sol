@@ -352,8 +352,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Irreversibly makes the adapter count its credit in the market as 0.
-    /// @dev Takes effect at the next withdrawal, sale or force deallocation of the market (e.g. a deallocation of 0 assets).
-    /// @dev If the market has a loss, realAssets counts it as 0 immediately.
+    /// @dev realAssets counts the market as 0 immediately.
+    /// @dev The vault's allocations are updated at the next withdrawal, sale or force deallocation of the market (e.g. a deallocation of 0 assets).
     /// @dev Buys in the market then revert.
     /// @dev Sales in the market are then bounded by minForceSellPrice and do not reduce rates, as in forceSellable markets.
     /// @dev Recovery is still possible later, received assets will be accounted as a donation.
@@ -772,6 +772,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
             MarketData storage _marketData = marketData[marketId];
+            if (_marketData.forceRemoved) continue;
             uint128 storedNetCredit = _marketData.netCredit;
             uint64 netRate;
             uint40 maturity = _marketData.maturity;
