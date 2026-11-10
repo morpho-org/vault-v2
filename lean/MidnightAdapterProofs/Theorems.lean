@@ -16,7 +16,7 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-- A buy funded from idle assets doesn't decrease the share price. -/
 def SharePriceBuy : Prop :=
   ∀ (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ),
-    (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) → (hIdle : buyerAssets ≤ s.idle) →
+    (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) → (hBuyLessThanIdle : buyerAssets ≤ s.idle) →
     sharePrice s ≤ sharePrice (buy s m buyerAssets boughtNetCredit)
 
 /-- A self-funded buy doesn't decrease the share price. -/
@@ -45,10 +45,10 @@ def SharePriceWithdraw : Prop :=
 Any extra liquidity withdrawal is assumed to preserve real assets as specified by `penaltyExit`. -/
 def SharePriceForceDeallocate : Prop :=
   ∀ (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ),
-    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) → (hAssets : soldNetCredit ≤ assets) →
-    (hVirtual : 0 < s.virtualShares) →
-    (hPenalty : penalty ≤ newTotalAssets (recordForceDeallocate s m assets soldNetCredit)) →
-    (hShares : previewWithdraw (recordForceDeallocate s m assets soldNetCredit) penalty
+    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) → (hSoldLessThanAssets : soldNetCredit ≤ assets) →
+    (hPositiveVirtualShares : 0 < s.virtualShares) →
+    (hPenaltyLessThanTotalAssets : penalty ≤ newTotalAssets (recordForceDeallocate s m assets soldNetCredit)) →
+    (hBurnedSharesLessThanSupply : previewWithdraw (recordForceDeallocate s m assets soldNetCredit) penalty
       ≤ s.totalSupply) →
     sharePrice s ≤ sharePrice (forceDeallocate s m assets soldNetCredit penalty)
 
