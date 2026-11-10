@@ -47,10 +47,10 @@ rule buyRevertsIfNetRateTooLow(env e, bytes32 marketId, MidnightAdapter.Market m
     assert lastReverted;
 }
 
-// Check that a sale in a forceSellable market reverts if its price is below minForceSellPrice.
+// Check that a sale in a forceSellable or force removed market reverts if its price is below minForceSellPrice.
 rule forceSaleRevertsIfPriceTooLow(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
-    require currentContract.marketData[marketId].forceSellable, "assume the market is forceSellable";
+    require currentContract.marketData[marketId].forceSellable || currentContract.marketData[marketId].forceRemoved, "assume the market is forceSellable or force removed";
     require sellerAssets * WAD() < soldNetCredit * currentContract.marketData[marketId].minForceSellPrice, "assume the price is below minForceSellPrice";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
@@ -58,11 +58,11 @@ rule forceSaleRevertsIfPriceTooLow(env e, bytes32 marketId, MidnightAdapter.Mark
     assert lastReverted;
 }
 
-// Check that a sale in a market that is not forceSellable reverts if its net rate is above maxNetSellRate.
+// Check that a sale in a market that is neither forceSellable nor force removed reverts if its net rate is above maxNetSellRate.
 rule saleRevertsIfNetRateTooHigh(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
-    require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
+    require !currentContract.marketData[marketId].forceSellable && !currentContract.marketData[marketId].forceRemoved, "assume the market is neither forceSellable nor force removed";
     require sellerAssets * (WAD() + maxNetSellRate() * ttm) < soldNetCredit * WAD(), "assume the net rate is above maxNetSellRate";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
@@ -70,11 +70,11 @@ rule saleRevertsIfNetRateTooHigh(env e, bytes32 marketId, MidnightAdapter.Market
     assert lastReverted;
 }
 
-// Check that a sale in a market that is not forceSellable reverts if its shortfall exceeds shortfallAllowance.
+// Check that a sale in a market that is neither forceSellable nor force removed reverts if its shortfall exceeds shortfallAllowance.
 rule saleRevertsIfShortfallAboveAllowance(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
-    require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
+    require !currentContract.marketData[marketId].forceSellable && !currentContract.marketData[marketId].forceRemoved, "assume the market is neither forceSellable nor force removed";
     require mulDivUp(soldNetCredit, WAD(), WAD() + currentContract.marketData[marketId].netRate * ttm) - sellerAssets > shortfallAllowance(), "assume the shortfall exceeds shortfallAllowance";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
