@@ -593,6 +593,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
+                require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
+                shortfallAllowance -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
@@ -634,8 +636,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     // Shares are rounded up, so stop once the shortfall is realized to not reduce rates more than needed.
                     if (realizedShortfall >= shortfall) break;
                 }
-                require(realizedShortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= realizedShortfall;
             }
         }
 

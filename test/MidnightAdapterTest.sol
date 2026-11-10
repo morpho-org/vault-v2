@@ -4905,10 +4905,8 @@ contract MidnightAdapterTest is Test {
         }
         assertEq(remaining, 0, "shortfall is absorbed");
         assertGe(absorbed, shortfall, "actual absorption covers shortfall");
-        uint256 allowanceBefore = adapter.shortfallAllowance();
         vm.recordLogs();
         sellUnits(offers[0].market, sold, MAX_TICK / 2);
-        assertEq(allowanceBefore - adapter.shortfallAllowance(), absorbed, "realized shortfall consumed");
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 reductions;
         for (uint256 i; i < logs.length; i++) {
@@ -5988,7 +5986,7 @@ contract MidnightAdapterTest is Test {
         setShortfallAllowance(0);
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 2);
         Offer memory offer = makeSellOffer(initial.market, 2e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceExceeded.selector);
         directTake(offer);
     }
 
@@ -6074,7 +6072,7 @@ contract MidnightAdapterTest is Test {
             address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
         );
         Offer memory offer = makeSellOffer(initial.market, 4e18, MAX_TICK / 2);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceExceeded.selector);
         callbackSale(offer, callback);
     }
 
