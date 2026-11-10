@@ -629,10 +629,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint72 newRate =
                         (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * otherTtm).toUint72();
-                    uint256 actualAmortizedValue = netCredit.mulDivDown(WAD, WAD + newRate * otherTtm);
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
-                    realizedShortfall += actualAmortizedValue - amortizedValue;
+                    realizedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
                     // Shares are rounded up, so stop once the shortfall is realized to not reduce rates more than needed.
                     if (realizedShortfall >= shortfall) break;
                 }
