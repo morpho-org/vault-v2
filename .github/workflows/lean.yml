@@ -31,7 +31,7 @@ jobs:
       - name: Reject admitted proofs
         working-directory: lean
         run: |
-          if grep -rnwE "sorry|admit" MidnightAdapterProofs || grep -rnE "^axiom" MidnightAdapterProofs; then
+          if grep -rnwE --include="*.lean" --exclude-dir=.lake "sorry|admit" . || grep -rnE --include="*.lean" --exclude-dir=.lake "^axiom" .; then
             echo "Admitted proofs or axioms found" >&2
             exit 1
           fi
