@@ -684,9 +684,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = marketData[marketId].netCredit;
-        require(!marketData[marketId].forceRemoved, ForceRemoved());
-        marketData[marketId].netCredit = newNetCredit;
+        MarketData storage _marketData = marketData[marketId];
+        uint256 oldNetCredit = _marketData.netCredit;
+        require(!_marketData.forceRemoved, ForceRemoved());
+        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
