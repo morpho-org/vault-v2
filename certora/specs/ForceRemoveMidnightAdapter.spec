@@ -64,7 +64,7 @@ rule deallocateRevertsInForceRemovedMarket(env e, bytes data, uint256 assets, by
 rule forceRemovalCannotBeDeactivated(env e, method f, calldataarg args, bytes32 marketId) {
     require currentContract.marketData[marketId].forceRemoved, "assume the market is force removed";
 
-    f@withrevert(e, args);
+    f(e, args);
 
     assert currentContract.marketData[marketId].forceRemoved;
 }
