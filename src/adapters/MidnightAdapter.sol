@@ -66,7 +66,6 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev The gate's unadmit function must be a noop if nobody is currently admitted.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
@@ -100,8 +99,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
-    /// @dev Set to true so forceDeallocate unadmits in the buy callback.
+    /// @dev Set to true during forceDeallocate's take, cleared in the buy callback.
     bool public transient inForceDeallocate;
+    /// @dev Set to true after admitting the taker of forceDeallocate's take, cleared in the buy callback.
+    bool public transient admitting;
     /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;
@@ -433,6 +434,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
+                admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
@@ -489,10 +491,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (inForceDeallocate) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             inForceDeallocate = false;
-            if (
-                market.enterGate != address(0) && enterGateFactory != address(0)
-                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-            ) {
+            if (admitting) {
+                admitting = false;
                 IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
