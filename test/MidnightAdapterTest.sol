@@ -4890,16 +4890,17 @@ contract MidnightAdapterTest is Test {
         absorbed = actualValue - amortizedValue;
     }
 
-    function testShortfallStopsAfterActualAbsorption(uint256 count, uint256 sold) public {
+    // also test early stopping when actual amortized value increase > shortfall
+    function testShortfallStopsAfterActualAbsorption(uint256 count, uint256 sold, bool largePosition) public {
         count = bound(count, 2, 5);
-        sold = bound(sold, 2, 10);
+        sold = bound(sold, largePosition ? 6 : 2, 10);
         ShortfallTestState memory state;
         state.offers = new Offer[](count);
         state.beforeData = new MarketData[](count);
         state.values = new uint256[](count);
         state.expectedRates = new uint256[](count);
         for (uint256 i; i < count; i++) {
-            state.offers[i] = buyAtDiscount(allDurations[i], 100);
+            state.offers[i] = buyAtDiscount(allDurations[i], largePosition ? 100e18 : 100);
             state.beforeData[i] = adapter.marketData(_marketId(state.offers[i].market));
             uint256 credit = state.beforeData[i].netCredit - (i == 0 ? sold : 0);
             state.values[i] = credit.mulDivDown(
@@ -4925,6 +4926,14 @@ contract MidnightAdapterTest is Test {
                 state.shortfall,
                 state.totalInterest
             );
+            if (largePosition) {
+                assertLt(
+                    state.shortfall.mulDivUp(credit - state.values[i], state.totalInterest),
+                    state.shortfall,
+                    "target alone does not cover shortfall"
+                );
+                assertGe(reduction, state.shortfall, "rate rounding covers shortfall");
+            }
             state.absorbed += reduction;
             state.reducedMarkets++;
         }
