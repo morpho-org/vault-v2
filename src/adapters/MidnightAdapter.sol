@@ -648,7 +648,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 

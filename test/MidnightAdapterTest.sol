@@ -770,7 +770,7 @@ contract MidnightAdapterTest is Test {
         setForceSellable(marketId);
         uint256 proceeds = soldUnits.mulDivUp(TickLib.tickToPrice(tick), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, proceeds, soldUnits, netCredit - soldUnits, 0);
+        emit IMidnightAdapterBase.Sell(marketId, proceeds, soldUnits, netCredit - soldUnits, 0, 0);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", soldUnits, "");
@@ -829,7 +829,9 @@ contract MidnightAdapterTest is Test {
             emit IMidnightAdapterBase.ReduceRate(marketId, newRate);
         }
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, proceeds, sold, 100e18 - sold, shortfall);
+        emit IMidnightAdapterBase.Sell(
+            marketId, proceeds, sold, 100e18 - sold, shortfall, type(uint256).max - shortfall
+        );
         sellUnits(offer.market, sold, tick);
 
         MarketData memory data = adapter.marketData(marketId);
@@ -893,7 +895,7 @@ contract MidnightAdapterTest is Test {
         uint256 newRate = sold == 100e18 ? 0 : rate;
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, 0);
+        emit IMidnightAdapterBase.Sell(marketId, sold, sold, 100e18 - sold, 0, type(uint256).max);
         sellUnits(offer.market, sold, MAX_TICK);
 
         assertEq(adapter.marketData(marketId).netRate, newRate, "rate unchanged");
@@ -2662,7 +2664,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         bytes32 movedMarket = adapter.marketIds(249);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0);
+        emit IMidnightAdapterBase.Sell(_marketId(soldOffer.market), 1e18, 1e18, 0, 0, type(uint256).max);
         sell(soldOffer.market, 1e18);
 
         assertEq(
@@ -4780,7 +4782,7 @@ contract MidnightAdapterTest is Test {
         uint256 assets = uint256(type(uint128).max) - 1;
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(marketId, assets, assets, 1, 0);
+        emit IMidnightAdapterBase.Sell(marketId, assets, assets, 1, 0, type(uint256).max);
         sell(offer.market, assets);
 
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
@@ -4849,7 +4851,7 @@ contract MidnightAdapterTest is Test {
         uint256 tick = TickLib.priceToTick(0.6e18, DEFAULT_TICK_SPACING);
         uint256 proceeds = uint256(200e18).mulDivUp(TickLib.tickToPrice(tick), 1e18);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0);
+        emit IMidnightAdapterBase.Sell(_marketId(offer.market), proceeds, 200e18, 0, 0, type(uint256).max);
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, 0)));
@@ -5287,11 +5289,11 @@ contract MidnightAdapterTest is Test {
         withdrawToVault(offer.market, 0);
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(_marketId(offer.market), 90e18, 90e18, 10e18, 0);
+        emit IMidnightAdapterBase.Sell(_marketId(offer.market), 90e18, 90e18, 10e18, 0, type(uint256).max);
         sellUnits(offer.market, 90e18, MAX_TICK);
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Sell(_marketId(offer.market), 0.02e18, 0.02e18, 9.98e18, 0);
+        emit IMidnightAdapterBase.Sell(_marketId(offer.market), 0.02e18, 0.02e18, 9.98e18, 0, type(uint256).max);
         sellUnits(offer.market, 0.02e18, MAX_TICK);
     }
 
