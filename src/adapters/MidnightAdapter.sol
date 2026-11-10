@@ -516,14 +516,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
                 // Can revert if pre-buy amortized credit and buyerAssets are both 0.
                 _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
-            }
-            if (newNetCredit > 0 && oldNetCredit == 0) {
-                require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-                _marketData.maturity = market.maturity.toUint40();
-                // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-                _marketData.index = uint8(marketIds.length);
-                marketIds.push(id);
-            } else if (newNetCredit == 0 && oldNetCredit > 0) {
+                if (oldNetCredit == 0) {
+                    require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+                    _marketData.maturity = market.maturity.toUint40();
+                    // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+                    _marketData.index = uint8(marketIds.length);
+                    marketIds.push(id);
+                }
+            } else if (oldNetCredit > 0) {
                 removeMarket(id);
             }
 
