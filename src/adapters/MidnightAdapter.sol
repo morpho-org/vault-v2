@@ -66,7 +66,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev Without an enterGateFactory enforcing VaultV2CompatibleEnterGate, there is no guarantee that the adapter will not enter gated markets that users cannot buy credit from through forceDeallocate.
+/// @dev If the enterGateFactory is not VaultV2CompatibleEnterGate, the adapter can enter gated markets that do not allow in-kind redemptions.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
