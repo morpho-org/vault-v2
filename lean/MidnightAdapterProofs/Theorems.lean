@@ -30,7 +30,7 @@ def SharePriceSelfFundedBuy : Prop :=
 def SharePriceSell [LinearOrder ι] : Prop :=
   ∀ (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ),
     (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) →
-    (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
+    (hShortfallLessThanTotalInterest : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
         ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) →
     sharePrice s ≤ sharePrice (sell s m sellerAssets soldNetCredit)
