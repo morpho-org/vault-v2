@@ -358,13 +358,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         MarketData storage _marketData = marketData[marketId];
         uint256 oldNetCredit = _marketData.netCredit;
-        emit ForceRemove(marketId, oldNetCredit);
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
         if (oldNetCredit > 0) removeMarket(marketId);
         Market memory market = IMidnight(midnight).toMarket(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
+        emit ForceRemove(marketId, oldNetCredit);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
