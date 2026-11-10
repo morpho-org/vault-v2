@@ -31,6 +31,14 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
 strong invariant forceRemovedHasZeroNetCredit()
     forall bytes32 marketId. currentContract.marketData[marketId].forceRemoved => currentContract.marketData[marketId].netCredit == 0;
 
+rule forceRemovalCannotBeDeactivated(env e, method f, calldataarg args, bytes32 marketId) {
+    require currentContract.marketData[marketId].forceRemoved;
+
+    f@withrevert(e, args);
+
+    assert currentContract.marketData[marketId].forceRemoved;
+}
+
 // Check that a buy reverts in a force removed market.
 rule buyRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
     require !currentContract.inForceDeallocate, "assume the adapter is not in forceDeallocate";
