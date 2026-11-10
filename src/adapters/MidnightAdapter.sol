@@ -24,7 +24,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), write off markets and self-fund buys.
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), to call forceRemove and to self-fund buys.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
