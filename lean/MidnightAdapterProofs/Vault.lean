@@ -76,7 +76,7 @@ theorem sharePrice_sell (v : Vault) (s : State ι) (m : ι) (sellerAssets soldNe
     (hSold : soldNetCredit ≤ s.credit m)
     (hShortfall : let netCredit := Function.update s.credit m (s.credit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
-        ≤ ∑ i, (netCredit i - value (netCredit i) (s.rate i) (s.ttm i))) :
+        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.rate i) (s.ttm i))) :
     previewRedeem v (realAssets s) shares ≤
       previewRedeem v (realAssets (sell s m sellerAssets soldNetCredit)) shares :=
   previewRedeem_mono v (realAssets_sell s m sellerAssets soldNetCredit hSold hShortfall) shares
@@ -93,7 +93,7 @@ theorem previewDeposit_sell (v : Vault) (s : State ι) (m : ι)
     (sellerAssets soldNetCredit assets : ℕ) (hSold : soldNetCredit ≤ s.credit m)
     (hShortfall : let netCredit := Function.update s.credit m (s.credit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
-        ≤ ∑ i, (netCredit i - value (netCredit i) (s.rate i) (s.ttm i))) :
+        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.rate i) (s.ttm i))) :
     previewDeposit v (realAssets (sell s m sellerAssets soldNetCredit)) assets ≤
       previewDeposit v (realAssets s) assets :=
   previewDeposit_anti v (realAssets_sell s m sellerAssets soldNetCredit hSold hShortfall) assets

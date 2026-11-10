@@ -15,21 +15,21 @@ def mulDivDown (x y d : ℕ) : ℕ := x * y / d
 def mulDivUp (x y d : ℕ) : ℕ := (x * y + (d - 1)) / d
 
 /-- One term of `realAssets`: net credit `c` discounted at net rate `r` over `t` seconds to maturity. -/
-def value (c r t : ℕ) : ℕ := mulDivDown c WAD (WAD + r * t)
+def amortizedValue (c r t : ℕ) : ℕ := mulDivDown c WAD (WAD + r * t)
 
 /-- Rate set by `onBuy` and `onSell`: the rate that values net credit `c` at amortized value `a` over `t` seconds. -/
 def rateFor (c a t : ℕ) : ℕ := mulDivDown (c - a) WAD (a * t)
 
-lemma value_le_self (c r t : ℕ) : value c r t ≤ c := by
-  unfold value mulDivDown
+lemma amortizedValue_le_self (c r t : ℕ) : amortizedValue c r t ≤ c := by
+  unfold amortizedValue mulDivDown
   calc c * WAD / (WAD + r * t) ≤ c * WAD / WAD := Nat.div_le_div_left (by omega) WAD_pos
     _ = c := Nat.mul_div_cancel c WAD_pos
 
-lemma value_zero (r t : ℕ) : value 0 r t = 0 := by simp [value, mulDivDown]
+lemma amortizedValue_zero (r t : ℕ) : amortizedValue 0 r t = 0 := by simp [amortizedValue, mulDivDown]
 
 /-- Key lemma: rounding the new rate down keeps the value at least the amortized value it targets. -/
-lemma le_value_rateFor {c a : ℕ} (t : ℕ) (h : a ≤ c) : a ≤ value c (rateFor c a t) t := by
-  unfold value rateFor mulDivDown
+lemma le_amortizedValue_rateFor {c a : ℕ} (t : ℕ) (h : a ≤ c) : a ≤ amortizedValue c (rateFor c a t) t := by
+  unfold amortizedValue rateFor mulDivDown
   rw [Nat.le_div_iff_mul_le (by have := WAD_pos; positivity)]
   have h1 : (c - a) * WAD / (a * t) * (a * t) ≤ (c - a) * WAD := Nat.div_mul_le_self _ _
   have h2 : (c - a) * WAD + a * WAD = c * WAD := by rw [← Nat.add_mul, Nat.sub_add_cancel h]
@@ -52,9 +52,9 @@ lemma add_div_le (A B D : ℕ) (hD : 0 < D) : (A + B) / D ≤ A / D + (B + (D - 
   exact Nat.add_le_add_right (Nat.div_le_div_right (by omega)) _
 
 /-- Decreasing net credit by `s` decreases the value by at most `s` discounted and rounded up. -/
-lemma value_sub_le {c s : ℕ} (r t : ℕ) (hs : s ≤ c) :
-    value c r t ≤ value (c - s) r t + mulDivUp s WAD (WAD + r * t) := by
-  unfold value mulDivDown mulDivUp
+lemma amortizedValue_sub_le {c s : ℕ} (r t : ℕ) (hs : s ≤ c) :
+    amortizedValue c r t ≤ amortizedValue (c - s) r t + mulDivUp s WAD (WAD + r * t) := by
+  unfold amortizedValue mulDivDown mulDivUp
   have : c * WAD = (c - s) * WAD + s * WAD := by rw [← Nat.add_mul, Nat.sub_add_cancel hs]
   rw [this]
   exact add_div_le _ _ _ (by have := WAD_pos; omega)
