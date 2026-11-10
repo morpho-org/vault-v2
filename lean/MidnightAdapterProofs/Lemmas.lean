@@ -144,6 +144,38 @@ theorem realAssets_selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAss
   unfold withdraw at *
   omega
 
+variable [LinearOrder ι]
+
+omit [DecidableEq ι] in
+lemma sum_cutoff_ge (inc : ι → ℕ) (sf : ℕ) (h : sf ≤ ∑ i, inc i) :
+    sf ≤ ∑ i, if (∑ j ∈ univ.filter (· < i), inc j) < sf then inc i else 0 := by
+  classical
+  let stopped := univ.filter (fun i => sf ≤ ∑ j ∈ univ.filter (· < i), inc j)
+  by_cases hs : stopped.Nonempty
+  · let k := stopped.min' hs
+    have hk : k ∈ stopped := min'_mem stopped hs
+    have hsf : sf ≤ ∑ j ∈ univ.filter (· < k), inc j := (mem_filter.mp hk).2
+    calc
+      sf ≤ ∑ j ∈ univ.filter (· < k), inc j := hsf
+      _ = ∑ j ∈ univ.filter (· < k),
+          if (∑ l ∈ univ.filter (· < j), inc l) < sf then inc j else 0 := by
+        apply sum_congr rfl
+        intro j hj
+        have hjk : j < k := (mem_filter.mp hj).2
+        have hlt : (∑ l ∈ univ.filter (· < j), inc l) < sf := by
+          by_contra hn
+          have hjmem : j ∈ stopped := mem_filter.mpr ⟨mem_univ _, by omega⟩
+          have := min'_le stopped j hjmem
+          exact (not_le_of_gt hjk) this
+        simp [hlt]
+      _ ≤ ∑ j, if (∑ l ∈ univ.filter (· < j), inc l) < sf then inc j else 0 :=
+        sum_le_sum_of_subset (filter_subset _ _)
+  · have hlt : ∀ i, (∑ j ∈ univ.filter (· < i), inc j) < sf := by
+      intro i
+      by_contra hn
+      exact hs ⟨i, mem_filter.mpr ⟨mem_univ _, by omega⟩⟩
+    simpa only [ite_eq_left (hlt _)] using h
+
 /-- A sale outside forceSellable markets doesn't decrease the vault's real assets. `hShortfall` is
 `onSell`'s `require(shortfall <= totalInterest, ShortfallTooHigh())`. -/
 theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ)
@@ -165,11 +197,8 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
       have : mulDivUp soldNetCredit WAD (WAD + s.netRate m * s.ttm m) ≤ sellerAssets + sf := by
         simp only [hsf, shortfall]; omega
       omega
-  unfold realAssets sell
-  simp only [← hc', ← hsf]
   by_cases hpos : 0 < sf
-  · simp only [hpos, ite_true]
-    have hSI : sf ≤ I := hShortfall
+  · have hSI : sf ≤ I := hShortfall
     have hIpos : 0 < I := lt_of_lt_of_le hpos hSI
     set x := fun i => mulDivUp sf (c' i - v i) I with hx
     -- Each market gains at least its share of the shortfall.
@@ -195,13 +224,45 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
           _ ≤ ∑ i, x i * I := sum_le_sum (fun i _ => le_mulDivUp_mul sf (c' i - v i) I hIpos)
           _ = (∑ i, x i) * I := by rw [Finset.sum_mul]
       exact Nat.le_of_mul_le_mul_right this hIpos
-    have hNew := sum_le_sum (s := Finset.univ) (fun i _ => hEach i)
-    rw [sum_add_distrib] at hNew
-    calc s.idle + ∑ i, amortizedValue (s.netCredit i) (s.netRate i) (s.ttm i)
-        ≤ s.idle + sellerAssets + (∑ i, v i + ∑ i, x i) := by omega
-      _ ≤ _ := Nat.add_le_add_left hNew _
-  · simp only [hpos, ite_false]
-    have : sf = 0 := by omega
+    let target := fun i =>
+      if c' i = amortizedValue (c' i) (s.netRate i) (s.ttm i) then s.netRate i
+      else netRate (c' i) (amortizedValue (c' i) (s.netRate i) (s.ttm i)
+        + mulDivUp sf (c' i - amortizedValue (c' i) (s.netRate i) (s.ttm i)) I) (s.ttm i)
+    let inc := fun i => amortizedValue (c' i) (target i) (s.ttm i) - v i
+    have hInc : ∀ i, x i ≤ inc i := by
+      intro i
+      have := hEach i
+      change v i + x i ≤ amortizedValue (c' i) (target i) (s.ttm i) at this
+      dsimp [inc]
+      omega
+    have hFull : sf ≤ ∑ i, inc i :=
+      le_trans hShares (sum_le_sum (fun i _ => hInc i))
+    have hCut := sum_cutoff_ge inc sf hFull
+    have hNew : (∑ i, v i) +
+        (∑ i, if (∑ j ∈ univ.filter (· < i), inc j) < sf then inc i else 0)
+        ≤ ∑ i, amortizedValue (c' i)
+          (if (∑ j ∈ univ.filter (· < i), inc j) < sf then target i else s.netRate i)
+          (s.ttm i) := by
+      rw [← sum_add_distrib]
+      apply sum_le_sum
+      intro i _
+      split_ifs with hi
+      · have := hEach i
+        change v i + x i ≤ amortizedValue (c' i) (target i) (s.ttm i) at this
+        dsimp [inc]
+        omega
+      · simp only [add_zero]
+        exact le_refl _
+    unfold realAssets sell
+    simp only [← hc', ← hsf, hpos, true_and]
+    change s.idle + ∑ i, amortizedValue (s.netCredit i) (s.netRate i) (s.ttm i) ≤
+      s.idle + sellerAssets + ∑ i, amortizedValue (c' i)
+        (if (∑ j ∈ univ.filter (· < i), inc j) < sf then target i else s.netRate i)
+        (s.ttm i)
+    omega
+  · have : sf = 0 := by omega
+    unfold realAssets sell
+    simp only [← hc', ← hsf, hpos, false_and, ite_false]
     have : ∑ i, v i = ∑ i, amortizedValue (c' i) (s.netRate i) (s.ttm i) := rfl
     omega
 

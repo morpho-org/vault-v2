@@ -44,7 +44,7 @@ def netRate (c a t : ℕ) : ℕ := mulDivDown (c - a) WAD (a * t)
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 /-- The vault's idle assets and the adapter's stored `marketData` (net credit, net rate,
-time to maturity) for every market. Markets outside `marketIds` have zero net credit. -/
+time to maturity) for every market, indexed in `marketIds` order. Markets outside `marketIds` have zero net credit. -/
 structure State (ι : Type*) where
   idle : ℕ
   netCredit : ι → ℕ
@@ -87,9 +87,10 @@ def shortfall (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : ℕ :
   mulDivUp soldNetCredit WAD (WAD + s.netRate m * s.ttm m) - sellerAssets
 
 /-- `onSell` in a market that is not forceSellable: the vault receives `sellerAssets` for
-`soldNetCredit`; if the sale has a shortfall, every market's rate is reduced so that its amortized
-value grows by its share (rounded up) of the shortfall, in proportion to its remaining interest. -/
-def sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :=
+`soldNetCredit`; if the sale has a shortfall, visited markets' rates are reduced so that their amortized
+values grow by their shares (rounded up) of the shortfall, in proportion to their remaining interest.
+Markets are visited in index order, stopping once the realized increase covers the shortfall. -/
+def sell [LinearOrder ι] (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :=
   let remainingNetCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
   let sf := shortfall s m sellerAssets soldNetCredit
   let amortizedValues := fun i => amortizedValue (remainingNetCredit i) (s.netRate i) (s.ttm i)
@@ -98,9 +99,11 @@ def sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :
     if remainingNetCredit i = amortizedValues i then s.netRate i
     else netRate (remainingNetCredit i)
       (amortizedValues i + mulDivUp sf (remainingNetCredit i - amortizedValues i) totalInterest) (s.ttm i)
+  let inc := fun i => amortizedValue (remainingNetCredit i) (newRate i) (s.ttm i) - amortizedValues i
   { idle := s.idle + sellerAssets
     netCredit := remainingNetCredit
-    netRate := if 0 < sf then newRate else s.netRate
+    netRate := fun i =>
+      if 0 < sf ∧ (∑ j ∈ Finset.univ.filter (· < i), inc j) < sf then newRate i else s.netRate i
     ttm := s.ttm }
 
 /-- The vault's stored accounting: `_totalAssets`, `totalSupply`, `virtualShares`, `maxRate`, and

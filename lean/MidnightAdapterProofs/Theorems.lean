@@ -32,7 +32,7 @@ theorem sharePrice_selfFundedBuy (v : Vault) (s : State ι) (m fundingMarket : �
 
 /-- A share redeems for at least as many assets after a sale in a market that isn't
 forceSellable. -/
-theorem sharePrice_sell (v : Vault) (s : State ι) (m : ι) (sellerAssets soldNetCredit shares : ℕ)
+theorem sharePrice_sell [LinearOrder ι] (v : Vault) (s : State ι) (m : ι) (sellerAssets soldNetCredit shares : ℕ)
     (hSold : soldNetCredit ≤ s.netCredit m)
     (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
@@ -49,7 +49,7 @@ theorem previewDeposit_buy (v : Vault) (s : State ι) (m : ι) (buyerAssets boug
   previewDeposit_anti v (realAssets_buy s m buyerAssets boughtNetCredit hBuyAtLoss hIdle) assets
 
 /-- Depositing after a sale mints at most as many shares. -/
-theorem previewDeposit_sell (v : Vault) (s : State ι) (m : ι)
+theorem previewDeposit_sell [LinearOrder ι] (v : Vault) (s : State ι) (m : ι)
     (sellerAssets soldNetCredit assets : ℕ) (hSold : soldNetCredit ≤ s.netCredit m)
     (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
