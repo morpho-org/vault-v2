@@ -2,6 +2,8 @@
 
 Proofs that, in a VaultV2 whose only adapter is a MidnightAdapter, with no bad debt and no performance or management fee, buys, withdrawals, force deallocations and sales outside forceSellable markets don't decrease the share price at the time of the operation.
 The comparison uses the unrounded rational share price.
+The proofs cover operations that perform the transaction's first vault accrual.
+If the vault has already accrued earlier in the same transaction (`firstTotalAssets != 0`), `accrueInterestView` returns the cached `_totalAssets`, and that case is not modeled.
 One state contains the vault accounting, its idle balance and the adapter's market data.
 Buys accrue against the pre-buy valuation, while force deallocation accrues after pulling assets into the vault.
 Sales and ordinary adapter withdrawals do not accrue.

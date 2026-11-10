@@ -27,3 +27,11 @@ jobs:
         run: |
           lake exe cache get
           lake build
+
+      - name: Reject admitted proofs
+        working-directory: lean
+        run: |
+          if grep -rnwE "sorry|admit" MidnightAdapterProofs || grep -rnE "^axiom" MidnightAdapterProofs; then
+            echo "Admitted proofs or axioms found" >&2
+            exit 1
+          fi
