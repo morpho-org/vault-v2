@@ -4865,6 +4865,55 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testShortfallStopsAfterExactAbsorption(uint256 count, uint256 sold) public {
+        count = bound(count, 2, 5);
+        sold = bound(sold, 2, 10);
+        Offer[] memory offers = new Offer[](count);
+        MarketData[] memory beforeData = new MarketData[](count);
+        uint256[] memory values = new uint256[](count);
+        uint256 totalInterest;
+        for (uint256 i; i < count; i++) {
+            offers[i] = buyAtDiscount(allDurations[i], 100);
+            beforeData[i] = adapter.marketData(_marketId(offers[i].market));
+            uint256 credit = beforeData[i].netCredit - (i == 0 ? sold : 0);
+            values[i] = credit.mulDivDown(WAD, WAD + beforeData[i].netRate * (beforeData[i].maturity - block.timestamp));
+            totalInterest += credit - values[i];
+        }
+        uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(MAX_TICK / 2), WAD);
+        uint256 shortfall =
+            sold.mulDivUp(WAD, WAD + beforeData[0].netRate * (beforeData[0].maturity - block.timestamp)) - proceeds;
+        assertGt(shortfall, 0, "positive shortfall");
+        assertLe(shortfall, totalInterest, "sufficient interest");
+        uint256 remaining = shortfall;
+        uint256 reducedMarkets;
+        uint256[] memory expectedRates = new uint256[](count);
+        for (uint256 i; i < count; i++) {
+            uint256 credit = beforeData[i].netCredit - (i == 0 ? sold : 0);
+            uint256 interest = credit - values[i];
+            expectedRates[i] = beforeData[i].netRate;
+            if (remaining == 0 || interest == 0) continue;
+            uint256 reduction = MathLib.min(remaining, shortfall.mulDivUp(interest, totalInterest));
+            remaining -= reduction;
+            uint256 value = values[i] + reduction;
+            expectedRates[i] = (credit - value).mulDivDown(WAD, value * (beforeData[i].maturity - block.timestamp));
+            reducedMarkets++;
+        }
+        assertEq(remaining, 0, "exactly the shortfall is absorbed");
+        vm.recordLogs();
+        sellUnits(offers[0].market, sold, MAX_TICK / 2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 reductions;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(adapter) && logs[i].topics[0] == keccak256("ReduceRate(bytes32,uint256)")) {
+                reductions++;
+            }
+        }
+        assertEq(reductions, reducedMarkets, "no rate updates after absorption");
+        for (uint256 i; i < count; i++) {
+            assertEq(adapter.marketData(_marketId(offers[i].market)).netRate, expectedRates[i], "reference rate");
+        }
+    }
+
     function testProportionalShortfall(uint256 soldPercent, bool thirdMarket) public {
         soldPercent = bound(soldPercent, 1, 90);
         Offer[] memory offers = new Offer[](thirdMarket ? 3 : 2);
@@ -4896,10 +4945,13 @@ contract MidnightAdapterTest is Test {
         }
         uint256 assetsBefore = adapter.realAssets();
         uint256[] memory expectedRates = new uint256[](offers.length);
+        uint256 remainingShortfall = shortfall;
         for (uint256 i; i < offers.length; i++) {
             uint256 interest = values[i][0] - values[i][1];
             uint256 share = shortfall.mulDivUp(interest, totalInterest);
             assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), 1, "proportional share");
+            share = MathLib.min(remainingShortfall, share);
+            remainingShortfall -= share;
             uint256 newValue = values[i][1] + share;
             expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
             vm.expectEmit(address(adapter));
@@ -4934,7 +4986,7 @@ contract MidnightAdapterTest is Test {
             remainingAmortizedValueA + loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateA =
             (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
-        uint256 reductionB = loss.mulDivUp(capacityB, capacityA + capacityB);
+        uint256 reductionB = loss - loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateB = (uint256(dataB.netCredit) - (amortizedValueB + reductionB))
         .mulDivDown(WAD, (amortizedValueB + reductionB) * ttmB);
         assertGt(loss, capacityA, "market A cannot absorb the full shortfall");
@@ -4982,7 +5034,7 @@ contract MidnightAdapterTest is Test {
             remainingAmortizedValueA + loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateA =
             (remainingA - amortizedValueAAfterReduction).mulDivDown(WAD, amortizedValueAAfterReduction * ttmA);
-        uint256 reductionB = loss.mulDivUp(capacityB, capacityA + capacityB);
+        uint256 reductionB = loss - loss.mulDivUp(capacityA, capacityA + capacityB);
         uint256 newRateB =
             (netCreditB - (amortizedValueB + reductionB)).mulDivDown(WAD, (amortizedValueB + reductionB) * ttmB);
         uint256 staleAmortizedValueB = uint256(dataB.netCredit).mulDivDown(WAD, WAD + dataB.netRate * ttmB);
