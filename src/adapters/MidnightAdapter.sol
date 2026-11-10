@@ -626,10 +626,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    uint256 ttm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
+                    uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint72 newRate =
-                        (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * ttm).toUint72();
-                    uint256 actualAmortizedValue = netCredit.mulDivDown(WAD, WAD + newRate * ttm);
+                        (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * otherTtm).toUint72();
+                    uint256 actualAmortizedValue = netCredit.mulDivDown(WAD, WAD + newRate * otherTtm);
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += actualAmortizedValue - amortizedValue;
