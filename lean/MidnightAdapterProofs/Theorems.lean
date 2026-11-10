@@ -29,7 +29,7 @@ def SharePriceSelfFundedBuy : Prop :=
 /-- A sale in a market that isn't forceSellable doesn't decrease the share price. -/
 def SharePriceSell [LinearOrder ι] : Prop :=
   ∀ (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ),
-    (hSold : soldNetCredit ≤ s.netCredit m) →
+    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) →
     (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
         ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) →
@@ -45,7 +45,7 @@ def SharePriceWithdraw : Prop :=
 Any extra liquidity withdrawal is assumed to preserve real assets as specified by `penaltyExit`. -/
 def SharePriceForceDeallocate : Prop :=
   ∀ (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ),
-    (hSold : soldNetCredit ≤ s.netCredit m) → (hAssets : soldNetCredit ≤ assets) →
+    (hSellLessThanHeld : soldNetCredit ≤ s.netCredit m) → (hAssets : soldNetCredit ≤ assets) →
     (hVirtual : 0 < s.virtualShares) →
     (hPenalty : penalty ≤ newTotalAssets (recordForceDeallocate s m assets soldNetCredit)) →
     (hShares : previewWithdraw (recordForceDeallocate s m assets soldNetCredit) penalty
