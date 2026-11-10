@@ -845,6 +845,45 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault balance unchanged");
     }
 
+    function testForceRemovedRecoveryWithNonZeroAllocations() public {
+        setUpRealVault();
+        Offer memory removed = buyOnRealVault(7 days, 1e18);
+        buyOnRealVault(1 days, 1e18);
+        bytes32 marketId = _marketId(removed.market);
+        forceRemove(marketId);
+        withdrawToVault(removed.market, 0);
+        bytes32[] memory ids = adapter.ids(removed.market);
+        for (uint256 i; i < ids.length; i++) {
+            assertEq(realVault.allocation(ids[i]), 1e18, "allocation of the other market");
+        }
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(realVault));
+
+        deal(address(loanToken), address(this), 1e18);
+        forceDeallocateOnRealVault(removed.market, 0.5e18);
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "Midnight credit sold");
+        assertEq(loanToken.balanceOf(address(realVault)), vaultBalanceBefore + 0.5e18, "vault received the assets");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "still written off");
+        for (uint256 i; i < ids.length; i++) {
+            assertEq(realVault.allocation(ids[i]), 1e18, "allocation unchanged");
+        }
+    }
+
+    function testForceRemovedRecoveryWithZeroAllocations() public {
+        setUpRealVault();
+        Offer memory removed = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(removed.market);
+        forceRemove(marketId);
+        withdrawToVault(removed.market, 0);
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "allocation cleared");
+
+        deal(address(loanToken), address(this), 1e18);
+        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
+        forceDeallocateOnRealVault(removed.market, 0.5e18);
+
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "Midnight credit unchanged");
+    }
+
     function testForceRemovePreventsBuy(bool zeroCredit) public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);

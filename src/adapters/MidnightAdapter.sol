@@ -351,9 +351,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
     }
 
-    /// @dev Irreversibly makes the adapter read its Midnight net credit in the market as 0, without moving this credit.
-    /// @dev The stored net credit, realAssets() and the vault's allocations change at the next withdrawal, sale or force deallocation of the market. An allocator or sentinel can call the vault's deallocate with 0 assets for this.
-    /// @dev Buys of the market then revert. Assets later withdrawn or sold from the market still go to the vault.
+    /// @dev Irreversibly makes the adapter count its credit in the market as 0.
+    /// @dev Takes effect at the next withdrawal, sale or force deallocation of the market (e.g. a deallocation of 0 assets).
+    /// @dev Buys in the market then revert.
+    /// @dev Recovery is still possible later, received assets will be accounted as a donation.
     function forceRemove(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceRemoved = true;
