@@ -4865,48 +4865,72 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    struct ShortfallTestState {
+        Offer[] offers;
+        MarketData[] beforeData;
+        uint256[] values;
+        uint256[] expectedRates;
+        uint256 totalInterest;
+        uint256 shortfall;
+        uint256 absorbed;
+        uint256 reducedMarkets;
+    }
+
+    function expectedShortfallReduction(
+        uint256 credit,
+        uint256 amortizedValue,
+        uint256 ttm,
+        uint256 shortfall,
+        uint256 totalInterest
+    ) internal pure returns (uint256 rate, uint256 absorbed) {
+        uint256 value = amortizedValue + shortfall.mulDivUp(credit - amortizedValue, totalInterest);
+        rate = (credit - value).mulDivDown(WAD, value * ttm);
+        uint256 actualValue = credit.mulDivDown(WAD, WAD + rate * ttm);
+        assertGe(actualValue, value, "actual value covers target");
+        absorbed = actualValue - amortizedValue;
+    }
+
     function testShortfallStopsAfterActualAbsorption(uint256 count, uint256 sold) public {
         count = bound(count, 2, 5);
         sold = bound(sold, 2, 10);
-        Offer[] memory offers = new Offer[](count);
-        MarketData[] memory beforeData = new MarketData[](count);
-        uint256[] memory values = new uint256[](count);
-        uint256 totalInterest;
+        ShortfallTestState memory state;
+        state.offers = new Offer[](count);
+        state.beforeData = new MarketData[](count);
+        state.values = new uint256[](count);
+        state.expectedRates = new uint256[](count);
         for (uint256 i; i < count; i++) {
-            offers[i] = buyAtDiscount(allDurations[i], 100);
-            beforeData[i] = adapter.marketData(_marketId(offers[i].market));
-            uint256 credit = beforeData[i].netCredit - (i == 0 ? sold : 0);
-            values[i] = credit.mulDivDown(WAD, WAD + beforeData[i].netRate * (beforeData[i].maturity - block.timestamp));
-            totalInterest += credit - values[i];
+            state.offers[i] = buyAtDiscount(allDurations[i], 100);
+            state.beforeData[i] = adapter.marketData(_marketId(state.offers[i].market));
+            uint256 credit = state.beforeData[i].netCredit - (i == 0 ? sold : 0);
+            state.values[i] = credit.mulDivDown(
+                WAD, WAD + state.beforeData[i].netRate * (state.beforeData[i].maturity - block.timestamp)
+            );
+            state.totalInterest += credit - state.values[i];
         }
         uint256 proceeds = sold.mulDivUp(TickLib.tickToPrice(MAX_TICK / 2), WAD);
-        uint256 shortfall =
-            sold.mulDivUp(WAD, WAD + beforeData[0].netRate * (beforeData[0].maturity - block.timestamp)) - proceeds;
-        assertGt(shortfall, 0, "positive shortfall");
-        assertLe(shortfall, totalInterest, "sufficient interest");
-        uint256 remaining = shortfall;
-        uint256 absorbed;
-        uint256 reducedMarkets;
-        uint256[] memory expectedRates = new uint256[](count);
+        state.shortfall = sold.mulDivUp(
+            WAD, WAD + state.beforeData[0].netRate * (state.beforeData[0].maturity - block.timestamp)
+        ) - proceeds;
+        assertGt(state.shortfall, 0, "positive shortfall");
+        assertLe(state.shortfall, state.totalInterest, "sufficient interest");
         for (uint256 i; i < count; i++) {
-            uint256 credit = beforeData[i].netCredit - (i == 0 ? sold : 0);
-            uint256 interest = credit - values[i];
-            expectedRates[i] = beforeData[i].netRate;
-            if (remaining == 0 || interest == 0) continue;
-            uint256 reduction = shortfall.mulDivUp(interest, totalInterest);
-            uint256 value = values[i] + reduction;
-            uint256 ttm = beforeData[i].maturity - block.timestamp;
-            expectedRates[i] = (credit - value).mulDivDown(WAD, value * ttm);
-            uint256 actualValue = credit.mulDivDown(WAD, WAD + expectedRates[i] * ttm);
-            assertGe(actualValue, value, "actual value covers target");
-            absorbed += actualValue - values[i];
-            remaining = remaining.zeroFloorSub(actualValue - values[i]);
-            reducedMarkets++;
+            uint256 credit = state.beforeData[i].netCredit - (i == 0 ? sold : 0);
+            state.expectedRates[i] = state.beforeData[i].netRate;
+            if (state.absorbed >= state.shortfall || credit == state.values[i]) continue;
+            uint256 reduction;
+            (state.expectedRates[i], reduction) = expectedShortfallReduction(
+                credit,
+                state.values[i],
+                state.beforeData[i].maturity - block.timestamp,
+                state.shortfall,
+                state.totalInterest
+            );
+            state.absorbed += reduction;
+            state.reducedMarkets++;
         }
-        assertEq(remaining, 0, "shortfall is absorbed");
-        assertGe(absorbed, shortfall, "actual absorption covers shortfall");
+        assertGe(state.absorbed, state.shortfall, "actual absorption covers shortfall");
         vm.recordLogs();
-        sellUnits(offers[0].market, sold, MAX_TICK / 2);
+        sellUnits(state.offers[0].market, sold, MAX_TICK / 2);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 reductions;
         for (uint256 i; i < logs.length; i++) {
@@ -4914,9 +4938,11 @@ contract MidnightAdapterTest is Test {
                 reductions++;
             }
         }
-        assertEq(reductions, reducedMarkets, "no rate updates after absorption");
+        assertEq(reductions, state.reducedMarkets, "no rate updates after absorption");
         for (uint256 i; i < count; i++) {
-            assertEq(adapter.marketData(_marketId(offers[i].market)).netRate, expectedRates[i], "reference rate");
+            assertEq(
+                adapter.marketData(_marketId(state.offers[i].market)).netRate, state.expectedRates[i], "reference rate"
+            );
         }
     }
 
