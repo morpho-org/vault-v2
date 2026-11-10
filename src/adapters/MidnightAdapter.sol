@@ -615,6 +615,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 for (uint256 i; i < length; i++) {
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
+                    if (otherMarketData.forceRemoved) continue;
                     require(
                         otherMarketId == id || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this)),
                         OtherSellInProgress()

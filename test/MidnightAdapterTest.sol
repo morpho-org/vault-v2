@@ -5250,6 +5250,17 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketIdB).netRate, newRateB, "market B absorbs its proportional share");
     }
 
+    /// @dev Same sale as in testShortfallSharedAcrossTwoMarkets, but market B is force removed.
+    function testShortfallNotAbsorbedByForceRemovedMarket() public {
+        (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
+        forceRemove(_marketId(offerB.market));
+
+        uint256 tick = TickLib.priceToTick(0.2e18, DEFAULT_TICK_SPACING);
+        uint256 sold = uint256(adapter.marketData(_marketId(offerA.market)).netCredit) * 4 / 5;
+        vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
+        sellUnits(offerA.market, sold, tick);
+    }
+
     function testProportionalShortfallUsesCurrentCreditAfterLoss() public {
         (Offer memory offerA, Offer memory offerB) = buyShortfallMarkets();
         bytes32 marketIdA = _marketId(offerA.market);
