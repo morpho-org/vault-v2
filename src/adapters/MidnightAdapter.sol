@@ -438,12 +438,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
+                // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
                 admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
+            // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
