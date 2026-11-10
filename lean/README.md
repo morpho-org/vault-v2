@@ -5,11 +5,11 @@ performance or management fee, buys and sales outside forceSellable markets don'
 share price at the time of the trade. The comparison is at the trade's timestamp: once time passes,
 rate rounding can leave the traded state a few units of assets below the untraded one.
 
-- `Basic.lean`: rounding lemmas for the adapter's valuation `netCredit * WAD / (WAD + netRate * ttm)`.
-- `Operations.lean`: `onBuy` (funded from idle assets or self-funded), `withdrawToVault` and
-  `onSell` with shortfall, and the theorems that they don't decrease the vault's real assets.
-- `Vault.lean`: `accrueInterestView`, `previewRedeem` and `previewDeposit` without fees, and the
-  share price theorems.
+- `Model.lean`: modelling scope and definitions for the adapter's valuation, trades and vault accounting.
+- `Lemmas.lean`: arithmetic, projection and real-assets lemmas, and preview monotonicity.
+- `Theorems.lean`: the final vault share-price and deposit-preview results.
+
+To review, read `Model.lean` and the statements in `Theorems.lean`.
 
 ```sh
 cd lean

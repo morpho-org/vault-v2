@@ -1,3 +1,3 @@
-import MidnightAdapterProofs.Basic
-import MidnightAdapterProofs.Operations
-import MidnightAdapterProofs.Vault
+import MidnightAdapterProofs.Model
+import MidnightAdapterProofs.Lemmas
+import MidnightAdapterProofs.Theorems

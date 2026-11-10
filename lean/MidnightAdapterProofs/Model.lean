@@ -1,0 +1,127 @@
+import Mathlib
+
+/-!
+# Buys and sells don't decrease the vault's real assets
+
+Model of a VaultV2 whose only adapter is a MidnightAdapter, with no bad debt in any market
+(`lossFactor == 0`, so `realAssets` reads the stored net credit and Midnight's net credit moves only
+by the traded amounts). Arithmetic is the contracts' unbounded-integer arithmetic with their exact
+rounding; overflow and every other `require` failure make the call revert, so they need no modeling.
+
+Time is fixed within a transaction, so each market has a fixed time to maturity `ttm`.
+-/
+
+/-!
+# Buys and sells don't decrease the vault's share price
+
+`VaultV2.accrueInterestView` with the MidnightAdapter as the only adapter, no performance fee and
+no management fee. `_totalAssets`, `totalSupply` and `virtualShares` are left unchanged by
+`allocate`/`deallocate` (the trade's own accrual runs on the pre-trade state, through
+`inProgressBuy*` on buys), so the trade only changes `realAssets`. The theorems compare the vault's
+share price after the trade with the share price without it, at the trade's timestamp: each market's
+`ttm` is the one the trade used. Later accruals re-discount at a smaller `ttm`, and rate rounding can
+then leave the traded state a few units of assets below the untraded one; that isn't covered.
+-/
+
+namespace MidnightAdapterProofs
+
+open Finset
+
+def WAD : ℕ := 10 ^ 18
+
+/-- `MathLib.mulDivDown`. -/
+def mulDivDown (x y d : ℕ) : ℕ := x * y / d
+
+/-- `MathLib.mulDivUp`. -/
+def mulDivUp (x y d : ℕ) : ℕ := (x * y + (d - 1)) / d
+
+/-- One term of `realAssets`: net credit `c` discounted at net rate `r` over `t` seconds to maturity. -/
+def amortizedValue (c r t : ℕ) : ℕ := mulDivDown c WAD (WAD + r * t)
+
+/-- Rate set by `onBuy` and `onSell`: the rate that values net credit `c` at amortized value `a` over `t` seconds. -/
+def netRate (c a t : ℕ) : ℕ := mulDivDown (c - a) WAD (a * t)
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+/-- The vault's idle assets and the adapter's stored `marketData` (net credit, net rate,
+time to maturity) for every market. Markets outside `marketIds` have zero net credit. -/
+structure State (ι : Type*) where
+  idle : ℕ
+  credit : ι → ℕ
+  rate : ι → ℕ
+  ttm : ι → ℕ
+
+/-- `IERC20(asset).balanceOf(vault) + MidnightAdapter.realAssets()`. -/
+def realAssets (s : State ι) : ℕ := s.idle + ∑ i, amortizedValue (s.credit i) (s.rate i) (s.ttm i)
+
+/-- `onBuy` outside forceDeallocate, adapter side: `boughtNetCredit` is added to the market's net
+credit, and the market's rate is reset so that it is worth its pre-buy value plus `buyerAssets`. -/
+def recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
+  let newNetCredit := s.credit m + boughtNetCredit
+  let newAmortizedValue := amortizedValue (s.credit m) (s.rate m) (s.ttm m) + buyerAssets
+  { s with
+    credit := Function.update s.credit m newNetCredit
+    rate := if 0 < newNetCredit then
+        Function.update s.rate m (netRate newNetCredit newAmortizedValue (s.ttm m))
+      else s.rate }
+
+/-- A buy funded from the vault's idle assets (`fundingAdapter == address(0)`). -/
+def buy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
+  { recordBuy s m buyerAssets boughtNetCredit with idle := s.idle - buyerAssets }
+
+/-- `withdrawToVault`: Midnight withdraws `assets` of matured or repaid credit, which the vault pulls.
+Used by `deallocate` and by self-funded buys. -/
+def withdraw (s : State ι) (m : ι) (assets : ℕ) : State ι :=
+  { s with
+    idle := s.idle + assets
+    credit := Function.update s.credit m (s.credit m - assets) }
+
+/-- A self-funded buy (`fundingAdapter == address(this)`): `onBuy` records the buy, withdraws
+`buyerAssets` from `fundingMarket` to the vault, and the vault then pays `buyerAssets`. -/
+def selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
+  let s₁ := withdraw (recordBuy s m buyerAssets boughtNetCredit) fundingMarket buyerAssets
+  { s₁ with idle := s₁.idle - buyerAssets }
+
+/-- Shortfall of a sale, as in `onSell`. -/
+def shortfall (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : ℕ :=
+  mulDivUp soldNetCredit WAD (WAD + s.rate m * s.ttm m) - sellerAssets
+
+/-- `onSell` in a market that is not forceSellable: the vault receives `sellerAssets` for
+`soldNetCredit`; if the sale has a shortfall, every market's rate is reduced so that its amortized
+value grows by its share (rounded up) of the shortfall, in proportion to its remaining interest. -/
+def sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :=
+  let netCredit := Function.update s.credit m (s.credit m - soldNetCredit)
+  let sf := shortfall s m sellerAssets soldNetCredit
+  let amortizedValues := fun i => amortizedValue (netCredit i) (s.rate i) (s.ttm i)
+  let totalInterest := ∑ i, (netCredit i - amortizedValues i)
+  let newRate := fun i =>
+    if netCredit i = amortizedValues i then s.rate i
+    else netRate (netCredit i)
+      (amortizedValues i + mulDivUp sf (netCredit i - amortizedValues i) totalInterest) (s.ttm i)
+  { idle := s.idle + sellerAssets
+    credit := netCredit
+    rate := if 0 < sf then newRate else s.rate
+    ttm := s.ttm }
+
+/-- The vault's stored accounting: `_totalAssets`, `totalSupply`, `virtualShares`, `maxRate`, and
+the time elapsed since `lastUpdate`. -/
+structure Vault where
+  totalAssets : ℕ
+  totalSupply : ℕ
+  virtualShares : ℕ
+  maxRate : ℕ
+  elapsed : ℕ
+
+/-- `newTotalAssets` in `accrueInterestView`, for a vault whose real assets are `realAssets`. -/
+def newTotalAssets (v : Vault) (realAssets : ℕ) : ℕ :=
+  min realAssets (v.totalAssets + mulDivDown (v.totalAssets * v.elapsed) v.maxRate WAD)
+
+/-- `previewRedeem` (and `convertToAssets`) without fees. -/
+def previewRedeem (v : Vault) (realAssets shares : ℕ) : ℕ :=
+  mulDivDown shares (newTotalAssets v realAssets + 1) (v.totalSupply + v.virtualShares)
+
+/-- `previewDeposit` (and `convertToShares`) without fees. -/
+def previewDeposit (v : Vault) (realAssets assets : ℕ) : ℕ :=
+  mulDivDown assets (v.totalSupply + v.virtualShares) (newTotalAssets v realAssets + 1)
+
+end MidnightAdapterProofs
