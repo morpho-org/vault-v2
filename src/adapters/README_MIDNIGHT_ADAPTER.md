@@ -53,8 +53,8 @@ Unearned interest is the difference between net credit and amortized net credit.
 
 On buys, the adapter adjusts `netRate` based on the net credit bought and the assets paid.
 On sales, if proceeds are above the amortized net credit sold, the adapter realizes any gain immediately. Otherwise, the difference with the proceeds is a shortfall.
-Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall by reducing unearned interest proportionally across all active markets, including force-sellable markets.
-This lowers `netRate` instead of realizing an immediate loss.
+Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall using proportional shares of unearned interest from active markets, including force-sellable markets.
+The adapter lowers `netRate` until the shortfall is covered, instead of realizing an immediate loss.
 For these sales, the adapter deducts the shortfall from `shortfallAllowance`.
 The sale reverts if the shortfall exceeds total unearned interest or the curator-set `shortfallAllowance`.
 If the sold market is force-sellable, the adapter realizes the shortfall immediately, without reducing `netRate` or consuming `shortfallAllowance`.
