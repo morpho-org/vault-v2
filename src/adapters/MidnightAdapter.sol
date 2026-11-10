@@ -360,8 +360,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function forceRemove(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceRemoved = true;
-        emit ForceRemove(marketId)s
-
+        emit ForceRemove(marketId);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
