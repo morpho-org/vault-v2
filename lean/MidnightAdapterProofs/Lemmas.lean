@@ -133,11 +133,11 @@ theorem realAssets_withdraw (s : State ι) (m : ι) (assets : ℕ) (h : assets �
   dsimp only
   omega
 
-theorem realAssets_forceDeallocate (s : State ι) (m : ι) (assets soldNetCredit : ℕ)
+theorem realAssets_recordForceDeallocate (s : State ι) (m : ι) (assets soldNetCredit : ℕ)
     (hSold : soldNetCredit ≤ s.netCredit m) (hAssets : soldNetCredit ≤ assets) :
-    realAssets s ≤ realAssets (forceDeallocate s m assets soldNetCredit) := by
+    realAssets s ≤ realAssets (recordForceDeallocate s m assets soldNetCredit) := by
   have h := realAssets_withdraw s m soldNetCredit hSold
-  unfold realAssets withdraw forceDeallocate at *
+  unfold realAssets withdraw recordForceDeallocate at *
   dsimp only at *
   omega
 
@@ -151,6 +151,8 @@ theorem realAssets_selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAss
   simp only [withdraw_idle, recordBuy_idle] at *
   unfold withdraw at *
   omega
+
+section
 
 variable [LinearOrder ι]
 
@@ -274,42 +276,84 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
     have : ∑ i, v i = ∑ i, amortizedValue (c' i) (s.netRate i) (s.ttm i) := rfl
     omega
 
-lemma sharePrice_mono (v : Vault) {r r' : ℕ} (h : r ≤ r') :
-    sharePrice v r ≤ sharePrice v r' := by
+end
+
+omit [DecidableEq ι] in
+lemma sharePrice_mono {s s' : State ι} (h : realAssets s ≤ realAssets s')
+    (hCap : s.totalAssets + mulDivDown (s.totalAssets * s.elapsed) s.maxRate WAD =
+      s'.totalAssets + mulDivDown (s'.totalAssets * s'.elapsed) s'.maxRate WAD)
+    (hSupply : s.totalSupply + s.virtualShares = s'.totalSupply + s'.virtualShares) :
+    sharePrice s ≤ sharePrice s' := by
   unfold sharePrice
+  have hSupplyQ : (s.totalSupply : ℚ) + s.virtualShares =
+      (s'.totalSupply : ℚ) + s'.virtualShares := by exact_mod_cast hSupply
+  rw [← hSupplyQ]
   apply div_le_div_of_nonneg_right _ (by positivity)
-  have : newTotalAssets v r ≤ newTotalAssets v r' := by unfold newTotalAssets; omega
+  have : newTotalAssets s ≤ newTotalAssets s' := by
+    unfold newTotalAssets
+    rw [← hCap]
+    omega
   exact_mod_cast Nat.add_le_add_right this 1
 
-lemma newTotalAssets_penaltyExit (v : Vault) (r p : ℕ) :
-    newTotalAssets (penaltyExit v r p) r = newTotalAssets v r - p := by
-  have h : newTotalAssets v r ≤ r := min_le_left _ _
-  simp only [newTotalAssets, penaltyExit, mulDivDown, Nat.mul_zero, Nat.zero_mul,
-    Nat.zero_div, Nat.add_zero]
-  change min r (newTotalAssets v r - p) = newTotalAssets v r - p
+omit [DecidableEq ι] in
+lemma newTotalAssets_accrued {s s' : State ι} (h : realAssets s ≤ realAssets s')
+    (hAssets : s'.totalAssets = newTotalAssets s) (hElapsed : s'.elapsed = 0) :
+    newTotalAssets s' = newTotalAssets s := by
+  have hBound : newTotalAssets s ≤ realAssets s := min_le_left _ _
+  change min (realAssets s') (s'.totalAssets +
+    mulDivDown (s'.totalAssets * s'.elapsed) s'.maxRate WAD) = newTotalAssets s
+  rw [hAssets, hElapsed]
+  simp only [Nat.mul_zero, mulDivDown, Nat.zero_mul, Nat.zero_div, Nat.add_zero]
   omega
 
-lemma penaltyExit_ratio (v : Vault) (r p : ℕ)
-    (hPenalty : p ≤ newTotalAssets v r)
-    (hShares : previewWithdraw v r p ≤ v.totalSupply) :
-    (newTotalAssets v r + 1) * ((penaltyExit v r p).totalSupply + v.virtualShares) ≤
-      (newTotalAssets v r - p + 1) * (v.totalSupply + v.virtualShares) := by
-  have hround := le_mulDivUp_mul p (v.totalSupply + v.virtualShares)
-    (newTotalAssets v r + 1) (by omega)
-  change p * (v.totalSupply + v.virtualShares) ≤
-    previewWithdraw v r p * (newTotalAssets v r + 1) at hround
+omit [DecidableEq ι] in
+lemma sharePrice_accrued {s s' : State ι} (h : realAssets s ≤ realAssets s')
+    (hAssets : s'.totalAssets = newTotalAssets s) (hElapsed : s'.elapsed = 0)
+    (hSupply : s.totalSupply + s.virtualShares = s'.totalSupply + s'.virtualShares) :
+    sharePrice s ≤ sharePrice s' := by
+  unfold sharePrice
+  rw [newTotalAssets_accrued h hAssets hElapsed]
+  have hSupplyQ : (s.totalSupply : ℚ) + s.virtualShares =
+      (s'.totalSupply : ℚ) + s'.virtualShares := by exact_mod_cast hSupply
+  rw [hSupplyQ]
+
+omit [DecidableEq ι] in
+lemma newTotalAssets_penaltyExit (s : State ι) (p : ℕ) :
+    newTotalAssets (penaltyExit s p) = newTotalAssets s - p := by
+  have h : newTotalAssets s ≤ realAssets s := min_le_left _ _
+  change min (realAssets s) (newTotalAssets s - p +
+    mulDivDown ((newTotalAssets s - p) * 0) s.maxRate WAD) = newTotalAssets s - p
+  simp only [Nat.mul_zero, mulDivDown, Nat.zero_mul, Nat.zero_div, Nat.add_zero]
+  omega
+
+omit [DecidableEq ι] in
+lemma penaltyExit_ratio (s : State ι) (p : ℕ)
+    (hPenalty : p ≤ newTotalAssets s)
+    (hShares : previewWithdraw s p ≤ s.totalSupply) :
+    (newTotalAssets s + 1) * ((penaltyExit s p).totalSupply + s.virtualShares) ≤
+      (newTotalAssets s - p + 1) * (s.totalSupply + s.virtualShares) := by
+  have hround := le_mulDivUp_mul p (s.totalSupply + s.virtualShares)
+    (newTotalAssets s + 1) (by omega)
+  change p * (s.totalSupply + s.virtualShares) ≤
+    previewWithdraw s p * (newTotalAssets s + 1) at hround
   have hp := Nat.sub_add_cancel hPenalty
   have hs := Nat.sub_add_cancel hShares
   dsimp only [penaltyExit]
   nlinarith
 
-lemma sharePrice_penaltyExit (v : Vault) (r p : ℕ)
-    (hVirtual : 0 < v.virtualShares) (hPenalty : p ≤ newTotalAssets v r)
-    (hShares : previewWithdraw v r p ≤ v.totalSupply) :
-    sharePrice v r ≤ sharePrice (penaltyExit v r p) r := by
+omit [DecidableEq ι] in
+lemma sharePrice_penaltyExit (s : State ι) (p : ℕ)
+    (hVirtual : 0 < s.virtualShares) (hPenalty : p ≤ newTotalAssets s)
+    (hShares : previewWithdraw s p ≤ s.totalSupply) :
+    sharePrice s ≤ sharePrice (penaltyExit s p) := by
   unfold sharePrice
   rw [newTotalAssets_penaltyExit]
   apply (div_le_div_iff₀ (by positivity) (by dsimp only [penaltyExit]; positivity)).mpr
-  exact_mod_cast penaltyExit_ratio v r p hPenalty hShares
+  exact_mod_cast penaltyExit_ratio s p hPenalty hShares
+
+theorem realAssets_forceDeallocate (s : State ι) (m : ι) (assets soldNetCredit penalty : ℕ)
+    (hSold : soldNetCredit ≤ s.netCredit m) (hAssets : soldNetCredit ≤ assets) :
+    realAssets s ≤ realAssets (forceDeallocate s m assets soldNetCredit penalty) :=
+  realAssets_recordForceDeallocate s m assets soldNetCredit hSold hAssets
 
 end MidnightAdapterProofs
