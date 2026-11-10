@@ -353,13 +353,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Irreversibly makes the adapter count its credit in the market as 0.
     /// @dev Takes effect at the next withdrawal, sale or force deallocation of the market (e.g. a deallocation of 0 assets).
+    /// @dev If the market has a loss, realAssets counts it as 0 immediately.
     /// @dev Buys in the market then revert.
     /// @dev Sales in the market are then bounded by minForceSellPrice and do not reduce rates, as in forceSellable markets.
     /// @dev Recovery is still possible later, received assets will be accounted as a donation.
     function forceRemove(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceRemoved = true;
-        emit ForceRemove(marketId);
+        emit ForceRemove(marketId)s
+
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
