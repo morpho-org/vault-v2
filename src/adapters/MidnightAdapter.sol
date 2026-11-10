@@ -354,6 +354,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Irreversibly removes a market without moving its Midnight credit.
     /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
+    /// @dev When submitting forceRemove, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it is force removed.
     function forceRemove(bytes32 marketId) external {
         timelocked();
         MarketData storage _marketData = marketData[marketId];
