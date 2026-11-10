@@ -22,7 +22,7 @@ theorem sharePrice_buy (v : Vault) (s : State ι) (m : ι) (buyerAssets boughtNe
 /-- A share redeems for at least as many assets after a self-funded buy. -/
 theorem sharePrice_selfFundedBuy (v : Vault) (s : State ι) (m fundingMarket : ι)
     (buyerAssets boughtNetCredit shares : ℕ) (hBuyAtLoss : buyerAssets ≤ boughtNetCredit)
-    (hWithdrawable : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).credit fundingMarket) :
+    (hWithdrawable : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).netCredit fundingMarket) :
     previewRedeem v (realAssets s) shares ≤
       previewRedeem v (realAssets (selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit))
         shares :=
@@ -33,10 +33,10 @@ theorem sharePrice_selfFundedBuy (v : Vault) (s : State ι) (m fundingMarket : �
 /-- A share redeems for at least as many assets after a sale in a market that isn't
 forceSellable. -/
 theorem sharePrice_sell (v : Vault) (s : State ι) (m : ι) (sellerAssets soldNetCredit shares : ℕ)
-    (hSold : soldNetCredit ≤ s.credit m)
-    (hShortfall : let netCredit := Function.update s.credit m (s.credit m - soldNetCredit)
+    (hSold : soldNetCredit ≤ s.netCredit m)
+    (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
-        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.rate i) (s.ttm i))) :
+        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) :
     previewRedeem v (realAssets s) shares ≤
       previewRedeem v (realAssets (sell s m sellerAssets soldNetCredit)) shares :=
   previewRedeem_mono v (realAssets_sell s m sellerAssets soldNetCredit hSold hShortfall) shares
@@ -50,10 +50,10 @@ theorem previewDeposit_buy (v : Vault) (s : State ι) (m : ι) (buyerAssets boug
 
 /-- Depositing after a sale mints at most as many shares. -/
 theorem previewDeposit_sell (v : Vault) (s : State ι) (m : ι)
-    (sellerAssets soldNetCredit assets : ℕ) (hSold : soldNetCredit ≤ s.credit m)
-    (hShortfall : let netCredit := Function.update s.credit m (s.credit m - soldNetCredit)
+    (sellerAssets soldNetCredit assets : ℕ) (hSold : soldNetCredit ≤ s.netCredit m)
+    (hShortfall : let netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit)
       shortfall s m sellerAssets soldNetCredit
-        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.rate i) (s.ttm i))) :
+        ≤ ∑ i, (netCredit i - amortizedValue (netCredit i) (s.netRate i) (s.ttm i))) :
     previewDeposit v (realAssets (sell s m sellerAssets soldNetCredit)) assets ≤
       previewDeposit v (realAssets s) assets :=
   previewDeposit_anti v (realAssets_sell s m sellerAssets soldNetCredit hSold hShortfall) assets
