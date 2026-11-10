@@ -133,13 +133,10 @@ structure Vault where
 def newTotalAssets (v : Vault) (realAssets : ℕ) : ℕ :=
   min realAssets (v.totalAssets + mulDivDown (v.totalAssets * v.elapsed) v.maxRate WAD)
 
-/-- `previewRedeem` (and `convertToAssets`) without fees. -/
-def previewRedeem (v : Vault) (realAssets shares : ℕ) : ℕ :=
-  mulDivDown shares (newTotalAssets v realAssets + 1) (v.totalSupply + v.virtualShares)
-
-/-- `previewDeposit` (and `convertToShares`) without fees. -/
-def previewDeposit (v : Vault) (realAssets assets : ℕ) : ℕ :=
-  mulDivDown assets (v.totalSupply + v.virtualShares) (newTotalAssets v realAssets + 1)
+/-- The unrounded vault share price without fees.
+`previewRedeem` and `previewDeposit` floor an amount times this ratio and its inverse, so redemption previews increase and deposit previews decrease with the price. -/
+def sharePrice (v : Vault) (realAssets : ℕ) : ℚ :=
+  (newTotalAssets v realAssets + 1 : ℚ) / (v.totalSupply + v.virtualShares)
 
 /-- `previewWithdraw` without fees (`src/VaultV2.sol:671-675`). -/
 def previewWithdraw (v : Vault) (realAssets assets : ℕ) : ℕ :=

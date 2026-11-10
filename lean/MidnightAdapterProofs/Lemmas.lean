@@ -274,28 +274,12 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
     have : ∑ i, v i = ∑ i, amortizedValue (c' i) (s.netRate i) (s.ttm i) := rfl
     omega
 
-lemma previewRedeem_mono (v : Vault) {r r' : ℕ} (h : r ≤ r') (shares : ℕ) :
-    previewRedeem v r shares ≤ previewRedeem v r' shares := by
-  unfold previewRedeem mulDivDown newTotalAssets
-  apply Nat.div_le_div_right
-  apply Nat.mul_le_mul_left
-  omega
-
-lemma previewDeposit_anti (v : Vault) {r r' : ℕ} (h : r ≤ r') (assets : ℕ) :
-    previewDeposit v r' assets ≤ previewDeposit v r assets := by
-  unfold previewDeposit mulDivDown newTotalAssets
-  apply Nat.div_le_div_left _ (by omega)
-  omega
-
-lemma mulDivDown_ratio_mono (x a b c d : ℕ) (hb : 0 < b) (hd : 0 < d)
-    (h : a * d ≤ c * b) : mulDivDown x a b ≤ mulDivDown x c d := by
-  unfold mulDivDown
-  apply (Nat.le_div_iff_mul_le hd).mpr
-  have hdiv := Nat.div_mul_le_self (x * a) b
-  have hcross := Nat.mul_le_mul_left x h
-  have hscaled := Nat.mul_le_mul_right d hdiv
-  have : (x * a / b * d) * b ≤ (x * c) * b := by nlinarith
-  exact Nat.le_of_mul_le_mul_right this hb
+lemma sharePrice_mono (v : Vault) {r r' : ℕ} (h : r ≤ r') :
+    sharePrice v r ≤ sharePrice v r' := by
+  unfold sharePrice
+  apply div_le_div_of_nonneg_right _ (by positivity)
+  have : newTotalAssets v r ≤ newTotalAssets v r' := by unfold newTotalAssets; omega
+  exact_mod_cast Nat.add_le_add_right this 1
 
 lemma newTotalAssets_penaltyExit (v : Vault) (r p : ℕ) :
     newTotalAssets (penaltyExit v r p) r = newTotalAssets v r - p := by
@@ -319,26 +303,13 @@ lemma penaltyExit_ratio (v : Vault) (r p : ℕ)
   dsimp only [penaltyExit]
   nlinarith
 
-lemma previewRedeem_penaltyExit (v : Vault) (r p shares : ℕ)
+lemma sharePrice_penaltyExit (v : Vault) (r p : ℕ)
     (hVirtual : 0 < v.virtualShares) (hPenalty : p ≤ newTotalAssets v r)
     (hShares : previewWithdraw v r p ≤ v.totalSupply) :
-    previewRedeem v r shares ≤ previewRedeem (penaltyExit v r p) r shares := by
-  unfold previewRedeem
+    sharePrice v r ≤ sharePrice (penaltyExit v r p) r := by
+  unfold sharePrice
   rw [newTotalAssets_penaltyExit]
-  apply mulDivDown_ratio_mono
-  · omega
-  · dsimp only [penaltyExit]; omega
-  · exact penaltyExit_ratio v r p hPenalty hShares
-
-lemma previewDeposit_penaltyExit (v : Vault) (r p assets : ℕ)
-    (hPenalty : p ≤ newTotalAssets v r)
-    (hShares : previewWithdraw v r p ≤ v.totalSupply) :
-    previewDeposit (penaltyExit v r p) r assets ≤ previewDeposit v r assets := by
-  unfold previewDeposit
-  rw [newTotalAssets_penaltyExit]
-  apply mulDivDown_ratio_mono
-  · omega
-  · omega
-  · simpa only [penaltyExit, Nat.mul_comm] using penaltyExit_ratio v r p hPenalty hShares
+  apply (div_le_div_iff₀ (by positivity) (by dsimp only [penaltyExit]; positivity)).mpr
+  exact_mod_cast penaltyExit_ratio v r p hPenalty hShares
 
 end MidnightAdapterProofs
