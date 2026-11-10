@@ -1,7 +1,7 @@
 import Mathlib
 
 /-!
-# Buys and sells don't decrease the vault's real assets
+# Adapter operations don't decrease the vault's real assets
 
 Model of a VaultV2 whose only adapter is a MidnightAdapter, with no bad debt in any market
 (`lossFactor == 0`, so `realAssets` reads the stored net credit and Midnight's net credit moves only
@@ -9,10 +9,12 @@ by the traded amounts). Arithmetic is the contracts' unbounded-integer arithmeti
 rounding; overflow and every other `require` failure make the call revert, so they need no modeling.
 
 Time is fixed within a transaction, so each market has a fixed time to maturity `ttm`.
+Adapter `allocate` is a no-op, setters and `skim` leave the modeled fields unchanged, and `take` routes through `onBuy` or `onSell`.
+`skim` can transfer even the asset token from the adapter, but not the vault's idle balance, and adapter-held tokens are not counted by `realAssets`.
 -/
 
 /-!
-# Buys and sells don't decrease the vault's share price
+# Adapter operations don't decrease the vault's share price
 
 `VaultV2.accrueInterestView` with the MidnightAdapter as the only adapter, no performance fee and
 no management fee. `_totalAssets`, `totalSupply` and `virtualShares` are left unchanged by
@@ -21,6 +23,7 @@ no management fee. `_totalAssets`, `totalSupply` and `virtualShares` are left un
 share price after the trade with the share price without it, at the trade's timestamp: each market's
 `ttm` is the one the trade used. Later accruals re-discount at a smaller `ttm`, and rate rounding can
 then leave the traded state a few units of assets below the untraded one; that isn't covered.
+Force deallocation additionally accrues and burns penalty shares, as modeled by `penaltyExit`.
 -/
 
 namespace MidnightAdapterProofs
@@ -76,6 +79,17 @@ def withdraw (s : State ι) (m : ι) (assets : ℕ) : State ι :=
     idle := s.idle + assets
     netCredit := Function.update s.netCredit m (s.netCredit m - assets) }
 
+/-- The adapter's `forceDeallocate` branch, including the vault pulling `assets`.
+The sender funds `assets + settlementFee`, and no rate update or `onSell` runs.
+In `lib/midnight/src/Midnight.sol:371-377,399-400`, seller credit decreases by at most the units passed to `take`, while pending-fee reduction offsets that loss.
+The adapter passes `assets` as units at tick 0 in `src/adapters/MidnightAdapter.sol:398-425`.
+With no bad debt, fee accrual subtracts the same amount from credit and pending fee (`Midnight.sol:805-816`), so the net-credit loss is at most `assets`.
+The theorem retains this bound as `soldNetCredit ≤ assets`. -/
+def forceDeallocate (s : State ι) (m : ι) (assets soldNetCredit : ℕ) : State ι :=
+  { s with
+    idle := s.idle + assets
+    netCredit := Function.update s.netCredit m (s.netCredit m - soldNetCredit) }
+
 /-- A self-funded buy (`fundingAdapter == address(this)`): `onBuy` records the buy, withdraws
 `buyerAssets` from `fundingMarket` to the vault, and the vault then pays `buyerAssets`. -/
 def selfFundedBuy (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ) : State ι :=
@@ -126,5 +140,19 @@ def previewRedeem (v : Vault) (realAssets shares : ℕ) : ℕ :=
 /-- `previewDeposit` (and `convertToShares`) without fees. -/
 def previewDeposit (v : Vault) (realAssets assets : ℕ) : ℕ :=
   mulDivDown assets (v.totalSupply + v.virtualShares) (newTotalAssets v realAssets + 1)
+
+/-- `previewWithdraw` without fees (`src/VaultV2.sol:671-675`). -/
+def previewWithdraw (v : Vault) (realAssets assets : ℕ) : ℕ :=
+  mulDivUp assets (v.totalSupply + v.virtualShares) (newTotalAssets v realAssets + 1)
+
+/-- Accrual followed by the penalty withdrawal to the vault itself (`src/VaultV2.sol:750-798`).
+`realAssets` is the post-deallocation value and is unchanged by the self-transfer.
+If `exit` needs liquidity, assume its extra deallocation preserves this value; this is exact for matured or fully repaid credit withdrawn at face value.
+The theorems require sufficient total assets and supply for the checked subtractions, and positive virtual shares as set by the constructor. -/
+def penaltyExit (v : Vault) (realAssets penalty : ℕ) : Vault :=
+  { v with
+    totalAssets := newTotalAssets v realAssets - penalty
+    totalSupply := v.totalSupply - previewWithdraw v realAssets penalty
+    elapsed := 0 }
 
 end MidnightAdapterProofs
