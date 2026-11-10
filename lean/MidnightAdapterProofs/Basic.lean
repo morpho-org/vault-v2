@@ -18,7 +18,7 @@ def mulDivUp (x y d : ℕ) : ℕ := (x * y + (d - 1)) / d
 def amortizedValue (c r t : ℕ) : ℕ := mulDivDown c WAD (WAD + r * t)
 
 /-- Rate set by `onBuy` and `onSell`: the rate that values net credit `c` at amortized value `a` over `t` seconds. -/
-def rateFor (c a t : ℕ) : ℕ := mulDivDown (c - a) WAD (a * t)
+def netRate (c a t : ℕ) : ℕ := mulDivDown (c - a) WAD (a * t)
 
 lemma amortizedValue_le_self (c r t : ℕ) : amortizedValue c r t ≤ c := by
   unfold amortizedValue mulDivDown
@@ -28,8 +28,8 @@ lemma amortizedValue_le_self (c r t : ℕ) : amortizedValue c r t ≤ c := by
 lemma amortizedValue_zero (r t : ℕ) : amortizedValue 0 r t = 0 := by simp [amortizedValue, mulDivDown]
 
 /-- Key lemma: rounding the new rate down keeps the value at least the amortized value it targets. -/
-lemma le_amortizedValue_rateFor {c a : ℕ} (t : ℕ) (h : a ≤ c) : a ≤ amortizedValue c (rateFor c a t) t := by
-  unfold amortizedValue rateFor mulDivDown
+lemma le_amortizedValue_netRate {c a : ℕ} (t : ℕ) (h : a ≤ c) : a ≤ amortizedValue c (netRate c a t) t := by
+  unfold amortizedValue netRate mulDivDown
   rw [Nat.le_div_iff_mul_le (by have := WAD_pos; positivity)]
   have h1 : (c - a) * WAD / (a * t) * (a * t) ≤ (c - a) * WAD := Nat.div_mul_le_self _ _
   have h2 : (c - a) * WAD + a * WAD = c * WAD := by rw [← Nat.add_mul, Nat.sub_add_cancel h]

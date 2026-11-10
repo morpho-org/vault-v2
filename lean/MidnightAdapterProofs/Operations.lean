@@ -36,7 +36,7 @@ def recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredit : ℕ) : Stat
   { s with
     credit := Function.update s.credit m newNetCredit
     rate := if 0 < newNetCredit then
-        Function.update s.rate m (rateFor newNetCredit newAmortizedValue (s.ttm m))
+        Function.update s.rate m (netRate newNetCredit newAmortizedValue (s.ttm m))
       else s.rate }
 
 /-- A buy funded from the vault's idle assets (`fundingAdapter == address(0)`). -/
@@ -70,7 +70,7 @@ def sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : ℕ) : State ι :
   let totalInterest := ∑ i, (netCredit i - amortizedValues i)
   let newRate := fun i =>
     if netCredit i = amortizedValues i then s.rate i
-    else rateFor (netCredit i)
+    else netRate (netCredit i)
       (amortizedValues i + mulDivUp sf (netCredit i - amortizedValues i) totalInterest) (s.ttm i)
   { idle := s.idle + sellerAssets
     credit := netCredit
@@ -99,7 +99,7 @@ theorem realAssets_recordBuy (s : State ι) (m : ι) (buyerAssets boughtNetCredi
     split_ifs <;> simp [Function.update_of_ne hi]
   · by_cases h : 0 < s.credit m + boughtNetCredit
     · simp only [h, ite_true, Function.update_self]
-      apply le_amortizedValue_rateFor
+      apply le_amortizedValue_netRate
       have := amortizedValue_le_self (s.credit m) (s.rate m) (s.ttm m)
       omega
     · have h1 : s.credit m = 0 := by omega
@@ -171,7 +171,7 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
     -- Each market gains at least its share of the shortfall.
     have hEach : ∀ i, v i + x i ≤ amortizedValue (c' i)
         (if c' i = amortizedValue (c' i) (s.rate i) (s.ttm i) then s.rate i
-          else rateFor (c' i) (amortizedValue (c' i) (s.rate i) (s.ttm i)
+          else netRate (c' i) (amortizedValue (c' i) (s.rate i) (s.ttm i)
             + mulDivUp sf (c' i - amortizedValue (c' i) (s.rate i) (s.ttm i)) I) (s.ttm i)) (s.ttm i) := by
       intro i
       by_cases heq : c' i = amortizedValue (c' i) (s.rate i) (s.ttm i)
@@ -180,7 +180,7 @@ theorem realAssets_sell (s : State ι) (m : ι) (sellerAssets soldNetCredit : �
         have : x i = 0 := by show mulDivUp sf (c' i - v i) I = 0; rw [h0]; exact mulDivUp_zero_left _ _ hIpos
         rw [this]; exact Nat.le_refl _
       · rw [ite_cond_eq_false _ _ (eq_false heq)]
-        apply le_amortizedValue_rateFor
+        apply le_amortizedValue_netRate
         have h1 : x i ≤ c' i - v i := mulDivUp_le_of_le hIpos hSI
         have h2 : v i ≤ c' i := amortizedValue_le_self (c' i) (s.rate i) (s.ttm i)
         omega
