@@ -23,7 +23,7 @@ def SharePriceBuy : Prop :=
 def SharePriceSelfFundedBuy : Prop :=
   ∀ (s : State ι) (m fundingMarket : ι) (buyerAssets boughtNetCredit : ℕ),
     (hBuyAtLoss : buyerAssets ≤ boughtNetCredit) →
-    (hWithdrawable : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).netCredit fundingMarket) →
+    (hWithdrawLessThanNetCredit : buyerAssets ≤ (recordBuy s m buyerAssets boughtNetCredit).netCredit fundingMarket) →
     sharePrice s ≤ sharePrice (selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit)
 
 /-- A sale in a market that isn't forceSellable doesn't decrease the share price. -/
@@ -38,7 +38,7 @@ def SharePriceSell [LinearOrder ι] : Prop :=
 /-- Withdrawing credit to the vault doesn't decrease the share price. -/
 def SharePriceWithdraw : Prop :=
   ∀ (s : State ι) (m : ι) (assets : ℕ),
-    (hWithdrawable : assets ≤ s.netCredit m) →
+    (hWithdrawLessThanNetCredit : assets ≤ s.netCredit m) →
     sharePrice s ≤ sharePrice (withdraw s m assets)
 
 /-- Force deallocation, including accrual and the penalty exit, doesn't decrease the share price.
