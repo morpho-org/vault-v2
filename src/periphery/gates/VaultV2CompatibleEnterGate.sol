@@ -12,7 +12,7 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
 
-    mapping(address factory => bool) public canAdmit;
+    mapping(address adapterFactory => bool) public canAdmit;
 
     address transient admitted;
 
@@ -24,19 +24,20 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         return IEnterSubGate(subGate).roleSetter(true);
     }
 
-    function addAdmitterFactory(address factory) external {
+    function addAdmitterFactory(address adapterFactory) external {
         require(msg.sender == roleSetter(), Unauthorized());
-        canAdmit[factory] = true;
-        emit AddAdmitterFactory(factory);
+        canAdmit[adapterFactory] = true;
+        emit AddAdmitterFactory(adapterFactory);
     }
 
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
-    function admit(address user, address factory) external {
-        require(canAdmit[factory] && IMidnightAdapterFactory(factory).isCreated(msg.sender), Unauthorized());
-
+    function admit(address user, address adapterFactory) external {
+        require(
+            canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
+        );
         admitted = user;
-        emit Admit(msg.sender, user, factory);
+        emit Admit(msg.sender, user, adapterFactory);
     }
 
     /// @dev Clear the admission, should be called from the buyer callback of the buyer's take.

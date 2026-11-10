@@ -41,6 +41,7 @@ import {
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {VaultV2CompatibleEnterGate} from "../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
 import {VaultV2CompatibleEnterGateFactory} from "../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
+import {IVaultV2CompatibleEnterGate} from "../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
 import {IWhitelistEnterSubGate} from "../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
@@ -3648,6 +3649,30 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
+    }
+
+    /// forge-config: default.isolate = false
+    function testEnterGateUnadmitsWithoutRequeryingGateFactory() public {
+        (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createVaultV2CompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
+        // The gate factory answers true once, then false. The adapter unadmits the gate anyway.
+        bytes[] memory answers = new bytes[](2);
+        answers[0] = abi.encode(true);
+        answers[1] = abi.encode(false);
+        vm.mockCalls(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), answers);
+
+        vm.expectCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), 1);
+        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.admit, (buyer, address(factory))), 1);
+        vm.expectCall(wrapper, abi.encodeCall(VaultV2CompatibleEnterGate.unadmit, ()), 1);
+        realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
+
+        assertFalse(VaultV2CompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
+        assertFalse(adapter.admitting());
+        assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
     }
 
     /// forge-config: default.isolate = false

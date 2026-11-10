@@ -7,8 +7,8 @@ import {IEnterGate} from "../../../../lib/midnight/src/interfaces/IGate.sol";
 interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* EVENTS */
 
-    event AddAdmitterFactory(address indexed factory);
-    event Admit(address indexed caller, address indexed user, address indexed factory);
+    event AddAdmitterFactory(address indexed adapterFactory);
+    event Admit(address indexed caller, address indexed user, address indexed adapterFactory);
 
     /* ERRORS */
 
@@ -17,9 +17,9 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* FUNCTIONS */
 
     function subGate() external view returns (address);
-    function canAdmit(address factory) external view returns (bool);
+    function canAdmit(address adapterFactory) external view returns (bool);
     function roleSetter() external view returns (address);
-    function addAdmitterFactory(address factory) external;
-    function admit(address user, address factory) external;
+    function addAdmitterFactory(address adapterFactory) external;
+    function admit(address user, address adapterFactory) external;
     function unadmit() external;
 }
