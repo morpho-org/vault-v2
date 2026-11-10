@@ -23,6 +23,16 @@ rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Ma
     assert lastReverted;
 }
 
+// Check that a buy reverts in a force removed market.
+rule buyRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
+    require !currentContract.inForceDeallocate, "assume the adapter is not in forceDeallocate";
+    require currentContract.marketData[marketId].forceRemoved, "assume the market is force removed";
+
+    onBuy@withrevert(e, marketId, market, paidAssets, boughtCredit, buyPendingFeeIncrease, buyer, callbackData);
+
+    assert lastReverted;
+}
+
 // Check that a buy reverts if the market is matured or its time to maturity is above maxTtm.
 rule buyRevertsIfTtmOutOfBounds(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
     require !currentContract.inForceDeallocate, "assume the adapter is not in forceDeallocate";
