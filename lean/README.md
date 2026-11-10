@@ -11,4 +11,7 @@ The comparison is at the trade's timestamp: once time passes, rate rounding can 
 
 - `Model.lean`: modelling scope and definitions for the adapter's valuation, trades and vault accounting.
 - `Lemmas.lean`: arithmetic, projection and real-assets lemmas, and share-price monotonicity.
-- `Theorems.lean`: the final vault share-price results.
+- `Theorems.lean`: the five vault share-price statements, defined as propositions without proofs.
+- `Proofs.lean`: proofs of the five propositions.
+
+To review the model and guarantees, read only `Model.lean` and `Theorems.lean`.
