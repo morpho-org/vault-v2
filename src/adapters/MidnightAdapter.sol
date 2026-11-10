@@ -361,10 +361,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
-        if (oldNetCredit > 0) removeMarket(marketId);
-        Market memory market = IMidnight(midnight).toMarket(marketId);
-        // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
+        if (oldNetCredit > 0) {
+            removeMarket(marketId);
+            Market memory market = IMidnight(midnight).toMarket(marketId);
+            // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
+        }
         emit ForceRemove(marketId, oldNetCredit);
     }
 

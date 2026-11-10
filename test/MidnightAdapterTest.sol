@@ -820,6 +820,26 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
     }
 
+    /// forge-config: default.isolate = true
+    function testForceRemoveAfterFullExitRealVault() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        skip(7 days);
+        deal(address(loanToken), address(this), 1e18);
+        forceDeallocateOnRealVault(offer.market, 1e18);
+        assertEq(adapter.marketData(marketId).netCredit, 0, "fully exited");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.ForceRemove(marketId, 0);
+        adapter.forceRemove(marketId);
+
+        assertTrue(adapter.marketData(marketId).forceRemoved, "force removed");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "allocation unchanged");
+    }
+
     function testForceRemoveRealVaultWithSentinelAfterAllocatorRevocation() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
