@@ -617,7 +617,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     totalInterest += netCredit - amortizedValue;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
-                // Each market absorbs at most its interest, and the markets together absorb at least the shortfall.
                 uint256 realizedShortfall;
                 for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
@@ -636,6 +635,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += actualAmortizedValue - amortizedValue;
+                    // Shares are rounded up, so stop once the shortfall is realized to not reduce rates more than needed.
                     if (realizedShortfall >= shortfall) break;
                 }
             }
