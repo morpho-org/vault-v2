@@ -36,7 +36,6 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
         require(
             canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
         );
-
         admitted = user;
         emit Admit(msg.sender, user, adapterFactory);
     }
