@@ -849,13 +849,20 @@ contract MidnightAdapterTest is Test {
         );
 
         vm.expectCall(address(adapter), abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
-        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
-        if (forced) forceDeallocate(offer.market, zeroAssets ? 0 : 0.5e18);
-        else withdrawToVault(offer.market, zeroAssets ? 0 : 0.5e18);
-
-        assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
-        assertEq(adapter.marketData(marketId).netCredit, 1e18, "net credit unchanged");
-        assertEq(adapter.marketIdsLength(), 1, "market remains listed");
+        if (forced) {
+            vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+            forceDeallocate(offer.market, zeroAssets ? 0 : 0.5e18);
+            assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
+            assertEq(adapter.marketData(marketId).netCredit, 1e18, "net credit unchanged");
+            assertEq(adapter.marketIdsLength(), 1, "market remains listed");
+        } else {
+            deal(address(loanToken), address(adapter), 1e18);
+            withdrawToVault(offer.market, zeroAssets ? 0 : 0.5e18);
+            assertTrue(adapter.marketData(marketId).forceRemoved, "market force removed");
+            assertEq(adapter.marketData(marketId).netCredit, 0, "net credit cleared");
+            assertEq(adapter.marketIdsLength(), 0, "market unlisted");
+            assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
+        }
     }
 
     function testForceRemoveLastMarket() public {
@@ -4934,6 +4941,26 @@ contract MidnightAdapterTest is Test {
     }
 
     /* WITHDRAW TO VAULT */
+
+    function testWithdrawToVaultPendingFee(uint256 elapsed, uint256 withdrawnAssets) public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        skip(bound(elapsed, 0, 30 days - 1));
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertGt(pendingFee, 0, "pending fee remains");
+        withdrawnAssets = bound(withdrawnAssets, 0, credit);
+        deal(address(loanToken), address(this), credit);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
+        midnight.repay(offer.market, credit, taker, address(0), "");
+
+        withdrawToVault(offer.market, withdrawnAssets);
+
+        (credit, pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertEq(adapter.marketData(marketId).netCredit, credit - pendingFee, "exact post-withdraw net credit");
+        assertEq(parentVault.allocation(adapter.adapterId()), credit - pendingFee, "allocation");
+        assertEq(adapter.marketIdsLength(), credit > pendingFee ? 1 : 0, "listing");
+    }
 
     function testWithdrawToVaultOK() public {
         Offer memory boughtOffer = buy(7 days, 1e18);

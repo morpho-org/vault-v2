@@ -681,22 +681,23 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
     function withdrawToVault(Market memory market, uint256 withdrawnAssets)
         internal
-        returns (bytes32[] memory, int256)
+        returns (bytes32[] memory marketIds_, int256 change)
     {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
-        // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after withdraw.
-        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-
         require(!_marketData.forceRemoved, ForceRemoved());
-        uint128 newNetCredit = currentNetCredit(marketId);
+        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(withdrawnAssets, credit) : 0;
+        uint128 newNetCredit = (credit - withdrawnAssets - (pendingFee - pendingFeeDecrease)).toUint128();
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+        change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        marketIds_ = ids(market);
+        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.
