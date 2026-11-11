@@ -121,14 +121,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
-
-    uint32 public maxTtm;
-    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
-    uint64 public minNetBuyRate;
-
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
+    uint128 public maxTtm;
+    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
+    uint128 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.

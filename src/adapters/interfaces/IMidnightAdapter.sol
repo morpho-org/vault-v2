@@ -119,9 +119,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function maxTtm() external view returns (uint32);
+    function maxTtm() external view returns (uint128);
     function skimRecipient() external view returns (address);
-    function minNetBuyRate() external view returns (uint64);
+    function minNetBuyRate() external view returns (uint128);
     function shortfallAllowance() external view returns (uint128);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
