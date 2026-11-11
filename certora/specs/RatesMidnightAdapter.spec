@@ -6,7 +6,7 @@ methods {
     function maxTtm() external returns (uint32) envfree;
     function minNetBuyRate() external returns (uint64) envfree;
     function maxNetSellRate() external returns (uint64) envfree;
-    function shortfallAllowance() external returns (uint256) envfree;
+    function shortfallAllowance() external returns (uint96) envfree;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
