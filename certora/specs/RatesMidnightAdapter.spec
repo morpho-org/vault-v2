@@ -5,7 +5,7 @@
 methods {
     function maxTtm() external returns (uint128) envfree;
     function minNetBuyRate() external returns (uint128) envfree;
-    function maxNetSellRate() external returns (uint64) envfree;
+    function maxNetSellRate() external returns (uint128) envfree;
     function shortfallAllowance() external returns (uint128) envfree;
 }
 
