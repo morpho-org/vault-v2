@@ -412,6 +412,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
+            require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -432,12 +433,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 settlementFeeAssets = assets.mulDivUp(
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
-            require(!_marketData.forceRemoved, ForceRemoved());
             (uint128 credit, uint128 pendingFee,) =
                 IMidnight(midnight).updatePositionView(market, marketId, address(this));
-            uint256 creditDecrease = MathLib.min(assets, credit);
-            uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
-            uint128 newNetCredit = (credit - creditDecrease - (pendingFee - pendingFeeDecrease)).toUint128();
+            require(assets <= credit, IMidnight.MakerCreditOrDebtIncreased());
+            uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(assets, credit) : 0;
+            uint128 newNetCredit = (credit - assets - (pendingFee - pendingFeeDecrease)).toUint128();
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
