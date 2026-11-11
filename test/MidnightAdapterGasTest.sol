@@ -155,7 +155,11 @@ contract MidnightAdapterGasTest is BaseTest {
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), durations, address(0), bytes32(0)));
+        adapter = IMidnightAdapter(
+            factory.createMidnightAdapter(
+                address(vault), durations, address(0), bytes32(0), vm.getCode("MidnightAdapter.sol:MidnightAdapter")
+            )
+        );
         priceSubRatifier = IMidnightAdapterPriceRatifierV1(
             deployCode("MidnightAdapterPriceRatifierV1.sol:MidnightAdapterPriceRatifierV1")
         );

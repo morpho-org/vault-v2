@@ -15,14 +15,20 @@ interface IMidnightAdapterFactory {
         address enterGateFactory
     );
 
+    /* ERRORS */
+
+    error InvalidAdapterCode();
+
     /* FUNCTIONS */
 
     function midnight() external view returns (address);
+    function adapterCodeHash() external view returns (bytes32);
     function isCreated(address account) external view returns (bool);
     function createMidnightAdapter(
         address parentVault,
         uint256[] memory durations,
         address enterGateFactory,
-        bytes32 preSalt
+        bytes32 preSalt,
+        bytes memory code
     ) external returns (address);
 }

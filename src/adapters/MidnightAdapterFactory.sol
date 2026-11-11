@@ -9,6 +9,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* IMMUTABLES */
 
     address public immutable midnight;
+    bytes32 public immutable adapterCodeHash;
 
     /* STORAGE */
 
@@ -18,6 +19,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     constructor(address _midnight) {
         midnight = _midnight;
+        adapterCodeHash = keccak256(type(MidnightAdapter).creationCode);
         emit CreateMidnightAdapterFactory(_midnight);
     }
 
@@ -30,11 +32,21 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
         address parentVault,
         uint256[] memory durations,
         address enterGateFactory,
-        bytes32 preSalt
+        bytes32 preSalt,
+        bytes memory code
     ) external returns (address) {
+        require(keccak256(code) == adapterCodeHash, InvalidAdapterCode());
         bytes32 salt = keccak256(abi.encode(preSalt, msg.sender));
-        address _midnightAdapter =
-            address(new MidnightAdapter{salt: salt}(parentVault, midnight, durations, enterGateFactory));
+        bytes memory initCode = bytes.concat(code, abi.encode(parentVault, midnight, durations, enterGateFactory));
+        address _midnightAdapter;
+        assembly ("memory-safe") {
+            _midnightAdapter := create2(0, add(initCode, 32), mload(initCode), salt)
+            if iszero(_midnightAdapter) {
+                let ptr := mload(0x40)
+                returndatacopy(ptr, 0, returndatasize())
+                revert(ptr, returndatasize())
+            }
+        }
         isCreated[_midnightAdapter] = true;
         emit CreateMidnightAdapter(msg.sender, parentVault, durations, preSalt, _midnightAdapter, enterGateFactory);
         return _midnightAdapter;
