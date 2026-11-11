@@ -660,6 +660,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         internal
         returns (bytes32[] memory, int256)
     {
+        require(market.loanToken == asset, LoanAssetMismatch());
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
