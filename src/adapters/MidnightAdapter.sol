@@ -258,8 +258,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) newMaxTtm <= maxTtm fits in uint128.
-        maxTtm = uint128(newMaxTtm);
+        maxTtm = newMaxTtm.toUint128();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
@@ -596,8 +595,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                // forge-lint: disable-next-item(unsafe-typecast) shortfall <= shortfallAllowance fits in uint128.
-                shortfallAllowance -= uint128(shortfall);
+                shortfallAllowance -= shortfall.toUint128();
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
