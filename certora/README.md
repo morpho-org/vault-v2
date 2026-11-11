@@ -59,6 +59,8 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   These hold whatever the adapter's net credit in Midnight is.
 - [`NetCreditMidnightAdapter.spec`](specs/NetCreditMidnightAdapter.spec) checks that the adapter's net credit in Midnight never exceeds its stored net credit.
   It follows that a market with a non-zero stored net credit is listed.
+- [`LoanTokenMidnightAdapter.spec`](specs/LoanTokenMidnightAdapter.spec) checks that the Midnight adapter only takes and withdraws on markets whose loan token is the vault's asset, and never changes its Midnight authorizations.
+  It also checks that `isRatified` only accepts such markets, `onBuy` and `onSell` revert unless the adapter is the buyer or the seller, and only `forceDeallocate` sets `inForceDeallocate`, which skips these checks for its own take.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `shortfallAllowance`, or `minForceSellPrice` in forceSellable markets.
 
 ## Caps and configuration delays
