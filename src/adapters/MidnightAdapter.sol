@@ -681,7 +681,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
     function withdrawToVault(Market memory market, uint256 withdrawnAssets)
         internal
-        returns (bytes32[] memory marketIds_, int256 change)
+        returns (bytes32[] memory, int256)
     {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
@@ -695,9 +695,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
-        marketIds_ = ids(market);
+        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
+        return (ids(market), change);
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.
