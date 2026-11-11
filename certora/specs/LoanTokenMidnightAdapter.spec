@@ -90,10 +90,19 @@ hook Tstore inForceDeallocate bool newValue {
 }
 
 // Check that only forceDeallocate sets inForceDeallocate, which it does after checking the market's loan token.
-rule inForceDeallocateOnlyInForceDeallocate(env e, method f, calldataarg args) filtered { f -> !f.isView } {
+rule inForceDeallocateOnlyInForceDeallocate(env e, method f, calldataarg args) filtered { f -> !f.isView && f.selector != sig:deallocate(bytes, uint256, bytes4, address).selector } {
     require !inForceDeallocateSet, "not set before the call";
 
     f(e, args);
 
-    assert inForceDeallocateSet => f.selector == sig:deallocate(bytes, uint256, bytes4, address).selector;
+    assert !inForceDeallocateSet;
+}
+
+rule deallocateSetsFlagOnlyForForceDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+    require !inForceDeallocateSet, "not set before the call";
+
+    deallocate(e, data, assets, selector, sender);
+
+    // IVaultV2.forceDeallocate(address,bytes,uint256,address).selector
+    assert inForceDeallocateSet => selector == to_bytes4(0xe4d38cd8);
 }
