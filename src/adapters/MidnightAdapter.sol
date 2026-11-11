@@ -412,7 +412,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
-            uint256 oldNetCredit = _marketData.netCredit;
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -450,6 +449,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             require(!_marketData.forceRemoved, ForceRemoved());
             uint128 newNetCredit = currentNetCredit(marketId);
+            uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -686,12 +686,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
-        uint256 oldNetCredit = _marketData.netCredit;
         // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after withdraw.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
         require(!_marketData.forceRemoved, ForceRemoved());
         uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
