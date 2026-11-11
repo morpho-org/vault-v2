@@ -694,10 +694,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        int256 change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        return (ids(market), change);
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.
