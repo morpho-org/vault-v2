@@ -124,7 +124,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
@@ -134,7 +133,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint256 public shortfallAllowance;
+    uint128 public shortfallAllowance;
+    uint32 public maxTtm;
 
     /* CONSTRUCTOR */
 
@@ -295,7 +295,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        shortfallAllowance = newShortfallAllowance;
+        shortfallAllowance = newShortfallAllowance.toUint128();
         emit SetShortfallAllowance(newShortfallAllowance);
     }
 
@@ -595,7 +595,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= shortfall;
+                shortfallAllowance -= shortfall.toUint128();
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
