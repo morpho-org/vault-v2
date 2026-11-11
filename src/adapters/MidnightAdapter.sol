@@ -134,7 +134,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint96 public shortfallAllowance;
+    uint256 public shortfallAllowance;
 
     /* CONSTRUCTOR */
 
@@ -295,7 +295,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        shortfallAllowance = newShortfallAllowance.toUint96();
+        shortfallAllowance = newShortfallAllowance;
         emit SetShortfallAllowance(newShortfallAllowance);
     }
 
@@ -595,7 +595,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= shortfall.toUint96();
+                shortfallAllowance -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);

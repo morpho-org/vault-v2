@@ -121,7 +121,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint32);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint64);
-    function shortfallAllowance() external view returns (uint96);
+    function shortfallAllowance() external view returns (uint256);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
     function inProgressBuyNetRate() external view returns (uint72);
