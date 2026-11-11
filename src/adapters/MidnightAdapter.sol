@@ -433,7 +433,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
             require(!_marketData.forceRemoved, ForceRemoved());
-            uint128 newNetCredit = netCreditAfterDecrease(market, marketId, assets);
+            (uint128 credit, uint128 pendingFee,) =
+                IMidnight(midnight).updatePositionView(market, marketId, address(this));
+            uint256 creditDecrease = MathLib.min(assets, credit);
+            uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
+            uint128 newNetCredit = (credit - creditDecrease - (pendingFee - pendingFeeDecrease)).toUint128();
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
@@ -684,7 +688,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
-        uint128 newNetCredit = netCreditAfterDecrease(market, marketId, withdrawnAssets);
+        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        uint256 creditDecrease = MathLib.min(withdrawnAssets, credit);
+        uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
+        uint128 newNetCredit = (credit - creditDecrease - (pendingFee - pendingFeeDecrease)).toUint128();
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
@@ -692,17 +699,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
-    }
-
-    function netCreditAfterDecrease(Market memory market, bytes32 marketId, uint256 units)
-        internal
-        view
-        returns (uint128)
-    {
-        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
-        uint256 creditDecrease = MathLib.min(units, credit);
-        uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
-        return (credit - creditDecrease - (pendingFee - pendingFeeDecrease)).toUint128();
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.
