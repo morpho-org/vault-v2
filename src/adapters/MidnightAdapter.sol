@@ -118,13 +118,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ADAPTER STORAGE */
 
     address public skimRecipient;
+    mapping(address subRatifier => bool) public isSubRatifier;
+
+    bytes32[] public marketIds;
+
     uint32 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
     uint64 public minNetBuyRate;
 
-    mapping(address subRatifier => bool) public isSubRatifier;
-
-    bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
