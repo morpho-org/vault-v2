@@ -513,8 +513,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
             require((boughtNetCredit - buyerAssets) * WAD >= minNetBuyRate * ttm * buyerAssets, NetBuyRateTooLow());
 
-            uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
+            if (oldNetCredit == 0) {
+                require(
+                    market.enterGate == address(0) || enterGateFactory == address(0)
+                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                    IncorrectEnterGate()
+                );
+            }
+            uint128 newNetCredit = currentNetCredit(id);
             uint64 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -535,15 +543,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
-
-            if (newNetCredit > 0 && oldNetCredit == 0) {
-                require(
-                    market.enterGate == address(0) || enterGateFactory == address(0)
-                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
-                    IncorrectEnterGate()
-                );
-            }
 
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
@@ -609,7 +608,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
         uint256 oldNetCredit = _marketData.netCredit;
-        _marketData.netCredit = newNetCredit;
         uint256 shortfall;
         if (_marketData.forceSellable) {
             require(sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice, WAD), ForceSellPriceTooLow());
@@ -619,7 +617,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= shortfall;
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
@@ -631,9 +628,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                         otherMarketId == id || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this)),
                         OtherSellInProgress()
                     );
-                    uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
-                        ? otherMarketData.netCredit
-                        : currentNetCredit(otherMarketId);
+                    uint256 netCredit = otherMarketId == id
+                        ? newNetCredit
+                        : IMidnight(midnight).lossFactor(otherMarketId) == 0
+                            ? otherMarketData.netCredit
+                            : currentNetCredit(otherMarketId);
                     uint256 amortizedValue = netCredit.mulDivDown(
                         WAD, WAD + otherMarketData.netRate * otherMarketData.maturity.zeroFloorSub(block.timestamp)
                     );
@@ -642,6 +641,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     totalInterest += netCredit - amortizedValue;
                 }
                 require(shortfall <= totalInterest, ShortfallTooHigh());
+                shortfallAllowance -= shortfall;
                 uint256 realizedShortfall;
                 for (uint256 i; i < length; i++) {
                     uint256 netCredit = netCredits[i];
@@ -663,6 +663,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
+        _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)

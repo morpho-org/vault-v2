@@ -29,17 +29,9 @@ hook ALL_TSTORE(uint _, uint _) {
 }
 
 // These calls are assumed to not re-enter (documented).
-// Midnight: 0xd4de4974 is updatePositionView(Market,bytes32,address), 0x1b14c072 is liquidationLocked(bytes32,address), 0x570b935f is lossFactor(bytes32).
-// Enter gates: 0xf8027296 is isCreated(address) of the enter gate factory and 0xe1755a11 is canAdmit(address) of the enter gate.
+// 0xd4de4974 is Midnight's updatePositionView(Market,bytes32,address) and 0x1b14c072 is Midnight's liquidationLocked(bytes32,address).
 hook STATICCALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
-    if (
-        storageChanged
-            && selector != 0xd4de4974
-            && selector != 0x1b14c072
-            && selector != 0x570b935f
-            && selector != 0xf8027296
-            && selector != 0xe1755a11
-    ) {
+    if (storageChanged && selector != 0xd4de4974 && selector != 0x1b14c072) {
         staticCallAfterStore = true;
     }
 }
