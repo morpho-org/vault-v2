@@ -95,7 +95,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable enterGateFactory;
     bytes32 public immutable adapterId;
     /// @dev Sorted in ascending order.
-    bytes32 public immutable packedDurations;
+    bytes32 internal immutable packedDurations;
     uint256 public immutable durationsLength;
 
     /* TRANSIENT STORAGE */
@@ -189,15 +189,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];
-        executableAt[data] = block.timestamp + _timelock;
-        emit Submit(selector, data, executableAt[data]);
+        uint256 _executableAt = block.timestamp + _timelock;
+        executableAt[data] = _executableAt;
+        emit Submit(selector, data, _executableAt);
     }
 
     function timelocked() internal {
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(msg.data);
-        require(executableAt[msg.data] != 0, DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        uint256 _executableAt = executableAt[msg.data];
+        require(_executableAt != 0, DataNotTimelocked());
+        require(block.timestamp >= _executableAt, TimelockNotExpired());
         require(!abdicated[selector], Abdicated());
         executableAt[msg.data] = 0;
         emit Accept(selector, msg.data);
@@ -334,12 +336,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* OPERATIONS */
 
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData)
+    function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
         external
     {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        require(!liquidationLocked(IdLib.toId(offer.market)), SellInProgress());
         emit Take(msg.sender);
         IMidnight(midnight)
             .take(
@@ -411,7 +413,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
-            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+            require(!liquidationLocked(marketId), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
             require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
@@ -467,9 +469,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MIDNIGHT CALLBACKS */
 
     /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
-    function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32) {
+    function isRatified(Offer memory offer, bytes calldata ratifierData, address taker)
+        external
+        view
+        returns (bytes32)
+    {
         if (inForceDeallocate) return CALLBACK_SUCCESS;
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
+        require(!liquidationLocked(IdLib.toId(offer.market)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.midnight == midnight, NotMidnight());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
@@ -492,7 +498,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 units,
         uint256 pendingFeeIncrease,
         address buyer,
-        bytes memory data
+        bytes calldata data
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         if (inForceDeallocate) {
@@ -553,8 +559,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(data, (address, bytes));
             if (fundingAdapter == address(this)) {
                 (bytes32[] memory _ids, int256 change) = withdrawToVault(abi.decode(fundingData, (Market)), buyerAssets);
-                IVaultV2(parentVault).deallocate(address(this), abi.encode(_ids, change), buyerAssets);
-            } else if (fundingAdapter != address(0)) {
+                fundingData = abi.encode(_ids, change);
+            }
+            if (fundingAdapter != address(0)) {
                 IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, buyerAssets);
             }
 
@@ -599,7 +606,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 pendingFeeDecrease,
         address seller,
         address,
-        bytes memory data
+        bytes calldata data
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
@@ -628,10 +635,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 for (uint256 i; i < length; i++) {
                     bytes32 otherMarketId = marketIdAt(i);
                     MarketData storage otherMarketData = marketData[otherMarketId];
-                    require(
-                        otherMarketId == id || !IMidnight(midnight).liquidationLocked(otherMarketId, address(this)),
-                        OtherSellInProgress()
-                    );
+                    require(otherMarketId == id || !liquidationLocked(otherMarketId), OtherSellInProgress());
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
                         : currentNetCredit(otherMarketId);
@@ -687,7 +691,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     {
         require(market.loanToken == asset, LoanAssetMismatch());
         bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        require(!liquidationLocked(marketId), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
         (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
@@ -717,6 +721,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
+    }
+
+    /// @dev Returns whether the adapter is the seller of a take in progress in marketId.
+    function liquidationLocked(bytes32 marketId) internal view returns (bool) {
+        return IMidnight(midnight).liquidationLocked(marketId, address(this));
     }
 
     /// @dev Returns marketIds[i] without the bounds check. Assumes i < marketIds.length.
@@ -802,7 +811,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netCredit = storedNetCredit;
                 netRate = _marketData.netRate;
             } else {
-                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                require(!liquidationLocked(marketId), OtherSellInProgress());
                 netCredit = currentNetCredit(marketId);
                 netRate = _marketData.netRate;
             }

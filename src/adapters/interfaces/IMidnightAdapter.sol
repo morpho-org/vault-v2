@@ -121,7 +121,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function midnight() external view returns (address);
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
-    function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint128);
     function skimRecipient() external view returns (address);
     function minNetBuyRate() external view returns (uint128);
@@ -156,7 +155,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function forceRemove(bytes32 marketId) external;
-    function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
+    function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
+        external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);

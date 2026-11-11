@@ -2300,11 +2300,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         assertEq(adapter.minNetBuyRate(), 0, "minNetBuyRate");
-        bytes32 expectedPackedDurations;
-        for (uint256 i = 0; i < allDurations.length; i++) {
-            expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
-        }
-        assertEq(adapter.packedDurations(), expectedPackedDurations, "packedDurations");
     }
 
     function testNoDurations() public {
