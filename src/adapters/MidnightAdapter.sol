@@ -513,16 +513,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
             require((boughtNetCredit - buyerAssets) * WAD >= minNetBuyRate * ttm * buyerAssets, NetBuyRateTooLow());
 
-            uint256 oldNetCredit = _marketData.netCredit;
-            if (oldNetCredit == 0) {
-                require(
-                    market.enterGate == address(0) || enterGateFactory == address(0)
-                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
-                    IncorrectEnterGate()
-                );
-            }
             uint128 newNetCredit = currentNetCredit(id);
+            uint256 oldNetCredit = _marketData.netCredit;
             uint64 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -554,6 +546,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 IVaultV2(parentVault).deallocate(address(this), abi.encode(_ids, change), buyerAssets);
             } else if (fundingAdapter != address(0)) {
                 IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, buyerAssets);
+            }
+
+            if (newNetCredit > 0 && oldNetCredit == 0) {
+                require(
+                    market.enterGate == address(0) || enterGateFactory == address(0)
+                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                    IncorrectEnterGate()
+                );
             }
 
             // Only durations up to the bought market's time to maturity can have their allocation increased.
