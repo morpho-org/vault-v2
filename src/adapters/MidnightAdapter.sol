@@ -406,13 +406,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (selector == IVaultV2.forceDeallocate.selector) {
             (Market memory market, address taker) = abi.decode(data, (Market, address));
-            bytes32 marketId = IdLib.toId(market);
-            require(!marketData[marketId].forceRemoved, ForceRemoved());
             require(taker == sender || IMidnight(midnight).isAuthorized(taker, sender), NotAuthorized());
             require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
+            bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
+            require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -502,11 +502,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         } else {
             require(buyer == address(this), NotSelf());
-            require(!marketData[id].forceRemoved, ForceRemoved());
             require(block.timestamp < market.maturity, BuyPostMaturity());
             uint256 ttm = market.maturity - block.timestamp;
             require(ttm <= maxTtm, BuyTtmTooHigh());
             MarketData storage _marketData = marketData[id];
+            require(!_marketData.forceRemoved, ForceRemoved());
             require(!_marketData.forceSellable, UnauthorizedBuy());
             uint256 boughtNetCredit = units - pendingFeeIncrease;
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
@@ -602,8 +602,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
         require(data.length == 0, NonEmptyCallbackData());
-        require(!marketData[id].forceRemoved, ForceRemoved());
         MarketData storage _marketData = marketData[id];
+        require(!_marketData.forceRemoved, ForceRemoved());
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
@@ -684,9 +684,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returns (bytes32[] memory, int256)
     {
         bytes32 marketId = IdLib.toId(market);
-        require(!marketData[marketId].forceRemoved, ForceRemoved());
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceRemoved, ForceRemoved());
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
