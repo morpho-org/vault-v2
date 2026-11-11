@@ -819,6 +819,36 @@ contract MidnightAdapterTest is Test {
         withdrawToVault(first.market, 0);
     }
 
+    function testForceRemoveRevertsDuringSale() public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        vm.mockCall(
+            address(midnight),
+            abi.encodeCall(IMidnight.liquidationLocked, (marketId, address(adapter))),
+            abi.encode(true)
+        );
+
+        vm.expectRevert(IMidnightAdapterBase.SellInProgress.selector);
+        adapter.forceRemove(marketId);
+    }
+
+    function testForceRemovedRejectsBeforeLiquidationLock(bool forceDeallocation) public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        forceRemove(marketId);
+        vm.mockCallRevert(
+            address(midnight),
+            abi.encodeCall(IMidnight.liquidationLocked, (marketId, address(adapter))),
+            abi.encodeWithSelector(IMidnightAdapterBase.SellInProgress.selector)
+        );
+
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        if (forceDeallocation) forceDeallocate(offer.market, 0);
+        else withdrawToVault(offer.market, 0);
+    }
+
     function testForceRemoveLastMarket() public {
         Offer memory offer = buy(7 days, 1e18);
         forceRemove(_marketId(offer.market));

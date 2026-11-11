@@ -355,9 +355,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Irreversibly removes a market without moving its Midnight credit.
     /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
+    /// @dev Reverts while a sale of the market is in progress.
     /// @dev When submitting forceRemove, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it is force removed.
     function forceRemove(bytes32 marketId) external {
         timelocked();
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = 0;
@@ -411,9 +413,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
-            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
             require(!_marketData.forceRemoved, ForceRemoved());
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -686,9 +688,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     {
         require(market.loanToken == asset, LoanAssetMismatch());
         bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
