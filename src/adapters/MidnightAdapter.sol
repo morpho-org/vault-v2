@@ -432,27 +432,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 settlementFeeAssets = assets.mulDivUp(
                 IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
             );
+            require(!_marketData.forceRemoved, ForceRemoved());
+            uint128 newNetCredit = netCreditAfterDecrease(market, marketId, assets);
+            uint256 oldNetCredit = _marketData.netCredit;
+            _marketData.netCredit = newNetCredit;
+            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+            emit ForceDeallocate(marketId, assets, newNetCredit);
             SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
             if (
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
-                // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after the external calls.
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
                 admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
-            // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after take; onBuy only clears transient state.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
-
-            require(!_marketData.forceRemoved, ForceRemoved());
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = _marketData.netCredit;
-            _marketData.netCredit = newNetCredit;
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            emit ForceDeallocate(marketId, assets, newNetCredit);
             // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
             return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
         } else if (sender != address(this)) {
@@ -687,9 +684,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
-        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
-        uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(withdrawnAssets, credit) : 0;
-        uint128 newNetCredit = (credit - withdrawnAssets - (pendingFee - pendingFeeDecrease)).toUint128();
+        uint128 newNetCredit = netCreditAfterDecrease(market, marketId, withdrawnAssets);
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
@@ -697,6 +692,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
+    }
+
+    function netCreditAfterDecrease(Market memory market, bytes32 marketId, uint256 units)
+        internal
+        view
+        returns (uint128)
+    {
+        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        uint256 creditDecrease = MathLib.min(units, credit);
+        uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
+        return (credit - creditDecrease - (pendingFee - pendingFeeDecrease)).toUint128();
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.

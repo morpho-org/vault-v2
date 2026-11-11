@@ -850,19 +850,15 @@ contract MidnightAdapterTest is Test {
 
         vm.expectCall(address(adapter), abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
         if (forced) {
-            vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
             forceDeallocate(offer.market, zeroAssets ? 0 : 0.5e18);
-            assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
-            assertEq(adapter.marketData(marketId).netCredit, 1e18, "net credit unchanged");
-            assertEq(adapter.marketIdsLength(), 1, "market remains listed");
         } else {
             deal(address(loanToken), address(adapter), 1e18);
             withdrawToVault(offer.market, zeroAssets ? 0 : 0.5e18);
-            assertTrue(adapter.marketData(marketId).forceRemoved, "market force removed");
-            assertEq(adapter.marketData(marketId).netCredit, 0, "net credit cleared");
-            assertEq(adapter.marketIdsLength(), 0, "market unlisted");
-            assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
         }
+        assertTrue(adapter.marketData(marketId).forceRemoved, "market force removed");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "net credit cleared");
+        assertEq(adapter.marketIdsLength(), 0, "market unlisted");
+        assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
     }
 
     function testForceRemoveLastMarket() public {
@@ -4942,7 +4938,7 @@ contract MidnightAdapterTest is Test {
 
     /* WITHDRAW TO VAULT */
 
-    function testWithdrawToVaultPendingFee(uint256 elapsed, uint256 withdrawnAssets) public {
+    function testDeallocatePendingFee(uint256 elapsed, uint256 withdrawnAssets, bool forced) public {
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         Offer memory offer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(offer.market);
@@ -4954,7 +4950,12 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(loanToken), address(midnight), type(uint256).max);
         midnight.repay(offer.market, credit, taker, address(0), "");
 
-        withdrawToVault(offer.market, withdrawnAssets);
+        if (forced) {
+            deal(address(loanToken), address(this), 2 * credit);
+            forceDeallocate(offer.market, withdrawnAssets);
+        } else {
+            withdrawToVault(offer.market, withdrawnAssets);
+        }
 
         (credit, pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
         assertEq(adapter.marketData(marketId).netCredit, credit - pendingFee, "exact post-withdraw net credit");
