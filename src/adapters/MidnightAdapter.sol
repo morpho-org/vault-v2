@@ -248,7 +248,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
         require(newMaxTtm >= maxTtm, MaxTtmTooLow());
-        maxTtm = newMaxTtm.toUint32();
+        maxTtm = newMaxTtm.toUint128();
         emit IncreaseMaxTtm(newMaxTtm);
     }
 
@@ -258,7 +258,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        maxTtm = newMaxTtm.toUint32();
+        // forge-lint: disable-next-item(unsafe-typecast) newMaxTtm <= maxTtm fits in uint128.
+        maxTtm = uint128(newMaxTtm);
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
@@ -288,7 +289,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minNetBuyRate = newMinNetBuyRate.toUint64();
+        minNetBuyRate = newMinNetBuyRate.toUint128();
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
@@ -301,7 +302,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxNetSellRate = newMaxNetSellRate.toUint64();
+        maxNetSellRate = newMaxNetSellRate.toUint128();
         emit SetMaxNetSellRate(newMaxNetSellRate);
     }
 
@@ -595,7 +596,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= shortfall.toUint128();
+                // forge-lint: disable-next-item(unsafe-typecast) shortfall <= shortfallAllowance fits in uint128.
+                shortfallAllowance -= uint128(shortfall);
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);

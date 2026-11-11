@@ -509,7 +509,7 @@ contract MidnightAdapterTest is Test {
 
     /* MULTICALL */
 
-    function testMulticall(uint128 newShortfallAllowance, uint64 newMaxNetSellRate) public {
+    function testMulticall(uint128 newShortfallAllowance, uint128 newMaxNetSellRate) public {
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (newShortfallAllowance));
         data[1] = abi.encodeCall(IMidnightAdapterBase.setMaxNetSellRate, (newMaxNetSellRate));
@@ -524,7 +524,7 @@ contract MidnightAdapterTest is Test {
     function testMulticallFailing() public {
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (1));
-        data[1] = abi.encodeCall(IMidnightAdapterBase.setMinNetBuyRate, (uint256(type(uint64).max) + 1));
+        data[1] = abi.encodeCall(IMidnightAdapterBase.setMinNetBuyRate, (uint256(type(uint128).max) + 1));
         vm.prank(curator);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         adapter.multicall(data);
@@ -1015,8 +1015,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMinNetBuyRateAuthorized(uint256 oldMinNetBuyRate, uint256 newMinNetBuyRate) public {
-        oldMinNetBuyRate = bound(oldMinNetBuyRate, 0, type(uint64).max);
-        newMinNetBuyRate = bound(newMinNetBuyRate, 0, type(uint64).max);
+        oldMinNetBuyRate = bound(oldMinNetBuyRate, 0, type(uint128).max);
+        newMinNetBuyRate = bound(newMinNetBuyRate, 0, type(uint128).max);
         vm.prank(curator);
         adapter.setMinNetBuyRate(oldMinNetBuyRate);
         vm.expectEmit(address(adapter));
@@ -1027,7 +1027,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMinNetBuyRateOverflow(uint256 newMinNetBuyRate) public {
-        newMinNetBuyRate = bound(newMinNetBuyRate, uint256(type(uint64).max) + 1, type(uint256).max);
+        newMinNetBuyRate = bound(newMinNetBuyRate, uint256(type(uint128).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
         adapter.setMinNetBuyRate(newMinNetBuyRate);
@@ -1248,7 +1248,7 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxNetSellRate(newMaxNetSellRate);
     }
 
-    function testSetMaxNetSellRateAuthorized(uint64 newMaxNetSellRate) public {
+    function testSetMaxNetSellRateAuthorized(uint128 newMaxNetSellRate) public {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.SetMaxNetSellRate(newMaxNetSellRate);
         vm.prank(curator);
@@ -1257,7 +1257,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMaxNetSellRateOverflows(uint256 newMaxNetSellRate) public {
-        newMaxNetSellRate = bound(newMaxNetSellRate, uint256(type(uint64).max) + 1, type(uint256).max);
+        newMaxNetSellRate = bound(newMaxNetSellRate, uint256(type(uint128).max) + 1, type(uint256).max);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vm.prank(curator);
         adapter.setMaxNetSellRate(newMaxNetSellRate);
@@ -1664,8 +1664,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testIncreaseMaxTtmAuthorized(uint256 oldMaxTtm, uint256 newMaxTtm) public {
-        oldMaxTtm = bound(oldMaxTtm, 0, type(uint32).max);
-        newMaxTtm = bound(newMaxTtm, oldMaxTtm, type(uint32).max);
+        oldMaxTtm = bound(oldMaxTtm, 0, type(uint128).max);
+        newMaxTtm = bound(newMaxTtm, oldMaxTtm, type(uint128).max);
         setUpMaxTtm(oldMaxTtm);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (newMaxTtm)));
@@ -1676,7 +1676,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testIncreaseMaxTtmTooLow(uint256 oldMaxTtm) public {
-        oldMaxTtm = bound(oldMaxTtm, 1, type(uint32).max);
+        oldMaxTtm = bound(oldMaxTtm, 1, type(uint128).max);
         setUpMaxTtm(oldMaxTtm);
         uint256 newMaxTtm = oldMaxTtm - 1;
         vm.prank(curator);
@@ -1686,7 +1686,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testIncreaseMaxTtmOverflow(uint256 newMaxTtm) public {
-        newMaxTtm = bound(newMaxTtm, uint256(type(uint32).max) + 1, type(uint256).max);
+        newMaxTtm = bound(newMaxTtm, uint256(type(uint128).max) + 1, type(uint256).max);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (newMaxTtm)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
@@ -1701,7 +1701,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testDecreaseMaxTtm(uint256 oldMaxTtm, uint256 newMaxTtm, bool sentinel) public {
-        oldMaxTtm = bound(oldMaxTtm, 1, type(uint32).max);
+        oldMaxTtm = bound(oldMaxTtm, 1, type(uint128).max);
         newMaxTtm = bound(newMaxTtm, 0, oldMaxTtm);
         setUpMaxTtm(oldMaxTtm);
 
@@ -1719,7 +1719,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testDecreaseMaxTtmTooHigh(uint256 oldMaxTtm) public {
-        oldMaxTtm = bound(oldMaxTtm, 0, type(uint32).max - 1);
+        oldMaxTtm = bound(oldMaxTtm, 0, type(uint128).max - 1);
         setUpMaxTtm(oldMaxTtm);
         uint256 newMaxTtm = oldMaxTtm + 1;
         vm.expectRevert(IMidnightAdapterBase.MaxTtmTooHigh.selector);
@@ -5331,15 +5331,15 @@ contract MidnightAdapterTest is Test {
     /* STORAGE */
 
     function testStoragePacking() public {
-        setUpMaxTtm(type(uint32).max);
-        setMinNetBuyRate(type(uint64).max);
-        setMaxNetSellRate(type(uint64).max);
+        setUpMaxTtm(type(uint128).max);
+        setMinNetBuyRate(type(uint128).max);
+        setMaxNetSellRate(type(uint128).max);
         setShortfallAllowance(type(uint128).max);
 
         vm.record();
-        assertEq(adapter.maxTtm(), type(uint32).max);
-        assertEq(adapter.minNetBuyRate(), type(uint64).max);
-        assertEq(adapter.maxNetSellRate(), type(uint64).max);
+        assertEq(adapter.maxTtm(), type(uint128).max);
+        assertEq(adapter.minNetBuyRate(), type(uint128).max);
+        assertEq(adapter.maxNetSellRate(), type(uint128).max);
         assertEq(adapter.shortfallAllowance(), type(uint128).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         assertEq(reads.length, 4);
