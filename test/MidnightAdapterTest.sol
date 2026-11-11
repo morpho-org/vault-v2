@@ -143,6 +143,21 @@ contract HookedToken is ERC20Mock {
     }
 }
 
+contract ForceRemoveMidnightCall {
+    IMidnightAdapter internal immutable adapter;
+    bytes32 internal immutable marketId;
+
+    constructor(IMidnightAdapter adapter_, bytes32 marketId_) {
+        adapter = adapter_;
+        marketId = marketId_;
+    }
+
+    fallback(bytes calldata) external returns (bytes memory) {
+        adapter.forceRemove(marketId);
+        return abi.encode(uint256(0), uint256(0));
+    }
+}
+
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
@@ -810,6 +825,37 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         withdrawToVault(first.market, 0);
+    }
+
+    function testReentrantForceRemoveDuringWithdraw(bool zeroAssets) public {
+        testReentrantForceRemove(false, zeroAssets);
+    }
+
+    function testReentrantForceRemoveDuringForceDeallocate(bool zeroAssets) public {
+        testReentrantForceRemove(true, zeroAssets);
+    }
+
+    function testReentrantForceRemove(bool forced, bool zeroAssets) internal {
+        Offer memory offer = buy(7 days, 1e18);
+        deal(address(loanToken), address(this), 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        ForceRemoveMidnightCall callback = new ForceRemoveMidnightCall(adapter, marketId);
+        vm.mockFunction(
+            address(midnight),
+            address(callback),
+            abi.encodeWithSelector(forced ? IMidnight.take.selector : IMidnight.withdraw.selector)
+        );
+
+        vm.expectCall(address(adapter), abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId)));
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        if (forced) forceDeallocate(offer.market, zeroAssets ? 0 : 0.5e18);
+        else withdrawToVault(offer.market, zeroAssets ? 0 : 0.5e18);
+
+        assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "net credit unchanged");
+        assertEq(adapter.marketIdsLength(), 1, "market remains listed");
     }
 
     function testForceRemoveLastMarket() public {

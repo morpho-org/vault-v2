@@ -413,6 +413,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
             require(!_marketData.forceRemoved, ForceRemoved());
+            uint256 oldNetCredit = _marketData.netCredit;
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -438,18 +439,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
-                // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
+                // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after the external calls.
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
                 admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
-            // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
+            // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after take; onBuy only clears transient state.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
+            require(!_marketData.forceRemoved, ForceRemoved());
             uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
@@ -687,11 +688,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
-        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+        uint256 oldNetCredit = _marketData.netCredit;
+        // forge-lint: disable-next-item(reentrancy-no-eth) force removal is checked after withdraw.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
 
+        require(!_marketData.forceRemoved, ForceRemoved());
         uint128 newNetCredit = currentNetCredit(marketId);
-        uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
         emit WithdrawToVault(marketId, withdrawnAssets, newNetCredit);

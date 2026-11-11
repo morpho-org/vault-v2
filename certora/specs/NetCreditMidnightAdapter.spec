@@ -11,13 +11,6 @@ methods {
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
-    // Midnight.withdraw does not reenter the adapter, assuming the loan token does not reenter.
-    function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
-
-    // In forceDeallocate, take only changes transient flags that neither these invariants nor the remaining code read.
-    // In take, the Midnight call is last; its callbacks are checked as entry points.
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => HAVOC_ECF;
-
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
     function _.admit(address, address) external => HAVOC_ECF;
