@@ -438,15 +438,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(assets <= credit, IMidnight.MakerCreditOrDebtIncreased());
             uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(assets, credit) : 0;
             uint128 newNetCredit = (credit - assets - (pendingFee - pendingFeeDecrease)).toUint128();
+            bool gated = market.enterGate != address(0) && enterGateFactory != address(0)
+                && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate);
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
             emit ForceDeallocate(marketId, assets, newNetCredit);
             SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
-            if (
-                market.enterGate != address(0) && enterGateFactory != address(0)
-                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-            ) {
+            if (gated) {
                 IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
                 admitting = true;
             }
