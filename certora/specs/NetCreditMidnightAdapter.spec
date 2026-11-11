@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+using Havoc as havocCallback;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
@@ -9,18 +11,33 @@ methods {
     // Same summaries as in MarketIdsMidnightAdapter.spec, where they are explained.
     function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
     function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
-    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
+
+    // Only one market's id is computed per call, as in ForceRemoveMidnightAdapter.spec.
+    function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => globalMarketId;
+    function _.havocAll() external => HAVOC_ALL;
 
     // The loan token and enter gate must not reenter the adapter.
-    function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
-    function _.admit(address, address) external => HAVOC_ECF;
+    // NONDET also avoids checking the strong invariant while the stored credit anticipates the Midnight call.
+    function _.transferFrom(address, address, uint256) external => NONDET;
+    function _.admit(address, address) external => NONDET;
     function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
+
+    // Midnight updates the position before transfers and callbacks; callbacks can still change all adapter storage.
+    function _.withdraw(MidnightAdapter.Market, uint256 units, address user, address) external => cvlWithdraw(units, user) expect void;
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256 units, address, address, address, bytes) external => cvlTake(offer, units) expect(uint256, uint256);
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
 persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
+
+persistent ghost bytes32 globalMarketId;
+
+// The last position read is unchanged until withdraw/take: the intervening token/gate calls do not reenter.
+persistent ghost mapping(bytes32 => uint128) lastCredit;
+
+persistent ghost mapping(bytes32 => uint128) lastPendingFee;
 
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
@@ -47,8 +64,40 @@ function cvlUpdatePositionView(bytes32 id, address user) returns (uint128, uint1
     if (user == currentContract) {
         require credit - pendingFee <= ghostMidnightNetCredit[id], "Midnight net credit only increases in buys";
         if (credit >= pendingFee) ghostMidnightNetCredit[id] = assert_uint128(credit - pendingFee);
+        lastCredit[id] = credit;
+        lastPendingFee[id] = pendingFee;
     }
     return (credit, pendingFee, accruedFee);
+}
+
+// Midnight.withdraw and reduce-only sales use this same rounded-up pending fee decrease.
+function decreaseMidnightNetCredit(bytes32 id, uint256 units) {
+    uint128 credit = lastCredit[id];
+    uint128 pendingFee = lastPendingFee[id];
+    require units <= credit, "Midnight cannot withdraw or sell more credit than the position holds";
+    mathint pendingFeeDecrease = credit > 0 ? (pendingFee * units + credit - 1) / credit : 0;
+    ghostMidnightNetCredit[id] = require_uint128(credit - units - (pendingFee - pendingFeeDecrease));
+}
+
+function midnightCallbacks() {
+    env e;
+    address target;
+    havocCallback.callHavoc(e, target);
+}
+
+function cvlWithdraw(uint256 units, address user) {
+    assert user == currentContract, "the adapter only withdraws its own credit";
+    decreaseMidnightNetCredit(globalMarketId, units);
+    midnightCallbacks();
+}
+
+function cvlTake(MidnightAdapter.Offer offer, uint256 units) returns (uint256, uint256) {
+    assert !offer.buy && offer.maker == currentContract && offer.reduceOnly, "the adapter only takes its own reduce-only sell offers";
+    decreaseMidnightNetCredit(globalMarketId, units);
+    midnightCallbacks();
+    uint256 buyerAssets;
+    uint256 sellerAssets;
+    return (buyerAssets, sellerAssets);
 }
 
 // Midnight credits the bought units to the adapter before calling onBuy.
