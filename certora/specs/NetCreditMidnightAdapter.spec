@@ -22,9 +22,9 @@ methods {
     function _.admit(address, address) external => NONDET;
     function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
 
-    // Midnight updates the position before transfers and callbacks; callbacks can still change all adapter storage.
+    // Midnight updates the position before transfers and callbacks.
     function _.withdraw(MidnightAdapter.Market, uint256 units, address user, address) external => cvlWithdraw(units, user) expect void;
-    function _.take(MidnightAdapter.Offer offer, bytes, uint256 units, address, address, address, bytes) external => cvlTake(offer, units) expect(uint256, uint256);
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256 units, address, address, address takerCallback, bytes) external => cvlTake(offer, units, takerCallback) expect(uint256, uint256);
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
@@ -38,6 +38,8 @@ persistent ghost bytes32 globalMarketId;
 persistent ghost mapping(bytes32 => uint128) lastCredit;
 
 persistent ghost mapping(bytes32 => uint128) lastPendingFee;
+
+definition isArbitraryCallback(address callback) returns bool = callback != 0 && callback != currentContract;
 
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
@@ -91,10 +93,15 @@ function cvlWithdraw(uint256 units, address user) {
     midnightCallbacks();
 }
 
-function cvlTake(MidnightAdapter.Offer offer, uint256 units) returns (uint256, uint256) {
-    assert !offer.buy && offer.maker == currentContract && offer.reduceOnly, "the adapter only takes its own reduce-only sell offers";
-    decreaseMidnightNetCredit(globalMarketId, units);
-    midnightCallbacks();
+// Force deallocation sells the adapter's own credit; ordinary take callbacks are checked as entry points.
+// An arbitrary callback can reenter; the adapter's force-deallocation callback only clears transient flags.
+function cvlTake(MidnightAdapter.Offer offer, uint256 units, address takerCallback) returns (uint256, uint256) {
+    if (!offer.buy && offer.maker == currentContract && offer.reduceOnly) {
+        decreaseMidnightNetCredit(globalMarketId, units);
+    }
+    if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
+        midnightCallbacks();
+    }
     uint256 buyerAssets;
     uint256 sellerAssets;
     return (buyerAssets, sellerAssets);
