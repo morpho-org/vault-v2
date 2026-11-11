@@ -18,7 +18,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev Rates are rounded down on buys and on sales whose shortfall is absorbed by the rate. This increases amortized value compared to no rounding.
+/// @dev Amortized values and rates are rounded down on buys, sales, and realAssets evaluations, which can accrue some interest earlier.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -66,6 +66,7 @@ import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
+/// @dev If the enterGateFactory is not VaultV2CompatibleEnterGate, the adapter can enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
@@ -123,17 +124,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    uint32 public maxTtm;
+    uint128 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
-    uint64 public minNetBuyRate;
+    uint128 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint64 public maxNetSellRate;
+    uint128 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
     /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
-    uint256 public shortfallAllowance;
+    uint128 public shortfallAllowance;
 
     /* CONSTRUCTOR */
 
@@ -247,7 +248,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function increaseMaxTtm(uint256 newMaxTtm) external {
         timelocked();
         require(newMaxTtm >= maxTtm, MaxTtmTooLow());
-        maxTtm = newMaxTtm.toUint32();
+        maxTtm = newMaxTtm.toUint128();
         emit IncreaseMaxTtm(newMaxTtm);
     }
 
@@ -257,7 +258,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             NotAuthorized()
         );
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
-        maxTtm = newMaxTtm.toUint32();
+        maxTtm = newMaxTtm.toUint128();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
@@ -287,20 +288,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minNetBuyRate = newMinNetBuyRate.toUint64();
+        minNetBuyRate = newMinNetBuyRate.toUint128();
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
     /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        shortfallAllowance = newShortfallAllowance;
+        shortfallAllowance = newShortfallAllowance.toUint128();
         emit SetShortfallAllowance(newShortfallAllowance);
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        maxNetSellRate = newMaxNetSellRate.toUint64();
+        maxNetSellRate = newMaxNetSellRate.toUint128();
         emit SetMaxNetSellRate(newMaxNetSellRate);
     }
 
@@ -618,7 +619,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
-                shortfallAllowance -= shortfall;
+                shortfallAllowance -= shortfall.toUint128();
                 uint256 length = marketIds.length;
                 uint256[] memory netCredits = new uint256[](length);
                 uint256[] memory amortizedValues = new uint256[](length);
@@ -671,7 +672,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -683,6 +684,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         internal
         returns (bytes32[] memory, int256)
     {
+        require(market.loanToken == asset, LoanAssetMismatch());
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];

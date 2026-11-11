@@ -3,10 +3,10 @@
 
 // Each rule assumes that a guardrail is not met, and checks that the call reverts.
 methods {
-    function maxTtm() external returns (uint32) envfree;
-    function minNetBuyRate() external returns (uint64) envfree;
-    function maxNetSellRate() external returns (uint64) envfree;
-    function shortfallAllowance() external returns (uint256) envfree;
+    function maxTtm() external returns (uint128) envfree;
+    function minNetBuyRate() external returns (uint128) envfree;
+    function maxNetSellRate() external returns (uint128) envfree;
+    function shortfallAllowance() external returns (uint128) envfree;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
