@@ -31,9 +31,9 @@ hook ALL_TSTORE(uint loc, uint _) {
     }
 }
 
-// These calls are assumed to not re-enter (documented). 0xa6afed95 is the vault's accrueInterest() and 0xa6db1750 is Midnight's withdraw(Market,uint256,address,address).
+// This call is assumed to not re-enter (documented). 0xa6afed95 is the vault's accrueInterest().
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
-    if (storageChanged && selector != 0xa6afed95 && selector != 0xa6db1750) {
+    if (storageChanged && selector != 0xa6afed95) {
         hasCallAfterStore = true;
     }
 }
