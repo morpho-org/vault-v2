@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+using VaultV2 as VaultV2;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
@@ -31,9 +33,9 @@ hook ALL_TSTORE(uint loc, uint _) {
     }
 }
 
-// This call is assumed to not re-enter (documented). 0xa6afed95 is the vault's accrueInterest().
+// This call is assumed to not re-enter (documented).
 hook CALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
-    if (storageChanged && selector != 0xa6afed95) {
+    if (storageChanged && selector != sig:VaultV2.accrueInterest().selector) {
         hasCallAfterStore = true;
     }
 }

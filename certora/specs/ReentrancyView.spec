@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
+using MorphoMarketV1RegistryV2 as MorphoMarketV1RegistryV2;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
@@ -29,13 +32,13 @@ hook ALL_TSTORE(uint _, uint _) {
 }
 
 // address(1) is ignored because it's the ecrecover function.
-// These calls are assumed to not re-enter (documented). 0x56c07573 is realAssets() and 0xe4bb26f2 is isInRegistry(address).
+// These calls are assumed to not re-enter (documented).
 hook STATICCALL(uint256 _, address addr, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (
         storageChanged
             && addr != 0x1
-            && selector != 0x56c07573
-            && selector != 0xe4bb26f2
+            && selector != sig:MorphoMarketV1AdapterV2.realAssets().selector
+            && selector != sig:MorphoMarketV1RegistryV2.isInRegistry(address).selector
             && selector != sig:balanceOf(address).selector
             && selector != sig:canReceiveShares(address).selector
             && selector != sig:canSendShares(address).selector
