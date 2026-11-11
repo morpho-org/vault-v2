@@ -5331,18 +5331,20 @@ contract MidnightAdapterTest is Test {
     /* STORAGE */
 
     function testStoragePacking() public {
+        setUpMaxTtm(type(uint32).max);
         setMinNetBuyRate(type(uint64).max);
         setMaxNetSellRate(type(uint64).max);
         setShortfallAllowance(type(uint128).max);
 
         vm.record();
+        assertEq(adapter.maxTtm(), type(uint32).max);
         assertEq(adapter.minNetBuyRate(), type(uint64).max);
         assertEq(adapter.maxNetSellRate(), type(uint64).max);
         assertEq(adapter.shortfallAllowance(), type(uint128).max);
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 3);
-        assertEq(reads[0], reads[1], "minNetBuyRate and maxNetSellRate share one slot");
-        assertEq(reads[1], reads[2], "shortfallAllowance shares the same slot");
+        assertEq(reads.length, 4);
+        assertEq(reads[0], reads[1], "maxTtm and minNetBuyRate share one slot");
+        assertEq(reads[2], reads[3], "maxNetSellRate and shortfallAllowance share one slot");
     }
 
     function testMarketDataPacking() public {

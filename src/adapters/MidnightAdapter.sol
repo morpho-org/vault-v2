@@ -118,14 +118,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ADAPTER STORAGE */
 
     address public skimRecipient;
+    uint32 public maxTtm;
+    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
+    uint64 public minNetBuyRate;
+
     mapping(address subRatifier => bool) public isSubRatifier;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
 
-    /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
-    uint64 public minNetBuyRate;
     /// @dev Maximum rate implied by a maker or taker sale, relative to the face value of the sold net credit.
     /// @dev Sale proceeds are measured after settlement fees, so taker sales at price 1 can fail this check.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
@@ -134,7 +136,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint128 public shortfallAllowance;
-    uint32 public maxTtm;
 
     /* CONSTRUCTOR */
 
