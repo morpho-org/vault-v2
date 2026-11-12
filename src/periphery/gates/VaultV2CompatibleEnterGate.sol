@@ -12,6 +12,7 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev Admission is optionally disabled at deployment and immutable to preserve registered vaults' in-kind-redemption guarantee.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
+    /// @dev When false, markets using this gate won't be usable in vaults that need IKR (enterGateFactory != 0).
     bool public immutable admitEnabled;
 
     mapping(address adapterFactory => bool) public canAdmit;
