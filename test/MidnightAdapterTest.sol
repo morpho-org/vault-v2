@@ -3759,9 +3759,9 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9e18);
     }
 
-    function testEnterGateRequiresAdmitterFactory() public {
+    function testEnterGateRequiresAdmitterFactory(bool enabled) public {
         (VaultV2CompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
-        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(address(gate), bytes32(0));
+        address wrapper = gateFactory.createVaultV2CompatibleEnterGate(address(gate), enabled, bytes32(0));
         Offer memory offer = makeEnterGateBuyOffer(wrapper, true);
         gate.setIsWhitelisted(true, address(adapter), true);
         gate.setIsWhitelisted(false, taker, true);
@@ -3869,7 +3869,7 @@ contract MidnightAdapterTest is Test {
 
     function testEnterGateUnregisteredGate(bool adapterIsMaker, bool wrap) public {
         (, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
-        address marketGate = wrap ? address(new VaultV2CompatibleEnterGate(address(gate))) : address(gate);
+        address marketGate = wrap ? address(new VaultV2CompatibleEnterGate(address(gate), true)) : address(gate);
         Offer memory offer = makeEnterGateBuyOffer(marketGate, adapterIsMaker);
         gate.setIsWhitelisted(true, address(adapter), true);
         gate.setIsWhitelisted(false, taker, true);
@@ -4019,7 +4019,7 @@ contract MidnightAdapterTest is Test {
         address attackerSubGate = deployCode(
             "WhitelistEnterSubGate.sol:WhitelistEnterSubGate:default", abi.encode(attacker, attacker, false, true)
         );
-        address attackerGate = gateFactory.createVaultV2CompatibleEnterGate(attackerSubGate, bytes32(0));
+        address attackerGate = gateFactory.createVaultV2CompatibleEnterGate(attackerSubGate, true, bytes32(0));
         vm.prank(attacker);
         VaultV2CompatibleEnterGate(attackerGate).addAdmitterFactory(address(factory));
         Market memory attackerMarket = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
@@ -5740,7 +5740,7 @@ contract MidnightAdapterTest is Test {
         IWhitelistEnterSubGate gate
     ) internal returns (address) {
         address wrapper = gateFactory.createVaultV2CompatibleEnterGate(
-            address(gate), bytes32(uint256(vm.getNonce(address(gateFactory))))
+            address(gate), true, bytes32(uint256(vm.getNonce(address(gateFactory))))
         );
         vm.prank(VaultV2CompatibleEnterGate(wrapper).roleSetter());
         VaultV2CompatibleEnterGate(wrapper).addAdmitterFactory(address(factory));
