@@ -64,7 +64,7 @@ For these sales, the adapter deducts the shortfall from `shortfallAllowance`.
 The sale reverts if the shortfall exceeds total unearned interest or the curator-set `shortfallAllowance`.
 If the sold market is force-sellable, the adapter realizes the shortfall immediately, without reducing `netRate` or consuming `shortfallAllowance`.
 
-Bad debt reduces `realAssets` immediately without changing the `netRate` of the affected market, with the loss discounted over the remaining term.
+Bad debt reduces `realAssets` immediately without changing the `netRate` of the affected market.
 
 Position amortized values and rates are rounded down on buys, sales, and `realAssets` evaluations, which can accrue some interest earlier.
 Stored net rates fit in `uint64`; extremely high rates can make buys revert.
@@ -120,10 +120,6 @@ The curator can constrain allocator trades without a timelock:
 - **`maxNetSellRate`**: Maximum simple net interest rate on sales, relative to the assets that the adapter receives.
 - **`shortfallAllowance`**: Remaining budget for accepted economic shortfall from sales across markets, in asset units. It starts at zero and does not refill automatically.
 
-`maxTtm` and `minNetBuyRate` share one storage slot as `uint128` values.
-`maxNetSellRate` and `shortfallAllowance` share another storage slot as `uint128` values.
-Setters reject values that do not fit in `uint128`.
-
 ### Force-sellable markets
 
 The curator can mark a market as `forceSellable` through a timelock.
@@ -138,13 +134,6 @@ It irreversibly sets stored net credit to zero and removes the market from activ
 If stored net credit was non-zero, it also deallocates that net credit from the vault's caps with zero assets withdrawn.
 The position is written off from `realAssets`, and buys, sales, withdrawals, and in-kind redemptions of the market then revert.
 When submitting `forceRemove`, it is recommended to set at least one of the market's ID caps to zero to prevent buys just before removal.
-
-### Events
-
-`ForceRemove` reports the market ID and the stored net credit removed.
-`WithdrawToVault` reports withdrawn assets and the new net credit, including zero-asset synchronizations.
-`Sell` reports the shortfall and the remaining `shortfallAllowance`.
-`ReduceRate` reports each market's reduced rate when absorbing a shortfall.
 
 ### Skim
 
