@@ -10,13 +10,14 @@ import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     /// @dev WAD-scaled simple interest rate per second earned on the net credit, so net of Midnight fees.
-    uint72 netRate;
+    uint64 netRate;
     uint40 maturity;
     uint8 index;
     /// @dev Allows selling with arbitrary loss on the market, down to minForceSellPrice, also after maturity.
     /// @dev When activated, netRate isn't reduced on losses due to selling this market.
     /// @dev When activated, buying is prevented.
     bool forceSellable;
+    bool forceRemoved;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
     uint256 minForceSellPrice;
 }
@@ -50,6 +51,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Take(address indexed sender);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
+    event ForceRemove(bytes32 indexed marketId, uint256 netCredit);
     event Buy(
         bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
     );
@@ -58,7 +60,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
         uint256 sellerAssets,
         uint256 soldNetCredit,
         uint256 newNetCredit,
-        uint256 shortfallAllowanceDecrease
+        uint256 shortfall,
+        uint256 newShortfallAllowance
     );
     event ReduceRate(bytes32 indexed marketId, uint256 newRate);
 
@@ -105,6 +108,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
+    error ForceRemoved();
 
     /* FUNCTIONS */
 
@@ -118,14 +122,15 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function maxTtm() external view returns (uint32);
+    function maxTtm() external view returns (uint128);
     function skimRecipient() external view returns (address);
-    function minNetBuyRate() external view returns (uint64);
-    function shortfallAllowance() external view returns (uint256);
+    function minNetBuyRate() external view returns (uint128);
+    function shortfallAllowance() external view returns (uint128);
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
-    function inProgressBuyNetRate() external view returns (uint72);
-    function maxNetSellRate() external view returns (uint64);
+    function inProgressBuyNetRate() external view returns (uint64);
+    function admitting() external view returns (bool);
+    function maxNetSellRate() external view returns (uint128);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -150,6 +155,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
+    function forceRemove(bytes32 marketId) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units, bytes memory takerCallbackData) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
@@ -164,10 +170,11 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         view
         returns (
             uint128 netCredit,
-            uint72 netRate,
+            uint64 netRate,
             uint40 maturity,
             uint8 index,
             bool forceSellable,
+            bool forceRemoved,
             uint256 minForceSellPrice
         );
 }

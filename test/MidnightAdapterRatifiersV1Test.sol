@@ -18,7 +18,7 @@ import {
 import {IMidnightAdapterRateRatifierV1} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterRateRatifierV1.sol";
 import {IMidnightAdapter, IMidnightAdapterBase} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
-import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 

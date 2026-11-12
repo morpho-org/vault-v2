@@ -20,7 +20,7 @@ import {
     WAD
 } from "../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
-import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IMorpho} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IMorphoFlashLoanCallback} from "../lib/morpho-blue/src/interfaces/IMorphoCallbacks.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";

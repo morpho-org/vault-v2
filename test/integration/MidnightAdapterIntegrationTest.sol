@@ -17,7 +17,7 @@ import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
-import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IFlashLoanCallback} from "../../lib/midnight/src/interfaces/ICallbacks.sol";
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
@@ -89,7 +89,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.prank(curator);
         adapter.setMaxNetSellRate(1e18 / uint256(365 days));
         vm.prank(curator);
-        adapter.setShortfallAllowance(type(uint256).max);
+        adapter.setShortfallAllowance(type(uint128).max);
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));

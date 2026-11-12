@@ -10,7 +10,7 @@ import {IMorphoMarketV1AdapterV2Factory} from "../../src/adapters/interfaces/IMo
 import {IMorphoMarketV1AdapterV2} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
