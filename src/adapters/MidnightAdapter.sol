@@ -11,6 +11,9 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IVaultV2Factory} from "../interfaces/IVaultV2Factory.sol";
+import {IMorphoVaultV1AdapterFactory} from "./interfaces/IMorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
@@ -87,6 +90,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public constant MAX_DURATIONS = 8;
 
     /* IMMUTABLES */
+
+    // Placeholder factories for this discussion sketch.
+    address public immutable VAULT_V2_FACTORY = address(0);
+    address public immutable MV1_ADAPTER_FACTORY = address(0);
 
     address public immutable factory;
     address public immutable asset;
@@ -406,9 +413,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
         if (selector == IVaultV2.forceDeallocate.selector) {
-            (Market memory market, address taker) = abi.decode(data, (Market, address));
+            (Market memory market, address taker, address viaWrapper, address viaAdapter) =
+                abi.decode(data, (Market, address, address, address));
             require(taker == sender || IMidnight(midnight).isAuthorized(taker, sender), NotAuthorized());
-            require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
+            bool direct = IVaultV2(parentVault).balanceOf(taker) > 0;
+            bool viaChain = viaWrapper != address(0)
+                && IVaultV2Factory(VAULT_V2_FACTORY).isVaultV2(viaWrapper)
+                && IMorphoVaultV1AdapterFactory(MV1_ADAPTER_FACTORY).isMorphoVaultV1Adapter(viaAdapter)
+                && IMorphoVaultV1Adapter(viaAdapter).morphoVaultV1() == parentVault
+                && IVaultV2(viaWrapper).isAdapter(viaAdapter)
+                && IVaultV2(parentVault).balanceOf(viaAdapter) > 0
+                && IVaultV2(viaWrapper).balanceOf(taker) > 0;
+            require(direct || viaChain, TakerHasNoShares());
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
