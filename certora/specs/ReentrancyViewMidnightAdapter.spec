@@ -39,7 +39,8 @@ hook ALL_TSTORE(uint _, uint _) {
 // - onSell reads the three of them between the store of the sold market and the stores of the reduced rates.
 // - A self-funded onBuy reads liquidationLocked and updatePositionView between the stores of the bought market and the store of the funding market.
 // - forceDeallocate reads updatePositionView between the writes of inForceDeallocate and admitting and the store of the net credit.
-// The enter gate factory's isCreated and the enter gate's canAdmit: onBuy reads them for a new market between the stores of this market and the reset of the in-progress buy.
+// The enter gate factory's isCreated and the enter gate's canAdmit: sound because they are assumed to not re-enter.
+// Needed because onBuy reads them for a new market between the stores of this market and the reset of the in-progress buy.
 hook STATICCALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (
         storageChanged
