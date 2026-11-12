@@ -412,8 +412,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            MarketData storage _marketData = marketData[marketId];
-            require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -449,6 +447,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
+            MarketData storage _marketData = marketData[marketId];
+            require(!_marketData.forceRemoved, ForceRemoved());
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
