@@ -4,6 +4,9 @@ Proofs that, in a VaultV2 whose only adapter is a MidnightAdapter, with no bad d
 The comparison uses the unrounded rational share price.
 Reverting modeled calls return `none`, and successful calls return `some` of the resulting state.
 The theorems cover every non-reverting modeled call within the documented scope.
+The model excludes `forceRemove`, which zeroes net credit and deallocates, lowering the share price by design, as well as sales in forceSellable markets.
+Force-removed markets revert in buys, sales, withdrawals and force deallocations, including the funding-market withdrawal of a self-funded buy.
+Loan tokens are not tracked, so `LoanAssetMismatch` is outside the model.
 Withdrawals conservatively require assets not to exceed net credit, a stronger condition than Midnight's credit check.
 The proofs cover operations that perform the transaction's first vault accrual.
 If the vault has already accrued earlier in the same transaction (`firstTotalAssets != 0`), `accrueInterestView` returns the cached `_totalAssets`, and that case is not modeled.
