@@ -50,7 +50,6 @@ function cvlTake(MidnightAdapter.Offer offer, uint256 units, address taker, addr
     require !(buyer == currentContract && currentContract.inForceDeallocate), "the adapter is the seller during forceDeallocate";
     if (buyer == currentContract) increaseMidnightNetCredit(id);
 
-    // A callback to the adapter runs the adapter's code. A callback to another contract is an arbitrary call.
     if (buyerCallback == currentContract) onBuy(e, id, offer.market, buyerAssets, units, fee, buyer, data);
     else if (buyerCallback != 0) havocCallback.callHavoc(e, buyerCallback);
 
