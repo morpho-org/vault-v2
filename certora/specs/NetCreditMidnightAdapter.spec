@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+using Havoc as havocCallback;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
@@ -14,8 +16,9 @@ methods {
     // Midnight.withdraw does not reenter the adapter, assuming the loan token does not reenter.
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
 
-    // Midnight.take calls back the offer's callback and the taker callback, which can be arbitrary.
-    function _.take(MidnightAdapter.Offer, bytes, uint256, address, address, address, bytes) external => HAVOC_ALL;
+    // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address, address, address takerCallback, bytes) external => cvlTake(offer, takerCallback) expect(uint256, uint256);
+    function _.havocAll() external => HAVOC_ALL;
 
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
@@ -27,6 +30,21 @@ methods {
 persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
+
+// An arbitrary call if a callback is neither the adapter nor absent.
+// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
+function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
+    if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
+        env e;
+        address dummy;
+        havocCallback.callHavoc(e, dummy);
+    }
+    uint256 buyerAssets;
+    uint256 sellerAssets;
+    return (buyerAssets, sellerAssets);
+}
+
+definition isArbitraryCallback(address callback) returns bool = callback != 0 && callback != currentContract;
 
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
