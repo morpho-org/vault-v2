@@ -690,6 +690,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         MarketData storage _marketData = marketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
+
         (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
         uint256 creditDecrease = MathLib.min(withdrawnAssets, credit);
         uint256 pendingFeeDecrease = credit > 0 ? uint256(pendingFee).mulDivUp(creditDecrease, credit) : 0;
