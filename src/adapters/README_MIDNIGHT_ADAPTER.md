@@ -24,7 +24,7 @@ Buys can use the idle assets of the vault, assets deallocated from another adapt
 Allocators and sentinels can withdraw repaid assets by calling `deallocate` on the vault.
 Withdrawals require available liquidity from repayments or liquidations, even after maturity.
 Calling `deallocate` with zero assets synchronizes stored net credit after a loss without withdrawing assets.
-Trades, withdrawals, and in-kind redemptions require the market's loan token to be the vault's asset.
+Trades, withdrawals, and in-kind redemptions require the market loan token to match the vault asset.
 
 ### Sub-ratifiers
 
@@ -58,16 +58,11 @@ On sales, if proceeds are above the amortized net credit sold, the adapter reali
 Otherwise, the difference with the proceeds is a shortfall.
 Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall using proportional shares of unearned interest from active markets, including force-sellable markets.
 The adapter lowers `netRate` until the shortfall is covered, instead of realizing an immediate loss.
-It stops reducing rates once the realized shortfall covers the sale's shortfall.
-Rounding can consume slightly more unearned interest than the shortfall deducted from the allowance.
 For these sales, the adapter deducts the shortfall from `shortfallAllowance`.
 The sale reverts if the shortfall exceeds total unearned interest or the curator-set `shortfallAllowance`.
 If the sold market is force-sellable, the adapter realizes the shortfall immediately, without reducing `netRate` or consuming `shortfallAllowance`.
 
 Bad debt reduces `realAssets` immediately without changing the `netRate` of the affected market.
-
-Position amortized values and rates are rounded down on buys, sales, and `realAssets` evaluations, which can accrue some interest earlier.
-Stored net rates fit in `uint64`; extremely high rates can make buys revert.
 
 ### Caps
 
@@ -107,10 +102,9 @@ The adapter can be configured with an `enterGateFactory`, such as [VaultV2Compat
 When `enterGateFactory` is set, entering a new active market requires either no enter gate or an enter gate deployed by `enterGateFactory`.
 If present, the enter gate must also authorize the factory that deployed the adapter.
 `VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
-During `forceDeallocate`, the adapter temporarily allows the shareholder to receive credit even if the sub-gate would reject them, then clears the admission in its buyer callback before Midnight transfers the loan token.
+During `forceDeallocate`, the adapter temporarily allows the shareholder to receive credit even if the sub-gate would reject them.
 Without `enterGateFactory`, the enter gate must already allow the shareholder to receive credit.
-The in-kind redemption guarantee requires a compatible factory and gates, such as `VaultV2CompatibleEnterGateFactory` and its gates.
-An arbitrary factory can allow markets whose gates block in-kind redemptions, without a timelock on entering those markets.
+An incompatible `enterGateFactory` can allow markets whose enter gates block in-kind redemptions, without a timelock on entering those markets.
 
 ### Operational constraints
 
@@ -129,11 +123,11 @@ This permits sales for fewer assets than the sold net credit after maturity.
 
 ### Force-removed markets
 
-The curator submits `forceRemove(marketId)` through the adapter's timelock system; anyone can execute it after the delay.
-It irreversibly sets stored net credit to zero and removes the market from active markets, without moving its Midnight credit.
-If stored net credit was non-zero, it also deallocates that net credit from the vault's caps with zero assets withdrawn.
-The position is written off from `realAssets`, and buys, sales, withdrawals, and in-kind redemptions of the market then revert.
-When submitting `forceRemove`, it is recommended to set at least one of the market's ID caps to zero to prevent buys just before removal.
+The curator can permanently remove a market from the adapter through the timelocked `forceRemove` function.
+This removes its amortized net credit from `realAssets` and its stored net credit from cap allocations.
+The credit balance of the adapter on Midnight does not change.
+Buys, sales, withdrawals, and in-kind redemptions in that market then revert.
+When submitting `forceRemove`, the curator should set at least one cap for the market to zero to prevent further buys.
 
 ### Skim
 
