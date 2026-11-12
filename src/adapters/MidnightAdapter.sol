@@ -484,6 +484,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     /// @dev Can revert on extremely high rates.
+    /// @dev A factory-created gate's permanent canAdmit registration implies immutable admission is enabled.
     function onBuy(
         bytes32 id,
         Market memory market,

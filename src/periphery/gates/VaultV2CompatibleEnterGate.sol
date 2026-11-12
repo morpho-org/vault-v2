@@ -9,15 +9,18 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
+/// @dev Admission is optionally disabled at deployment and immutable to preserve registered vaults' in-kind-redemption guarantee.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
+    bool public immutable admitEnabled;
 
     mapping(address adapterFactory => bool) public canAdmit;
 
     address transient admitted;
 
-    constructor(address _subGate) {
+    constructor(address _subGate, bool _admitEnabled) {
         subGate = _subGate;
+        admitEnabled = _admitEnabled;
     }
 
     function roleSetter() public view returns (address) {
@@ -25,6 +28,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     function addAdmitterFactory(address adapterFactory) external {
+        require(admitEnabled, AdmitDisabled());
         require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[adapterFactory] = true;
         emit AddAdmitterFactory(adapterFactory);
@@ -33,6 +37,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
     function admit(address user, address adapterFactory) external {
+        require(admitEnabled, AdmitDisabled());
         require(
             canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
         );

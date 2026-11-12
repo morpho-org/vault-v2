@@ -8,10 +8,16 @@ interface IVaultV2CompatibleEnterGateFactory is IEnterGateFactory {
     /* EVENTS */
 
     event CreateVaultV2CompatibleEnterGate(
-        address indexed caller, address indexed vaultV2CompatibleEnterGate, address indexed subGate, bytes32 preSalt
+        address indexed caller,
+        address indexed vaultV2CompatibleEnterGate,
+        address indexed subGate,
+        bool admitEnabled,
+        bytes32 preSalt
     );
 
     /* FUNCTIONS */
 
-    function createVaultV2CompatibleEnterGate(address subGate, bytes32 preSalt) external returns (address);
+    function createVaultV2CompatibleEnterGate(address subGate, bool admitEnabled, bytes32 preSalt)
+        external
+        returns (address);
 }
