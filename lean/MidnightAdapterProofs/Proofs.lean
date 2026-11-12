@@ -5,31 +5,6 @@ namespace MidnightAdapterProofs
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
-theorem buy_forceRemoved (s : State ι) (m : ι) (a b : ℕ)
-    (h : s.forceRemoved m = true) : buy s m a b = none := by
-  simp [buy, h]
-
-theorem withdraw_forceRemoved (s : State ι) (m : ι) (a : ℕ)
-    (h : s.forceRemoved m = true) : withdraw s m a = none := by
-  simp [withdraw, h]
-
-theorem selfFundedBuy_forceRemoved (s : State ι) (m f : ι) (a b : ℕ)
-    (h : s.forceRemoved m = true) : selfFundedBuy s m f a b = none := by
-  simp [selfFundedBuy, h]
-
-theorem selfFundedBuy_fundingForceRemoved (s : State ι) (m f : ι) (a b : ℕ)
-    (h : s.forceRemoved f = true) : selfFundedBuy s m f a b = none := by
-  unfold selfFundedBuy
-  split_ifs <;> simp [withdraw, recordBuy, h]
-
-theorem sell_forceRemoved [LinearOrder ι] (s : State ι) (m : ι) (a b : ℕ)
-    (h : s.forceRemoved m = true) : sell s m a b = none := by
-  simp [sell, h]
-
-theorem forceDeallocate_forceRemoved (s : State ι) (m : ι) (a b p : ℕ)
-    (h : s.forceRemoved m = true) : forceDeallocate s m a b p = none := by
-  simp [forceDeallocate, h]
-
 theorem sharePriceBuy : SharePriceBuy (ι := ι) := by
   intro s m buyerAssets boughtNetCredit s' hSuccess
   unfold buy at hSuccess
