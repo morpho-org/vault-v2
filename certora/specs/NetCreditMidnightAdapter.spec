@@ -16,7 +16,6 @@ methods {
     // Midnight.withdraw does not reenter the adapter, assuming the loan token does not reenter.
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
 
-    // Midnight.take is replaced by cvlTake, a model that follows Midnight's code.
     function _.take(MidnightAdapter.Offer offer, bytes, uint256 units, address taker, address, address takerCallback, bytes) external => cvlTake(offer, units, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
 
@@ -32,8 +31,6 @@ ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
-// Model of Midnight's take, for the two ways in which the adapter calls it: from take, as the taker, and from forceDeallocate, as the maker.
-// The amounts and the data that Midnight gives to the callbacks are arbitrary. The loan token, which Midnight moves between the two callbacks, must not reenter the adapter.
 function cvlTake(MidnightAdapter.Offer offer, uint256 units, address taker, address takerCallback) returns (uint256, uint256) {
     env e;
     bytes32 id;
@@ -44,23 +41,23 @@ function cvlTake(MidnightAdapter.Offer offer, uint256 units, address taker, addr
     bytes data;
 
     require offer.maker != taker, "Midnight reverts with SelfTake";
-    assert takerCallback == currentContract, "the adapter is always its own taker callback";
+    address buyer = offer.buy ? offer.maker : taker;
+    address seller = offer.buy ? taker : offer.maker;
+    address buyerCallback = offer.buy ? offer.callback : takerCallback;
+    address sellerCallback = offer.buy ? takerCallback : offer.callback;
 
-    if (taker != currentContract) {
-        // forceDeallocate: the taker buys the sell offer of the adapter. Midnight calls onBuy on the taker callback.
-        assert offer.maker == currentContract && !offer.buy && offer.callback == 0, "the adapter only makes its forced sell offer, without callback";
-        onBuy(e, id, offer.market, buyerAssets, units, fee, taker, data);
-    } else if (offer.buy) {
-        // take: the adapter sells to the maker. Midnight calls the callback of the maker, then onSell.
-        if (offer.callback != 0) havocCallback.callHavoc(e, offer.callback);
-        onSell(e, id, offer.market, sellerAssets, units, fee, taker, receiver, data);
-    } else {
-        // take: the adapter buys from the maker. Midnight gives the credit to the adapter, calls onBuy, then calls the callback of the maker.
-        require !currentContract.inForceDeallocate, "inForceDeallocate is only set during forceDeallocate";
-        increaseMidnightNetCredit(id);
-        onBuy(e, id, offer.market, buyerAssets, units, fee, taker, data);
-        if (offer.callback != 0) havocCallback.callHavoc(e, offer.callback);
-    }
+    // The buyer gets credit. The ghost is an upper bound of the adapter's net credit, so the model does nothing when the adapter sells.
+    require !(buyer == currentContract && currentContract.inForceDeallocate), "the adapter is the seller during forceDeallocate";
+    if (buyer == currentContract) increaseMidnightNetCredit(id);
+
+    // A callback to the adapter runs the adapter's code. A callback to another contract is an arbitrary call.
+    if (buyerCallback == currentContract) onBuy(e, id, offer.market, buyerAssets, units, fee, buyer, data);
+    else if (buyerCallback != 0) havocCallback.callHavoc(e, buyerCallback);
+
+    // The loan token moves here. It must not reenter the adapter.
+
+    if (sellerCallback == currentContract) onSell(e, id, offer.market, sellerAssets, units, fee, seller, receiver, data);
+    else if (sellerCallback != 0) havocCallback.callHavoc(e, sellerCallback);
 
     return (buyerAssets, sellerAssets);
 }
