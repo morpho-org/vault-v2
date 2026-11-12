@@ -34,7 +34,7 @@ hook ALL_TSTORE(uint _, uint _) {
 }
 
 // These five static calls are assumed to not re-enter the adapter.
-// Midnight's updatePositionView, liquidationLocked and lossFactor make no calls.
+// updatePositionView, liquidationLocked and lossFactor: sound because they make no calls.
 // onSell reads the three of them between the store of the sold market and the stores of the reduced rates.
 // A self-funded onBuy reads liquidationLocked and updatePositionView between the stores of the bought market and the store of the funding market.
 // forceDeallocate reads updatePositionView between the writes of inForceDeallocate and admitting and the store of the net credit.
