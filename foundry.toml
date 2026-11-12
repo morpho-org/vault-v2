@@ -59,10 +59,10 @@ paths = "test/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "paris"
 
-# The adapter's initcode is embedded in its factory, so it is compiled for size.
+# The adapter's initcode is embedded in its factory. 833 is the highest optimizer_runs value for which the factory fits under EIP-170.
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 1
+optimizer_runs = 833
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
@@ -109,9 +109,11 @@ name = "800-osaka"
 optimizer_runs = 800
 evm_version = "osaka"
 
+# Forge gives a file with several matching profiles the first one by name. The leading 0 keeps this profile first among
+# the osaka profiles, so the tests that only need osaka stay in the adapter's profile.
 [[profile.default.additional_compiler_profiles]]
-name = "1-osaka"
-optimizer_runs = 1
+name = "0833-osaka"
+optimizer_runs = 833
 evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]

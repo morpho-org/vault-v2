@@ -28,7 +28,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
     function createMidnightAdapter(
         address parentVault,
-        uint256[] memory durations,
+        uint256[] calldata durations,
         address enterGateFactory,
         bytes32 preSalt
     ) external returns (address) {
