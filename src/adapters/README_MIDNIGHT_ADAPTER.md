@@ -50,8 +50,8 @@ These delays let depositors exit before the curator increases `maxTtm`, enables 
 These constraints are intended for operational quality of life, not to provide guarantees to depositors.
 The curator can constrain allocator trades without a timelock:
 
-- **`minNetBuyRate`**: Minimum simple net interest rate on each buy. It starts at zero, which allows buys with no interest.
-- **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets). It starts at zero, which prevents sales below the sold net credit.
+- **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
+- **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
 - **`shortfallAllowance`**: Total shortfall allowed from sales, in asset units. It starts at zero. Only the curator can increase it, and it is consumed at every sale below amortized value, unless the market is [force-sellable](#force-sellable-markets).
 - **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). It starts at zero, with no minimum price. It uses a price instead of a rate so sales can occur below net credit at or after maturity.
 
