@@ -75,7 +75,7 @@ On buys, the callback data of the trade selects the funding source, and allocato
 - When the adapter is the taker, the allocator who calls `take` sets the callback data.
 - When the adapter is the maker, the callback data is part of the offer. A sub-ratifier can constrain the callback data if necessary. During [`forceDeallocate`](#in-kind-redemptions), the adapter is the maker of an offer without callback, and the shareholder sets no callback data.
 
-Allocators and sentinels can withdraw assets from the adapter's Midnight markets by calling `deallocate` on the vault.
+Allocators and sentinels can withdraw assets from a Midnight market of the adapter by calling `deallocate` on the vault.
 Withdrawals require Midnight withdrawable liquidity from repayments or liquidations, even after maturity.
 Calling `deallocate` with zero assets synchronizes stored net credit after a loss without withdrawing assets.
 Trades, withdrawals, and in-kind redemptions require the market loan token to match the vault asset.
