@@ -2,10 +2,6 @@
 
 Midnight Adapter. WIP.
 
-## In-kind redemptions
-
-With the Midnight adapter, the user instead buys the adapter's credit through `forceDeallocate`, at face value plus Midnight's settlement fee, then withdraws from the vault and repays the flashloan.
-
 ## Midnight Enter Gates and Subgates
 
 These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
