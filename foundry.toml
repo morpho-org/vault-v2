@@ -65,6 +65,12 @@ paths = "src/adapters/midnight/MidnightAdapter.sol"
 optimizer_runs = 833
 evm_version = "osaka"
 
+# The enter gate only needs osaka. It is compiled with the adapter's settings.
+[[profile.default.compilation_restrictions]]
+paths = "src/periphery/gates/VaultV2CompatibleEnterGate*.sol"
+optimizer_runs = 833
+evm_version = "osaka"
+
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/midnight/ratifiers/MidnightAdapter*.sol"
 optimizer_runs = 800
@@ -109,10 +115,8 @@ name = "800-osaka"
 optimizer_runs = 800
 evm_version = "osaka"
 
-# Forge gives a file with several matching profiles the first one by name. The leading 0 keeps this profile first among
-# the osaka profiles, so the tests that only need osaka stay in the adapter's profile.
 [[profile.default.additional_compiler_profiles]]
-name = "0833-osaka"
+name = "833-osaka"
 optimizer_runs = 833
 evm_version = "osaka"
 
