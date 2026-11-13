@@ -43,7 +43,7 @@ Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vau
 Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
 These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
 
-## Overview
+## Other features
 
 ### Operational constraints
 
