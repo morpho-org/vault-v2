@@ -24,7 +24,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     /// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-    /// @dev enterGateFactory is address(0) for ungated adapters; otherwise see the ENTER GATE requirements in MidnightAdapter.
+    /// @dev See the ENTER GATE section in MidnightAdapter for more details on enterGateFactory.
     /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
     function createMidnightAdapter(
         address parentVault,
