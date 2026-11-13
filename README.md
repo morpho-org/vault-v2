@@ -21,7 +21,7 @@ The following adapters are currently available:
 
 - [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol) (Morpho Blue).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-- [Midnight Adapter](./src/adapters/midnight/).
+- [Midnight Adapter](./src/adapters/midnight/README.md) (fixed-rate, fixed-maturity markets).
 
 ### Caps
 
@@ -61,11 +61,12 @@ With the Midnight adapter, the user instead buys the adapter's credit through `f
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
-Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
+Midnight also charges its settlement fee for in-kind redemptions.
+With a 0% penalty, the only friction is the gas cost, plus Midnight's settlement fee.
 
 ### Non-custodial guarantees
 
-Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#timelocks).
 These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
 
 ### Gates
