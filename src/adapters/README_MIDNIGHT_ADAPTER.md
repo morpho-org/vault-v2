@@ -71,6 +71,11 @@ The adapter must not be set as the liquidity adapter of the vault as vault depos
 ### Funding
 
 Buys can use the idle assets of the vault, assets deallocated from another adapter, or repaid assets from the markets of the adapter.
+On buys, the callback data of the trade selects the funding source, and allocators control it:
+
+- When the adapter is the taker, the allocator who calls `take` sets the callback data.
+- When the adapter is the maker, the callback data is part of the offer. A sub-ratifier can constrain the callback data if necessary. During [`forceDeallocate`](#in-kind-redemptions), the adapter is the maker of an offer without callback, and the shareholder sets no callback data.
+
 Allocators and sentinels can withdraw the adapter's Midnight positions by calling `deallocate` on the vault.
 Withdrawals require Midnight withdrawable liquidity from repayments or liquidations, even after maturity.
 Calling `deallocate` with zero assets synchronizes stored net credit after a loss without withdrawing assets.
