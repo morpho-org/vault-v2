@@ -9,6 +9,32 @@ All contracts are immutable.
 
 ## Overview
 
+### Non-custodial guarantees
+
+A shareholder can [redeem in-kind](#in-kind-redemptions) even when a market has no withdrawable liquidity and no other buyers for the credit.
+With a compatible [`enterGateFactory`](#enter-gates) configured, market enter gates cannot block these redemptions.
+
+### Timelocks
+
+The adapter has its own [timelock system](../../README.md#timelocks), with the same flow as the vault.
+Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, and setting `skimRecipient` are timelocked.
+Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault timelocks.
+Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
+These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
+
+### Operational constraints
+
+These constraints are intended for operational quality of life, not to provide guarantees to depositors.
+The curator can constrain allocator trades without a timelock:
+
+- **`minNetBuyRate`**: Minimum simple net interest rate on each buy. It starts at zero, which allows buys with no interest.
+- **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets). It starts at zero, which prevents sales below the sold net credit.
+- **`shortfallAllowance`**: Total shortfall allowed from sales, in asset units. It starts at zero. Only the curator can increase it, and it is consumed at every sale below amortized value, unless the market is [force-sellable](#force-sellable-markets).
+- **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). It starts at zero, with no minimum price. It uses a price instead of a rate so sales can occur below net credit at or after maturity.
+
+Only `minForceSellPrice` is set per market.
+The other three settings are set for the whole adapter.
+
 ### Trading
 
 The adapter trades as a taker when a vault allocator calls `take`, or as a maker through offers approved by [sub-ratifiers](#sub-ratifiers).
@@ -87,7 +113,6 @@ The adapter also enforces `maxTtm`, the maximum time to maturity for buys across
 
 ### In-kind redemptions
 
-A shareholder can redeem in-kind even when a market has no withdrawable liquidity.
 The shareholder must authorize the adapter on Midnight.
 The caller must be the shareholder or an address authorized by the shareholder on Midnight.
 
@@ -102,17 +127,11 @@ The adapter can be configured with an `enterGateFactory`, such as [VaultV2Compat
 When `enterGateFactory` is set, entering a new active market requires either no enter gate or an enter gate deployed by `enterGateFactory`.
 If present, the enter gate must also authorize the factory that deployed the adapter.
 `VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
-During `forceDeallocate`, the adapter temporarily allows the shareholder to receive credit even if the sub-gate would reject them.
+Its `admitEnabled` setting is fixed at deployment.
+With `admitEnabled = true`, the adapter can temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them.
+With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 Without `enterGateFactory`, the enter gate must already allow the shareholder to receive credit.
 An incompatible `enterGateFactory` can allow markets whose enter gates block in-kind redemptions, without a timelock on entering those markets.
-
-### Operational constraints
-
-The curator can constrain allocator trades without a timelock:
-
-- **`minNetBuyRate`**: Minimum simple net interest rate on buys, relative to paid assets.
-- **`maxNetSellRate`**: Maximum simple net interest rate on sales, relative to the assets that the adapter receives.
-- **`shortfallAllowance`**: Remaining budget for accepted economic shortfall from sales across markets, in asset units. It starts at zero and does not refill automatically.
 
 ### Force-sellable markets
 
@@ -132,13 +151,6 @@ When submitting `forceRemove`, the curator should set at least one cap for the m
 ### Skim
 
 The `skimRecipient` can call `skim` to collect any token held by the adapter, including rewards.
-
-### Timelocks
-
-The adapter has its own [timelock system](../../README.md#timelocks), with the same flow as the vault.
-Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, and setting `skimRecipient` are timelocked.
-Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
-These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
 
 ### Roles
 
