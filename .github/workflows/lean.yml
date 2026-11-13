@@ -1,0 +1,37 @@
+name: Lean
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/58e8d545e33641f66dbcbd22c4283109e71757be/elan-init.sh -o elan-init.sh # v4.1.2
+          echo "4bacca9502cb89736fe63d2685abc2947cfbf34dc87673504f1bb4c43eda9264  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build Lean proofs
+        working-directory: lean
+        run: |
+          lake exe cache get
+          lake build
+
+      - name: Reject admitted proofs
+        working-directory: lean
+        run: |
+          if grep -rnwE --include="*.lean" --exclude-dir=.lake "sorry|admit|axiom" .; then
+            echo "Admitted proofs or axioms found" >&2
+            exit 1
+          fi
