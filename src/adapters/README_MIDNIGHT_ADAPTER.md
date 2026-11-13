@@ -7,20 +7,44 @@ The adapter uses the roles of its parent vault (curator, allocators, and sentine
 [MidnightAdapterFactory](./MidnightAdapterFactory.sol) deploys instances of `MidnightAdapter`.
 All contracts are immutable.
 
-## Overview
+## Non-custodial guarantees
 
-### Non-custodial guarantees
-
-A shareholder can [redeem in-kind](#in-kind-redemptions) even when a market has no withdrawable liquidity and no other buyers for the credit.
+A vault shareholder can [redeem in-kind](#in-kind-redemptions) even when a market has no withdrawable liquidity and no other buyers for the credit.
 With a compatible [`enterGateFactory`](#enter-gates) configured, market enter gates cannot block these redemptions.
 
-### Timelocks
+### In-kind redemptions
+
+The shareholder must authorize the adapter on Midnight.
+The caller must be the shareholder or an address authorized by the shareholder on Midnight.
+
+The caller uses `forceDeallocate` on the vault to obtain credit for the shareholder.
+The payment is the credit amount before pending fees plus the Midnight settlement fee.
+In-kind redemptions therefore happen at a price of one asset per unit of credit, before fees, whatever the time to maturity.
+The vault also charges its `forceDeallocate` penalty.
+The shareholder can then withdraw from the vault to complete the in-kind redemption.
+
+#### Enter gates
+
+The adapter can be configured with an `enterGateFactory`, such as [VaultV2CompatibleEnterGateFactory](../periphery/gates/VaultV2CompatibleEnterGateFactory.sol).
+When `enterGateFactory` is set, entering a new active market requires either no enter gate or an enter gate deployed by `enterGateFactory`.
+If present, the enter gate must also authorize the factory that deployed the adapter.
+`VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
+Its `admitEnabled` setting is fixed at deployment.
+With `admitEnabled = true`, the credit role setter of the sub-gate authorizes adapter factories by calling `addAdmitterFactory` on the gate.
+Adapters deployed by an authorized factory can temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them.
+With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
+Without `enterGateFactory`, the enter gate must already allow the shareholder to receive credit.
+An incompatible `enterGateFactory` can allow markets whose enter gates block in-kind redemptions, without a timelock on entering those markets.
+
+### Timelocked settings
 
 The adapter has its own [timelock system](../../README.md#timelocks), with the same flow as the vault.
-Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, and setting `skimRecipient` are timelocked.
+Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault timelocks.
 Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
 These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
+
+## Overview
 
 ### Operational constraints
 
@@ -47,8 +71,8 @@ The adapter must not be set as the liquidity adapter of the vault as vault depos
 ### Funding
 
 Buys can use the idle assets of the vault, assets deallocated from another adapter, or repaid assets from the markets of the adapter.
-Allocators and sentinels can withdraw repaid assets by calling `deallocate` on the vault.
-Withdrawals require available liquidity from repayments or liquidations, even after maturity.
+Allocators and sentinels can withdraw the adapter's Midnight positions by calling `deallocate` on the vault.
+Withdrawals require Midnight withdrawable liquidity from repayments or liquidations, even after maturity.
 Calling `deallocate` with zero assets synchronizes stored net credit after a loss without withdrawing assets.
 Trades, withdrawals, and in-kind redemptions require the market loan token to match the vault asset.
 
@@ -80,7 +104,7 @@ assets = floor(netCredit / (1 + netRate * ttm))
 Unearned interest is the difference between net credit and amortized net credit.
 
 On buys, the adapter adjusts `netRate` based on the net credit bought and the assets paid.
-On sales, if proceeds are above the amortized net credit sold, the adapter realizes any gain immediately.
+On sales, if proceeds are above the sold net credit amortized at the market `netRate`, the adapter realizes any gain immediately.
 Otherwise, the difference with the proceeds is a shortfall.
 Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall using proportional shares of unearned interest from active markets, including force-sellable markets.
 The adapter lowers `netRate` until the shortfall is covered, instead of realizing an immediate loss.
@@ -110,28 +134,6 @@ A cap for duration `d` limits total net credit in markets that mature in `d` or 
 For example, a 30-day duration cap limits total net credit in markets that mature in 30 days or later.
 The adapter enforces duration caps itself.
 The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
-
-### In-kind redemptions
-
-The shareholder must authorize the adapter on Midnight.
-The caller must be the shareholder or an address authorized by the shareholder on Midnight.
-
-The caller uses `forceDeallocate` on the vault to obtain credit for the shareholder.
-The payment is the credit amount before pending fees plus the Midnight settlement fee.
-The vault also charges its `forceDeallocate` penalty.
-The shareholder can then withdraw from the vault to complete the in-kind redemption.
-
-### Enter gates
-
-The adapter can be configured with an `enterGateFactory`, such as [VaultV2CompatibleEnterGateFactory](../periphery/gates/VaultV2CompatibleEnterGateFactory.sol).
-When `enterGateFactory` is set, entering a new active market requires either no enter gate or an enter gate deployed by `enterGateFactory`.
-If present, the enter gate must also authorize the factory that deployed the adapter.
-`VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
-Its `admitEnabled` setting is fixed at deployment.
-With `admitEnabled = true`, the adapter can temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them.
-With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
-Without `enterGateFactory`, the enter gate must already allow the shareholder to receive credit.
-An incompatible `enterGateFactory` can allow markets whose enter gates block in-kind redemptions, without a timelock on entering those markets.
 
 ### Force-sellable markets
 
