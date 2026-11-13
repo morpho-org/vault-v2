@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
 import {Vm} from "../lib/forge-std/src/Vm.sol";
-import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
-import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
+import {MidnightAdapterFactory} from "../src/adapters/midnight/MidnightAdapterFactory.sol";
+import {MidnightAdapter} from "../src/adapters/midnight/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {newTokenOfType} from "./mocks/TokenMocks.sol";
 import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
@@ -14,15 +14,19 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
-import {IMidnightAdapter, IMidnightAdapterBase, MarketData} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapter,
+    IMidnightAdapterBase,
+    MarketData
+} from "../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
 import {
     IMidnightAdapterPriceRatifierV1
-} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+} from "../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
-import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
+import {IMidnightAdapterFactory} from "../src/adapters/midnight/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {WAD} from "../src/libraries/ConstantsLib.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
@@ -39,13 +43,13 @@ import {
     CBP
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
-import {VaultV2CompatibleEnterGate} from "../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
-import {VaultV2CompatibleEnterGateFactory} from "../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
-import {IVaultV2CompatibleEnterGate} from "../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {VaultV2CompatibleEnterGate} from "../src/adapters/midnight/gates/VaultV2CompatibleEnterGate.sol";
+import {VaultV2CompatibleEnterGateFactory} from "../src/adapters/midnight/gates/VaultV2CompatibleEnterGateFactory.sol";
+import {IVaultV2CompatibleEnterGate} from "../src/adapters/midnight/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
-import {IWhitelistEnterSubGate} from "../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
-import {IEnterSubGate} from "../src/periphery/gates/interfaces/IEnterSubGate.sol";
+import {IWhitelistEnterSubGate} from "../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {IEnterSubGate} from "../src/adapters/midnight/gates/interfaces/IEnterSubGate.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;

@@ -4,12 +4,12 @@ pragma solidity ^0.8.0;
 
 import {IEnterGate} from "../../lib/midnight/src/interfaces/IGate.sol";
 import {Test} from "../../lib/forge-std/src/Test.sol";
-import {WhitelistEnterSubGate} from "../../src/periphery/gates/WhitelistEnterSubGate.sol";
+import {WhitelistEnterSubGate} from "../../src/adapters/midnight/gates/WhitelistEnterSubGate.sol";
 import {
     IWhitelistEnterSubGate,
     SET_IS_WHITELISTED_TYPEHASH,
     EIP712_DOMAIN_TYPEHASH
-} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
+} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
 
 bytes constant SET_IS_WHITELISTED_TYPE =
     "SetIsWhitelisted(bool creditSide,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)";
