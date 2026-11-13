@@ -16,35 +16,50 @@ methods {
     // Midnight.withdraw does not reenter the adapter, assuming the loan token does not reenter.
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
 
-    // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
-    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address, address, address takerCallback, bytes) external => cvlTake(offer, takerCallback) expect(uint256, uint256);
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256 units, address taker, address, address takerCallback, bytes) external => cvlTake(offer, units, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
 
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
     function _.admit(address, address) external => HAVOC_ECF;
+    function _.unadmit() external => HAVOC_ECF;
     function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
-persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
+ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
-// An arbitrary call if a callback is neither the adapter nor absent.
-// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
-function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
-    if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
-        env e;
-        address dummy;
-        havocCallback.callHavoc(e, dummy);
-    }
+function cvlTake(MidnightAdapter.Offer offer, uint256 units, address taker, address takerCallback) returns (uint256, uint256) {
+    env e;
+    bytes32 id;
     uint256 buyerAssets;
     uint256 sellerAssets;
+    uint256 fee;
+    address receiver;
+    bytes data;
+
+    require offer.maker != taker, "Midnight reverts with SelfTake";
+    address buyer = offer.buy ? offer.maker : taker;
+    address seller = offer.buy ? taker : offer.maker;
+    address buyerCallback = offer.buy ? offer.callback : takerCallback;
+    address sellerCallback = offer.buy ? takerCallback : offer.callback;
+
+    // The buyer gets credit. The ghost is an upper bound of the adapter's net credit, so the model does nothing when the adapter sells.
+    require !(buyer == currentContract && currentContract.inForceDeallocate), "the adapter is the seller during forceDeallocate";
+    if (buyer == currentContract) increaseMidnightNetCredit(id);
+
+    if (buyerCallback == currentContract) onBuy(e, id, offer.market, buyerAssets, units, fee, buyer, data);
+    else if (buyerCallback != 0) havocCallback.callHavoc(e, buyerCallback);
+
+    // The loan token moves here. It must not reenter the adapter.
+
+    if (sellerCallback == currentContract) onSell(e, id, offer.market, sellerAssets, units, fee, seller, receiver, data);
+    else if (sellerCallback != 0) havocCallback.callHavoc(e, sellerCallback);
+
     return (buyerAssets, sellerAssets);
 }
-
-definition isArbitraryCallback(address callback) returns bool = callback != 0 && callback != currentContract;
 
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
