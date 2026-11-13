@@ -30,8 +30,7 @@ When `enterGateFactory` is set, entering a new active market requires either no 
 If present, the enter gate must also authorize the factory that deployed the adapter.
 `VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
 Its `admitEnabled` setting is fixed at deployment.
-With `admitEnabled = true`, the credit role setter of the sub-gate authorizes adapter factories by calling `addAdmitterFactory` on the gate.
-Adapters deployed by an authorized factory can temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them.
+If `admitEnabled` is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 Without `enterGateFactory`, the enter gate must already allow the shareholder to receive credit.
 An incompatible `enterGateFactory` can allow markets whose enter gates block in-kind redemptions, without a timelock on entering those markets.
