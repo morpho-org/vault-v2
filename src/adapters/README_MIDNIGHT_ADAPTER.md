@@ -7,7 +7,7 @@ The adapter uses the roles of its parent vault (curator, allocators, and sentine
 [MidnightAdapterFactory](./MidnightAdapterFactory.sol) deploys instances of `MidnightAdapter`.
 All contracts are immutable.
 
-## Non-custodial guarantees
+## Non-custodiality and depositor guarantees
 
 A vault shareholder can [redeem in-kind](#in-kind-redemptions) even when a market has no withdrawable liquidity and no other buyers for the credit.
 With a compatible [`enterGateFactory`](#enter-gates) configured, market enter gates cannot block these redemptions.
@@ -42,6 +42,27 @@ Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, setting 
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault timelocks.
 Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
 These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
+
+### Caps
+
+The vault caps the stored net credit of the adapter, not its amortized net credit.
+The caps apply to these IDs:
+
+- Adapter
+- Family: the collateral configurations, RCF threshold, and liquidator gate
+- Each collateral token
+
+Buys require non-zero absolute caps and must respect the absolute and relative caps of each ID.
+The curator uses family caps to approve combinations, not individual parameters.
+Markets that differ only by maturity or enter gate share the same family ID.
+
+### Duration caps
+
+Up to 8 durations, fixed at deployment, let the curator limit maturity risk.
+A cap for duration `d` limits total net credit in markets that mature in `d` or more.
+For example, a 30-day duration cap limits total net credit in markets that mature in 30 days or later.
+The adapter enforces duration caps itself.
+The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
 
 ## Other features
 
@@ -104,27 +125,6 @@ The sale reverts if the shortfall exceeds total unearned interest or the curator
 If the sold market is force-sellable, the adapter realizes the shortfall immediately, without reducing `netRate` or consuming `shortfallAllowance`.
 
 Bad debt reduces `realAssets` immediately without changing the `netRate` of the affected market.
-
-### Caps
-
-The vault caps the stored net credit of the adapter, not its amortized net credit.
-The caps apply to these IDs:
-
-- Adapter
-- Family: the collateral configurations, RCF threshold, and liquidator gate
-- Each collateral token
-
-Buys require non-zero absolute caps and must respect the absolute and relative caps of each ID.
-The curator uses family caps to approve combinations, not individual parameters.
-Markets that differ only by maturity or enter gate share the same family ID.
-
-### Duration caps
-
-Up to 8 durations, fixed at deployment, let the curator limit maturity risk.
-A cap for duration `d` limits total net credit in markets that mature in `d` or more.
-For example, a 30-day duration cap limits total net credit in markets that mature in 30 days or later.
-The adapter enforces duration caps itself.
-The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
 
 ### Operational constraints
 
