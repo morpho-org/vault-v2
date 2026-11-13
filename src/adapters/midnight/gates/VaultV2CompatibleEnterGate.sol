@@ -3,7 +3,7 @@
 pragma solidity 0.8.37;
 
 import {IEnterSubGate} from "./interfaces/IEnterSubGate.sol";
-import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
+import {IMidnightAdapterFactory} from "../interfaces/IMidnightAdapterFactory.sol";
 import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterGate.sol";
 
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.

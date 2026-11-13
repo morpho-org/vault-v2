@@ -3,23 +3,27 @@
 pragma solidity 0.8.37;
 
 import {
-    IMidnightAdapterPriceRatifierV1,
+    IMidnightAdapterRateRatifierV1,
     Ratification,
     EIP712_DOMAIN_TYPEHASH
-} from "./interfaces/IMidnightAdapterPriceRatifierV1.sol";
-import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
-import {IMidnight, Offer} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
-import {CALLBACK_SUCCESS} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
-import {HashLib} from "../../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
+} from "./interfaces/IMidnightAdapterRateRatifierV1.sol";
+import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../../../../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
+import {IMidnight, Offer} from "../../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {CALLBACK_SUCCESS, WAD} from "../../../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {TickLib} from "../../../../lib/midnight/src/libraries/TickLib.sol";
+import {UtilsLib} from "../../../../lib/midnight/src/libraries/UtilsLib.sol";
+import {HashLib} from "../../../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 
-import {IVaultV2} from "../../interfaces/IVaultV2.sol";
+import {IVaultV2} from "../../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
-/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
+/// @dev See comments in lib/midnight/src/ratifiers/RateRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
 /// @dev Allocators and sentinels can authorize other addresses through the adapter's Midnight instance to act on their behalf.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
-contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
+contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
+    using UtilsLib for uint256;
+
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
 
     function isRootRatified(address maker, bytes32 root) external view returns (bool) {
@@ -63,9 +67,7 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
         address parentVault = IMidnightAdapter(maker).parentVault();
         require(deadline >= block.timestamp, DeadlineExpired());
         bytes32 hashStruct = keccak256(
-            abi.encode(
-                HashLib.priceRatifierV1OfferTreeTypeHash(height), maker, root, newIsRootRatified, nonce, deadline
-            )
+            abi.encode(HashLib.rateRatifierV1OfferTreeTypeHash(height), maker, root, newIsRootRatified, nonce, deadline)
         );
         bytes32 digest = keccak256(bytes.concat("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
@@ -97,11 +99,15 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
     }
 
     function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32) {
-        (bytes32 root, uint256 leafIndex, bytes32[] memory proof, address allowedTaker) =
-            abi.decode(ratifierData, (bytes32, uint256, bytes32[], address));
+        (bytes32 root, uint256 leafIndex, bytes32[] memory proof, uint256 rate, address allowedTaker) =
+            abi.decode(ratifierData, (bytes32, uint256, bytes32[], uint256, address));
         require(allowedTaker == address(0) || taker == allowedTaker, UnauthorizedTaker());
+        uint256 timeToMaturity = UtilsLib.zeroFloorSub(offer.market.maturity, block.timestamp);
+        uint256 offerPrice = TickLib.tickToPrice(offer.tick);
+        if (offer.buy) require(offerPrice <= WAD.mulDivDown(WAD, WAD + rate * timeToMaturity), WorsePrice());
+        else require(offerPrice >= WAD.mulDivUp(WAD, WAD + rate * timeToMaturity), WorsePrice());
         require(
-            HashLib.isLeaf(root, HashLib.hashPriceRatifierV1Offer(offer, allowedTaker), leafIndex, proof),
+            HashLib.isLeaf(root, HashLib.hashRateRatifierV1Offer(offer, rate, allowedTaker), leafIndex, proof),
             InvalidProof()
         );
         require(ratification[offer.maker][root].isRootRatified, NotRatified());
