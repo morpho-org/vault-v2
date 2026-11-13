@@ -34,15 +34,49 @@ contract VaultV2CompatibleEnterGateTest is Test {
         subGate.setIsWhitelister(false, address(this), true);
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsCreated(adapter, true);
-        wrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        wrapper = new VaultV2CompatibleEnterGate(address(subGate), true);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(address(adapterFactory));
     }
 
     function testConstructor() public view {
+        assertTrue(wrapper.admitEnabled());
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
         assertTrue(wrapper.canAdmit(address(adapterFactory)));
+    }
+
+    function testConstructorAdmissionDisabled() public {
+        VaultV2CompatibleEnterGate disabled = new VaultV2CompatibleEnterGate(address(subGate), false);
+        assertEq(disabled.subGate(), address(subGate));
+        assertFalse(disabled.admitEnabled());
+        assertFalse(disabled.canAdmit(address(adapterFactory)));
+    }
+
+    function testAdmitDisabled(address user, address factory) public {
+        VaultV2CompatibleEnterGate disabled = new VaultV2CompatibleEnterGate(address(subGate), false);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.AdmitDisabled.selector);
+        vm.prank(adapter);
+        disabled.admit(user, factory);
+        assertFalse(disabled.canIncreaseCredit(user));
+    }
+
+    function testAddAdmitterFactoryDisabled(address factory) public {
+        VaultV2CompatibleEnterGate disabled = new VaultV2CompatibleEnterGate(address(subGate), false);
+        vm.expectRevert(IVaultV2CompatibleEnterGate.AdmitDisabled.selector);
+        vm.prank(creditRoleSetter);
+        disabled.addAdmitterFactory(factory);
+        assertFalse(disabled.canAdmit(factory));
+    }
+
+    function testDisabledAdmissionPreservesSubGatePermissions() public {
+        VaultV2CompatibleEnterGate disabled = new VaultV2CompatibleEnterGate(address(subGate), false);
+        subGate.setIsWhitelisted(true, depositor, true);
+        subGate.setIsWhitelisted(false, depositor, true);
+        assertTrue(disabled.canIncreaseCredit(depositor));
+        assertTrue(disabled.canIncreaseDebt(depositor));
+        assertFalse(disabled.canIncreaseCredit(recipient));
+        assertFalse(disabled.canIncreaseDebt(recipient));
     }
 
     function testAddAdmitterFactory(address factory) public {
@@ -188,7 +222,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateSharesWhitelist() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), true);
         subGate.setIsWhitelisted(true, depositor, true);
         subGate.setIsWhitelisted(false, recipient, true);
         assertTrue(wrapper.canIncreaseCredit(depositor));
@@ -200,7 +234,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsAdmissionsAndFactoriesSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), true);
         assertFalse(otherWrapper.canAdmit(address(adapterFactory)));
         vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
@@ -226,7 +260,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateRoleSetterChangesForBothWrappers() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate), true);
         address newRoleSetter = makeAddr("newRoleSetter");
         vm.prank(creditRoleSetter);
         subGate.setRoleSetter(true, newRoleSetter);
@@ -247,8 +281,8 @@ contract VaultV2CompatibleEnterGateTest is Test {
             "WhitelistEnterSubGate.sol:WhitelistEnterSubGate:default",
             abi.encode(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen)
         );
-        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate);
-        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate);
+        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate, true);
+        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate, true);
         assertEq(first.canIncreaseCredit(depositor), creditOpen);
         assertEq(second.canIncreaseCredit(depositor), creditOpen);
         assertEq(first.canIncreaseDebt(depositor), debtOpen);

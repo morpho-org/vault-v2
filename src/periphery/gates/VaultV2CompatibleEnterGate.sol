@@ -11,13 +11,16 @@ import {IVaultV2CompatibleEnterGate} from "./interfaces/IVaultV2CompatibleEnterG
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
 contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     address public immutable subGate;
+    /// @dev Immutable to preserve registered vaults' IKR guarantee. When false, markets using this gate won't be usable in vaults that need IKR (enterGateFactory != 0).
+    bool public immutable admitEnabled;
 
     mapping(address adapterFactory => bool) public canAdmit;
 
     address transient admitted;
 
-    constructor(address _subGate) {
+    constructor(address _subGate, bool _admitEnabled) {
         subGate = _subGate;
+        admitEnabled = _admitEnabled;
     }
 
     function roleSetter() public view returns (address) {
@@ -25,6 +28,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     }
 
     function addAdmitterFactory(address adapterFactory) external {
+        require(admitEnabled, AdmitDisabled());
         require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[adapterFactory] = true;
         emit AddAdmitterFactory(adapterFactory);
@@ -33,6 +37,7 @@ contract VaultV2CompatibleEnterGate is IVaultV2CompatibleEnterGate {
     /// @dev Transiently allow a vault shareholder to increase credit in any market using this gate.
     /// @dev The caller must be debt-free, check the buyer holds its vault's shares, and clear admission in its own sale's buyer callback before token transfers.
     function admit(address user, address adapterFactory) external {
+        require(admitEnabled, AdmitDisabled());
         require(
             canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
         );

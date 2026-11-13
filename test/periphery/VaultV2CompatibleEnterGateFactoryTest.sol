@@ -17,26 +17,30 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
         factory = new VaultV2CompatibleEnterGateFactory();
     }
 
-    function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate) public {
+    function testCreateVaultV2CompatibleEnterGate(address caller, address forwardedGate, bool enabled) public {
         bytes32 preSalt = bytes32(0);
         bytes32 salt = keccak256(abi.encode(preSalt, caller));
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(VaultV2CompatibleEnterGate).creationCode, abi.encode(forwardedGate)));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(type(VaultV2CompatibleEnterGate).creationCode, abi.encode(forwardedGate, enabled))
+        );
         address expected = vm.computeCreate2Address(salt, initCodeHash, address(factory));
         vm.recordLogs();
         vm.prank(caller);
-        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, preSalt);
+        address created = factory.createVaultV2CompatibleEnterGate(forwardedGate, enabled, preSalt);
 
         assertEq(created, expected);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(logs[0].emitter, address(factory));
-        assertEq(logs[0].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address,address,bytes32)"));
+        assertEq(logs[0].topics[0], keccak256("CreateVaultV2CompatibleEnterGate(address,address,address,bool,bytes32)"));
         assertEq(logs[0].topics[1], bytes32(uint256(uint160(caller))));
         assertEq(logs[0].topics[2], bytes32(uint256(uint160(created))));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(forwardedGate))));
-        assertEq(logs[0].data.length, 32);
-        assertEq(abi.decode(logs[0].data, (bytes32)), preSalt);
+        assertEq(logs[0].data.length, 64);
+        (bool emittedEnabled, bytes32 emittedPreSalt) = abi.decode(logs[0].data, (bool, bytes32));
+        assertEq(emittedEnabled, enabled);
+        assertEq(emittedPreSalt, preSalt);
+        assertEq(VaultV2CompatibleEnterGate(created).admitEnabled(), enabled);
         assertTrue(IEnterGateFactory(address(factory)).isCreated(created));
         assertEq(VaultV2CompatibleEnterGate(created).subGate(), forwardedGate);
         assertFalse(VaultV2CompatibleEnterGate(created).canAdmit(adapterFactory));
@@ -45,8 +49,8 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     function testCreateMultipleGatesWithDifferentSalts() public {
         bytes32 firstPreSalt = bytes32(0);
         bytes32 secondPreSalt = bytes32(uint256(1));
-        address first = factory.createVaultV2CompatibleEnterGate(gate, firstPreSalt);
-        address second = factory.createVaultV2CompatibleEnterGate(gate, secondPreSalt);
+        address first = factory.createVaultV2CompatibleEnterGate(gate, true, firstPreSalt);
+        address second = factory.createVaultV2CompatibleEnterGate(gate, true, secondPreSalt);
 
         assertNotEq(first, second);
         assertTrue(factory.isCreated(first));
@@ -55,11 +59,11 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
 
     function testSamePreSaltFromDifferentCallersCreatesDifferentGates() public {
         bytes32 preSalt = bytes32(0);
-        address first = factory.createVaultV2CompatibleEnterGate(gate, preSalt);
+        address first = factory.createVaultV2CompatibleEnterGate(gate, true, preSalt);
 
         address otherCaller = makeAddr("other");
         vm.prank(otherCaller);
-        address second = factory.createVaultV2CompatibleEnterGate(gate, preSalt);
+        address second = factory.createVaultV2CompatibleEnterGate(gate, true, preSalt);
 
         assertNotEq(first, second);
         assertTrue(factory.isCreated(first));
@@ -67,9 +71,9 @@ contract VaultV2CompatibleEnterGateFactoryTest is Test {
     }
 
     function testIsCreatedRejectsUnregisteredGates() public {
-        address direct = address(new VaultV2CompatibleEnterGate(gate));
+        address direct = address(new VaultV2CompatibleEnterGate(gate, true));
         VaultV2CompatibleEnterGateFactory otherFactory = new VaultV2CompatibleEnterGateFactory();
-        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, bytes32(0));
+        address other = otherFactory.createVaultV2CompatibleEnterGate(gate, true, bytes32(0));
 
         assertFalse(factory.isCreated(address(0)));
         assertFalse(factory.isCreated(gate));

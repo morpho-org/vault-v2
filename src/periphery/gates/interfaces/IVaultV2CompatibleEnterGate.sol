@@ -13,10 +13,12 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* ERRORS */
 
     error Unauthorized();
+    error AdmitDisabled();
 
     /* FUNCTIONS */
 
     function subGate() external view returns (address);
+    function admitEnabled() external view returns (bool);
     function canAdmit(address adapterFactory) external view returns (bool);
     function roleSetter() external view returns (address);
     function addAdmitterFactory(address adapterFactory) external;

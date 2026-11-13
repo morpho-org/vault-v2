@@ -335,7 +335,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
         market.enterGate = IVaultV2CompatibleEnterGateFactory(enterGateFactory)
-            .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
+            .createVaultV2CompatibleEnterGate(address(subGate), true, bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
