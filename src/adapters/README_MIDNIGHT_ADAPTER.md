@@ -45,19 +45,6 @@ These delays let depositors exit before the curator increases `maxTtm`, enables 
 
 ## Other features
 
-### Operational constraints
-
-These constraints are intended for operational quality of life, not to provide guarantees to depositors.
-The curator can constrain allocator trades without a timelock:
-
-- **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
-- **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
-- **`shortfallAllowance`**: Total shortfall allowed from sales, in asset units. It starts at zero. Only the curator can increase it, and it is consumed at every sale below amortized value, unless the market is [force-sellable](#force-sellable-markets).
-- **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). It starts at zero, with no minimum price. It uses a price instead of a rate so sales can occur below net credit at or after maturity.
-
-Only `minForceSellPrice` is set per market.
-The other three settings are set for the whole adapter.
-
 ### Trading
 
 The adapter trades as a taker when a vault allocator calls `take`, or as a maker through offers approved by [sub-ratifiers](#sub-ratifiers).
@@ -138,6 +125,19 @@ A cap for duration `d` limits total net credit in markets that mature in `d` or 
 For example, a 30-day duration cap limits total net credit in markets that mature in 30 days or later.
 The adapter enforces duration caps itself.
 The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
+
+### Operational constraints
+
+These constraints are intended for operational quality of life, not to provide guarantees to depositors.
+The curator can constrain allocator trades without a timelock:
+
+- **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
+- **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
+- **`shortfallAllowance`**: Total shortfall allowed from sales, in asset units. It starts at zero. Only the curator can increase it, and it is consumed at every sale below amortized value, unless the market is [force-sellable](#force-sellable-markets).
+- **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). It starts at zero, with no minimum price. It uses a price instead of a rate so sales can occur below net credit at or after maturity.
+
+Only `minForceSellPrice` is set per market.
+The other three settings are set for the whole adapter.
 
 ### Force-sellable markets
 
