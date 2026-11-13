@@ -1,6 +1,6 @@
 # Midnight adapter
 
-[MidnightAdapter](./MidnightAdapter.sol) lets a [Vault V2](../../README.md) allocate assets into [Midnight](https://github.com/morpho-org/midnight) fixed-rate, fixed-maturity markets.
+[MidnightAdapter](./MidnightAdapter.sol) lets a [Vault V2](../../../README.md) allocate assets into [Midnight](https://github.com/morpho-org/midnight) fixed-rate, fixed-maturity markets.
 The adapter holds credit on behalf of its parent vault.
 It buys credit, sells credit, and withdraws repaid assets back to the vault.
 The adapter uses the roles of its parent vault (curator, allocators, and sentinels).
@@ -25,7 +25,7 @@ The shareholder can then withdraw from the vault to complete the in-kind redempt
 
 #### Enter gates
 
-The adapter can be configured with an `enterGateFactory`, such as [VaultV2CompatibleEnterGateFactory](../periphery/gates/VaultV2CompatibleEnterGateFactory.sol).
+The adapter can be configured with an `enterGateFactory`, such as [VaultV2CompatibleEnterGateFactory](./gates/VaultV2CompatibleEnterGateFactory.sol).
 When `enterGateFactory` is set, entering a new active market requires either no enter gate or an enter gate deployed by `enterGateFactory`.
 If present, the enter gate must also authorize the factory that deployed the adapter.
 `VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
@@ -37,10 +37,10 @@ An incompatible `enterGateFactory` can allow markets whose enter gates block in-
 
 ### Timelocked settings
 
-The adapter has its own [timelock system](../../README.md#timelocks), with the same flow as the vault.
+The adapter has its own [timelock system](../../../README.md#timelocks), with the same flow as the vault.
 Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault timelocks.
-Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
+Before adding the adapter, the curator must configure its timelocks to preserve the [non-custodial guarantees](../../../README.md#non-custodial-guarantees) and check that no unsafe actions are pending.
 These delays let depositors exit before the curator increases `maxTtm`, enables `forceSellable`, or force-removes a market.
 
 ### Caps
@@ -165,3 +165,38 @@ The adapter reads roles directly from its `parentVault`:
 - **Curator**: Configures `maxTtm`, operational constraints, force-sellable markets, `skimRecipient`, and timelocks. Can submit market removals and revoke pending changes.
 - **Allocators**: Trade, withdraw repaid assets, manage sub-ratifiers, approve offers, and cancel offer approvals.
 - **Sentinels**: Withdraw repaid assets, revoke pending changes, decrease `maxTtm`, and unset `forceSellable`. Can disable sub-ratifiers and cancel offer approvals.
+
+## Midnight Enter Gates and Subgates
+
+These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
+Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions.
+
+### `VaultV2CompatibleEnterGate`
+
+Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
+Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
+One gate can be the enterGate of any number of markets.
+For ordinary permission checks, the gate calls its `subGate` with the account.
+During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The adapter sells through its own offer and is the buyer callback of that sale: it clears the admission in that callback, before Midnight transfers the loan token, so neither the buyer nor the token can reuse it.
+
+### `VaultV2CompatibleEnterGateFactory`
+
+Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
+The factory records each gate in `isCreated[gate]`.
+
+### `WhitelistEnterSubGate`
+
+A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
+`VaultV2CompatibleEnterGate` calls this subgate with an account.
+It cannot be used directly as a Midnight or Vault V2 gate.
+
+Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
+Each side has its own role setter, who grants or revokes the whitelister role on that side.
+Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
+`setIsWhitelistedWithSig` accepts a stale nonce when the account is already set to the signed value. The signature must still be unexpired and from a current whitelister.
+A side can be made open at deployment, letting any account enter on that side (forever).
+
+### `WhitelistEnterSubGateFactory`
+
+Deploys a deterministic `WhitelistEnterSubGate` using `CREATE2` with a salt derived from the caller and a caller-provided pre-salt.
+The factory records subgates in `isCreated`.

@@ -3,16 +3,18 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "../BaseTest.sol";
-import {IMidnightAdapter, IMidnightAdapterBase} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
-import {IMidnightAdapterFactory} from "../../src/adapters/interfaces/IMidnightAdapterFactory.sol";
+import {IMidnightAdapter, IMidnightAdapterBase} from "../../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "../../src/adapters/midnight/interfaces/IMidnightAdapterFactory.sol";
 import {
     IMidnightAdapterPriceRatifierV1
-} from "../../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+} from "../../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
-import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {
+    IVaultV2CompatibleEnterGate
+} from "../../src/adapters/midnight/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
 import {
     IVaultV2CompatibleEnterGateFactory
-} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
+} from "../../src/adapters/midnight/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
@@ -22,8 +24,10 @@ import {IFlashLoanCallback} from "../../lib/midnight/src/interfaces/ICallbacks.s
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
-import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
+import {IWhitelistEnterSubGate} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {
+    IWhitelistEnterSubGateFactory
+} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
