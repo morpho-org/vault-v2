@@ -21,7 +21,7 @@ The following adapters are currently available:
 
 - [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol) (Morpho Blue).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-- Midnight Adapter. WIP
+- [Midnight Adapter](./src/adapters/midnight/).
 
 ### Caps
 

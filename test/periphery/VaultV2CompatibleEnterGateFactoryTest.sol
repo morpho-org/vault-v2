@@ -4,9 +4,11 @@ pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {Vm} from "../../lib/forge-std/src/Vm.sol";
-import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
-import {VaultV2CompatibleEnterGateFactory} from "../../src/periphery/gates/VaultV2CompatibleEnterGateFactory.sol";
-import {IEnterGateFactory} from "../../src/periphery/gates/interfaces/IEnterGateFactory.sol";
+import {VaultV2CompatibleEnterGate} from "../../src/adapters/midnight/gates/VaultV2CompatibleEnterGate.sol";
+import {
+    VaultV2CompatibleEnterGateFactory
+} from "../../src/adapters/midnight/gates/VaultV2CompatibleEnterGateFactory.sol";
+import {IEnterGateFactory} from "../../src/adapters/midnight/gates/interfaces/IEnterGateFactory.sol";
 
 contract VaultV2CompatibleEnterGateFactoryTest is Test {
     VaultV2CompatibleEnterGateFactory internal factory;

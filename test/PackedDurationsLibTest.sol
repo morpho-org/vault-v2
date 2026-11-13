@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {PackedDurationsLib} from "../src/adapters/libraries/PackedDurationsLib.sol";
+import {PackedDurationsLib} from "../src/adapters/midnight/libraries/PackedDurationsLib.sol";
 
 contract PackedDurationsLibTest is Test {
     uint256 internal constant MAX_LENGTH = 8;

@@ -2,19 +2,19 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.37;
 
-import {IMidnight, Offer, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
-import {IRatifier} from "../../lib/midnight/src/interfaces/IRatifier.sol";
-import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
-import {CALLBACK_SUCCESS} from "../../lib/midnight/src/libraries/ConstantsLib.sol";
-import {IERC20} from "../interfaces/IERC20.sol";
-import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {MathLib} from "../libraries/MathLib.sol";
-import {WAD} from "../libraries/ConstantsLib.sol";
-import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IMidnight, Offer, Market} from "../../../lib/midnight/src/interfaces/IMidnight.sol";
+import {IRatifier} from "../../../lib/midnight/src/interfaces/IRatifier.sol";
+import {IdLib} from "../../../lib/midnight/src/libraries/IdLib.sol";
+import {CALLBACK_SUCCESS} from "../../../lib/midnight/src/libraries/ConstantsLib.sol";
+import {IERC20} from "../../interfaces/IERC20.sol";
+import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../../libraries/MathLib.sol";
+import {WAD} from "../../libraries/ConstantsLib.sol";
+import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
-import {IVaultV2CompatibleEnterGate} from "../periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
-import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory.sol";
+import {IVaultV2CompatibleEnterGate} from "./gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.

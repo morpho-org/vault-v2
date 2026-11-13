@@ -61,12 +61,12 @@ evm_version = "paris"
 
 # The adapter's initcode is embedded in its factory. 833 is the highest optimizer_runs value for which the factory fits under EIP-170.
 [[profile.default.compilation_restrictions]]
-paths = "src/adapters/MidnightAdapter.sol"
+paths = "src/adapters/midnight/MidnightAdapter.sol"
 optimizer_runs = 833
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
-paths = "src/adapters/ratifiers/MidnightAdapter*.sol"
+paths = "src/adapters/midnight/ratifiers/MidnightAdapter*.sol"
 optimizer_runs = 800
 evm_version = "osaka"
 
