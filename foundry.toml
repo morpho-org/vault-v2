@@ -67,7 +67,7 @@ evm_version = "osaka"
 
 # The enter gate only needs osaka. It is compiled with the adapter's settings.
 [[profile.default.compilation_restrictions]]
-paths = "src/periphery/gates/VaultV2CompatibleEnterGate*.sol"
+paths = "src/adapters/midnight/gates/VaultV2CompatibleEnterGate*.sol"
 optimizer_runs = 833
 evm_version = "osaka"
 
