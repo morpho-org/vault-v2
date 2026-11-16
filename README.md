@@ -62,7 +62,6 @@ With the Midnight adapter, the user instead buys the adapter's credit through `f
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
 Midnight also charges its settlement fee for in-kind redemptions.
-With a 0% penalty, the only friction is the gas cost, plus Midnight's settlement fee.
 
 ### Non-custodial guarantees
 
