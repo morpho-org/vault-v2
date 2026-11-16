@@ -63,7 +63,9 @@ A cap for duration `d` limits total net credit in markets that mature in `d` or 
 For example, a 30-day duration cap limits total net credit in markets that mature in 30 days or later.
 The adapter enforces duration caps itself.
 The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
-As this cap is time-dependent, its allocation can temporarily be above its real value before being updated.
+Duration caps are checked on buys, using the stored net credit and current time to maturity of each market.
+A market stops counting toward a duration once less than that duration is left before maturity.
+
 ## Other features
 
 ### Trading
