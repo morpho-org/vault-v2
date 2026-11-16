@@ -86,7 +86,7 @@ On buys, the callback data of the trade selects the funding source, and allocato
 
 Allocators and sentinels can withdraw assets from a Midnight market of the adapter by calling `deallocate` on the vault.
 Withdrawals require Midnight withdrawable liquidity from repayments or liquidations, even after maturity.
-Calling `deallocate` with zero assets synchronizes stored net credit and maturity ids after a loss without withdrawing assets.
+Calling `deallocate` with zero assets synchronizes stored net credit and vault caps allocations after a loss without withdrawing assets.
 Trades, withdrawals, and in-kind redemptions require the market loan token to match the vault asset.
 
 ### Sub-ratifiers
