@@ -70,7 +70,8 @@ As this cap is time-dependent, its allocation can temporarily be above its real 
 
 The adapter trades as a taker when a vault allocator calls `take`, or as a maker through offers approved by [sub-ratifiers](#sub-ratifiers).
 
-The adapter must have the allocator role on the vault to buy, and the allocator or sentinel role to sell, self-fund buys, or force-remove a market with stored net credit.
+The adapter must have the allocator role on the vault to buy, including self-funded buys.
+It must have the allocator or sentinel role to sell or force-remove a market with stored net credit.
 [`forceDeallocate`](#in-kind-redemptions) does not require the adapter to have these roles.
 
 The adapter must not be set as the liquidity adapter of the vault as vault deposits would revert.
