@@ -81,9 +81,12 @@ function increaseMidnightNetCredit(bytes32 marketId) {
     ghostMidnightNetCredit[marketId] = newNetCredit;
 }
 
+definition midnightNetCreditBounded() returns bool =
+    forall bytes32 marketId. !currentContract.marketData[marketId].forceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit;
+
 // Prove that stored net credit bounds Midnight net credit unless the market was force removed.
 strong invariant midnightNetCreditBelowStoredNetCredit()
-    forall bytes32 marketId. !currentContract.marketData[marketId].forceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit
+    midnightNetCreditBounded()
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
@@ -108,6 +111,34 @@ strong invariant nonZeroNetCreditIsListed()
             requireMarketIdsInvariants();
         
             // forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            if (!currentContract.inForceDeallocate) {
+                increaseMidnightNetCredit(marketId);
+            }
+        }
+    }
+
+// Whether the method being checked may increase stored net credit: onBuy, unless called back from forceDeallocate.
+persistent ghost bool netCreditIncreaseAllowed;
+
+// Whether stored net credit increased in a method that may not increase it.
+persistent ghost bool netCreditIncreasedOutsideBuy {
+    init_state axiom !netCreditIncreasedOutsideBuy;
+}
+
+hook Sstore currentContract.marketData[KEY bytes32 marketId].netCredit uint128 newNetCredit (uint128 oldNetCredit) {
+    if (newNetCredit > oldNetCredit && !netCreditIncreaseAllowed) netCreditIncreasedOutsideBuy = true;
+}
+
+// Prove that stored net credit increases only in onBuy, and not when onBuy is called back from forceDeallocate.
+// It includes midnightNetCreditBelowStoredNetCredit so that it also holds after the arbitrary calls of strong invariants: other methods store the adapter's net credit in Midnight, which is then at most the stored net credit.
+strong invariant storedNetCreditIncreasesOnlyInBuy()
+    !netCreditIncreasedOutsideBuy && midnightNetCreditBounded()
+    {
+        preserved {
+            netCreditIncreaseAllowed = false;
+        }
+        preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            netCreditIncreaseAllowed = !currentContract.inForceDeallocate;
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
             }
