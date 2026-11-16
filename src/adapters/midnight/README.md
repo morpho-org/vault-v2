@@ -65,7 +65,7 @@ The adapter enforces duration caps itself.
 The adapter also enforces `maxTtm`, the maximum time to maturity for buys across all markets.
 Duration caps are checked on buys, using the stored net credit and current time to maturity of each market.
 A market stops counting toward a duration once less than that duration is left before maturity.
-
+As this cap is time-dependent, its allocation can temporarily be above its real value before being updated.
 ## Other features
 
 ### Trading
