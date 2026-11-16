@@ -48,7 +48,7 @@ These delays let depositors exit before the curator increases `maxTtm`, enables 
 The vault caps the stored net credit of the adapter, not its amortized net credit.
 The caps apply to these IDs:
 
-- Adapter
+- Adapter address
 - Family: the collateral configurations, RCF threshold, and liquidator gate
 - Each collateral token
 
