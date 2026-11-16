@@ -17,7 +17,7 @@ methods {
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
 
     // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
-    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address, address, address takerCallback, bytes) external => cvlTake(offer, takerCallback) expect(uint256, uint256);
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address taker, address, address takerCallback, bytes) external => cvlTake(offer, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
 
     // The loan token and enter gate must not reenter the adapter.
@@ -33,7 +33,18 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
-function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
+function cvlTake(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
+    require offer.maker != taker, "Midnight reverts on SelfTake";
+    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "Midnight requires an authorized maker ratifier; the adapter only authorizes itself in its constructor, and isRatifiedRequiresAdapterCallback checks its callback outside forceDeallocate";
+    address buyer = offer.buy ? offer.maker : taker;
+    address buyerCallback = offer.buy ? offer.callback : takerCallback;
+
+    // If the buyer-side callback is the adapter, Midnight credits it before onBuy, checked as an entry point (netCreditIncreaseCallsOnBuy, midnight PR #1252).
+    // The invariants exclude other callbacks: take passes itself, isRatified checks its offers, and forceDeallocate makes it the seller of a sell offer.
+    if (buyer == currentContract && buyerCallback != currentContract) {
+        bytes32 marketId;
+        increaseMidnightNetCredit(marketId);
+    }
     if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
         env e;
         address dummy;
@@ -63,19 +74,19 @@ function requireMarketIdsInvariants() {
     require forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].index == i, "see marketIdsIndex in MarketIdsMidnightAdapter.spec";
 }
 
-// The adapter's net credit in Midnight can decrease at any time (sales, withdrawals, losses), so each read can return a lower value. It increases only when the adapter buys, which Midnight does before calling onBuy, checked as an entry point.
+// Net credit can decrease at any read (sales, withdrawals, losses). Increases with the adapter as buyer-side callback precede onBuy, checked as an entry point; cvlTake models other callbacks.
 function cvlUpdatePositionView(bytes32 id, address user) returns (uint128, uint128, uint128) {
     uint128 credit;
     uint128 pendingFee;
     uint128 accruedFee;
     if (user == currentContract) {
-        require credit - pendingFee <= ghostMidnightNetCredit[id], "Midnight net credit only increases in buys";
+        require credit - pendingFee <= ghostMidnightNetCredit[id], "Midnight net credit increases are modeled in onBuy and cvlTake";
         if (credit >= pendingFee) ghostMidnightNetCredit[id] = assert_uint128(credit - pendingFee);
     }
     return (credit, pendingFee, accruedFee);
 }
 
-// Midnight credits the bought units to the adapter before calling onBuy.
+// Model Midnight crediting the adapter, before onBuy if it is the buyer-side callback.
 function increaseMidnightNetCredit(bytes32 marketId) {
     uint128 newNetCredit;
     ghostMidnightNetCredit[marketId] = newNetCredit;
@@ -88,7 +99,7 @@ strong invariant midnightNetCreditBelowStoredNetCredit()
     midnightNetCreditBounded()
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
-            // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
+            // With the adapter as buyer-side callback, Midnight credits it before onBuy, including as maker.
             // Exception: forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
@@ -109,7 +120,7 @@ strong invariant nonZeroNetCreditIsListed()
             requireInvariant midnightNetCreditBelowStoredNetCredit();
             requireMarketIdsInvariants();
         
-            // forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            // With the adapter as buyer-side callback, Midnight credits it before onBuy, except in forceDeallocate where it sells.
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
             }
@@ -137,9 +148,16 @@ strong invariant storedNetCreditIncreasesOnlyInBuy()
             netCreditIncreaseAllowed = false;
         }
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
+            // With the adapter as buyer-side callback, Midnight credits it before onBuy, except in forceDeallocate where it sells.
             netCreditIncreaseAllowed = !currentContract.inForceDeallocate;
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
             }
         }
     }
+
+rule isRatifiedRequiresAdapterCallback(env e, MidnightAdapter.Offer offer, bytes ratifierData, address taker) {
+    require !currentContract.inForceDeallocate, "forceDeallocate bypasses ratification checks";
+    isRatified(e, offer, ratifierData, taker);
+    assert offer.maker == currentContract && offer.callback == currentContract;
+}
