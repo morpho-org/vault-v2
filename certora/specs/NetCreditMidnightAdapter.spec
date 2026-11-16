@@ -35,8 +35,8 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
 function cvlTake(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
-    require offer.maker != taker, "Midnight's take reverts with SelfTake when maker == taker";
-    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "Midnight requires an authorized maker ratifier; adapterOnlyAuthorizesItself checks its authorizations, and isRatifiedRequiresAdapterCallback checks its callback outside forceDeallocate";
+    require offer.maker != taker, "proved by takeRequiresDistinctMakerAndTaker in Midnight's Ratification.spec (morpho-org/midnight#1253)";
+    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "the ratifier of an offer made by the adapter is the adapter: proved by takeRequiresMakerConsent in Midnight's Ratification.spec and adapterOnlyAuthorizesItself; take calls its isRatified and requires success: proved by takeRequiresRatifierSuccess (morpho-org/midnight#1253); isRatified requires the adapter as callback outside forceDeallocate: proved by isRatifiedRequiresAdapterCallback";
     address buyer = offer.buy ? offer.maker : taker;
     address buyerCallback = offer.buy ? offer.callback : takerCallback;
 
