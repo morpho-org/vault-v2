@@ -19,6 +19,7 @@ methods {
     // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
     function _.take(MidnightAdapter.Offer offer, bytes, uint256, address taker, address, address takerCallback, bytes) external => cvlTake(offer, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
+    function _.setIsAuthorized(address authorized, bool newIsAuthorized, address) external => recordAuthorization(calledContract, executingContract, authorized, newIsAuthorized) expect void;
 
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
@@ -34,7 +35,8 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
 function cvlTake(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
-    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "Midnight requires an authorized maker ratifier; the adapter only authorizes itself in its constructor, and isRatifiedRequiresAdapterCallback checks its callback outside forceDeallocate";
+    require offer.maker != taker, "Midnight's take reverts with SelfTake when maker == taker";
+    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "Midnight requires an authorized maker ratifier; adapterOnlyAuthorizesItself checks its authorizations, and isRatifiedRequiresAdapterCallback checks its callback outside forceDeallocate";
     address buyer = offer.buy ? offer.maker : taker;
     address buyerCallback = offer.buy ? offer.callback : takerCallback;
 
@@ -160,3 +162,23 @@ rule isRatifiedRequiresAdapterCallback(env e, MidnightAdapter.Offer offer, bytes
     isRatified(e, offer, ratifierData, taker);
     assert offer.maker == currentContract && offer.callback == currentContract;
 }
+
+// Persistent so arbitrary callbacks cannot erase the adapter's authorization calls.
+persistent ghost bool authorizedAnotherAccount {
+    init_state axiom !authorizedAnotherAccount;
+}
+
+function recordAuthorization(address target, address caller, address authorized, bool newIsAuthorized) {
+    if (
+        target == currentContract.midnight
+            && caller == currentContract
+            && newIsAuthorized
+            && authorized != currentContract
+    ) {
+        authorizedAnotherAccount = true;
+    }
+}
+
+// Check the constructor and every adapter method, including reentrant calls.
+strong invariant adapterOnlyAuthorizesItself()
+    !authorizedAnotherAccount;
