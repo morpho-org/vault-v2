@@ -81,8 +81,7 @@ function increaseMidnightNetCredit(bytes32 marketId) {
     ghostMidnightNetCredit[marketId] = newNetCredit;
 }
 
-definition midnightNetCreditBounded() returns bool =
-    forall bytes32 marketId. !currentContract.marketData[marketId].forceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit;
+definition midnightNetCreditBounded() returns bool = forall bytes32 marketId. !currentContract.marketData[marketId].forceRemoved => ghostMidnightNetCredit[marketId] <= currentContract.marketData[marketId].netCredit;
 
 // Prove that stored net credit bounds Midnight net credit unless the market was force removed.
 strong invariant midnightNetCreditBelowStoredNetCredit()
