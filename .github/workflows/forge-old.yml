@@ -61,7 +61,7 @@ jobs:
       - name: Run Forge tests
         run: if [ "${{ matrix.isolate }}" = true ]; then forge test --offline -vvv --isolate; else forge test --offline -vvv; fi
         env:
-          FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
+          FOUNDRY_FUZZ_SEED: 0x${{ github.sha }}
           DECIMALS: ${{ matrix.decimals }}
           TOKEN_TYPE: ${{ matrix.token-type }}
 
