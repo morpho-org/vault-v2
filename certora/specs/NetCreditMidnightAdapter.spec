@@ -19,7 +19,7 @@ methods {
     // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
     function _.take(MidnightAdapter.Offer offer, bytes, uint256, address taker, address, address takerCallback, bytes) external => cvlTake(offer, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
-    function _.setIsAuthorized(address authorized, bool newIsAuthorized, address) external => recordAuthorization(calledContract, executingContract, authorized, newIsAuthorized) expect void;
+    function _.setIsAuthorized(address authorized, bool newIsAuthorized, address) external => CVL_recordAuthorization(calledContract, executingContract, authorized, newIsAuthorized) expect void;
 
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
@@ -54,6 +54,22 @@ function cvlTake(MidnightAdapter.Offer offer, address taker, address takerCallba
     uint256 buyerAssets;
     uint256 sellerAssets;
     return (buyerAssets, sellerAssets);
+}
+
+// Persistent so arbitrary callbacks cannot erase the adapter's authorization calls.
+persistent ghost bool authorizedAnotherAccount {
+    init_state axiom !authorizedAnotherAccount;
+}
+
+function CVL_recordAuthorization(address target, address caller, address authorized, bool newIsAuthorized) {
+    if (
+        target == currentContract.midnight
+            && caller == currentContract
+            && newIsAuthorized
+            && authorized != currentContract
+    ) {
+        authorizedAnotherAccount = true;
+    }
 }
 
 definition isArbitraryCallback(address callback) returns bool = callback != 0 && callback != currentContract;
@@ -161,22 +177,6 @@ rule isRatifiedRequiresAdapterCallback(env e, MidnightAdapter.Offer offer, bytes
     require !currentContract.inForceDeallocate, "forceDeallocate bypasses ratification checks";
     isRatified(e, offer, ratifierData, taker);
     assert offer.maker == currentContract && offer.callback == currentContract;
-}
-
-// Persistent so arbitrary callbacks cannot erase the adapter's authorization calls.
-persistent ghost bool authorizedAnotherAccount {
-    init_state axiom !authorizedAnotherAccount;
-}
-
-function recordAuthorization(address target, address caller, address authorized, bool newIsAuthorized) {
-    if (
-        target == currentContract.midnight
-            && caller == currentContract
-            && newIsAuthorized
-            && authorized != currentContract
-    ) {
-        authorizedAnotherAccount = true;
-    }
 }
 
 // Check the constructor and every adapter method, including reentrant calls.
