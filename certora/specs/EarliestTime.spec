@@ -25,7 +25,7 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
-    
+
         if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
             minDecreaseTimelock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {

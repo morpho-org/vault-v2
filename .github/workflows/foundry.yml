@@ -7,6 +7,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   fmt:
     runs-on: ubuntu-latest
@@ -17,6 +24,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable # Deliberately exercise the current stable release.
 
       - name: Run forge fmt
         run: forge fmt src test script certora --check
@@ -27,12 +36,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
-
-      - name: Run forge lint
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable # Deliberately exercise the current stable release.
+      - name: Lint contracts and verification harnesses
         run: forge lint src certora --deny notes
+      - name: Lint tests
+        run: FOUNDRY_PROFILE=lint-test forge lint test --deny notes
 
   sizes:
     runs-on: ubuntu-latest
@@ -43,6 +53,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable # Deliberately exercise the current stable release.
 
       - name: Run forge build
         run: forge build --force --sizes
@@ -78,6 +90,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: stable # Deliberately exercise the current stable release.
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi

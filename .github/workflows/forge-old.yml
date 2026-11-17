@@ -10,8 +10,29 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
-  forge-old:
+  test:
+    strategy:
+      fail-fast: true
+      matrix:
+        decimals: [0, 6, 8, 18, 24]
+        isolate: [true, false]
+        token-type: [0]
+        include:
+          - { token-type: 0, token: standard }
+          - { decimals: 18, isolate: true, token-type: 1, token: no-revert }
+          - { decimals: 18, isolate: true, token-type: 2, token: usdt }
+          - { decimals: 18, isolate: true, token-type: 3, token: revert-to-zero }
+          - { decimals: 18, isolate: true, token-type: 4, token: no-return }
+          - { decimals: 18, isolate: false, token-type: 1, token: no-revert }
+          - { decimals: 18, isolate: false, token-type: 2, token: usdt }
+          - { decimals: 18, isolate: false, token-type: 3, token: revert-to-zero }
+          - { decimals: 18, isolate: false, token-type: 4, token: no-return }
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -41,4 +62,17 @@ jobs:
             chmod +x "$solc"
           done
       - name: Run Forge tests
-        run: forge test --offline
+        run: if [ "${{ matrix.isolate }}" = true ]; then forge test --offline -vvv --isolate; else forge test --offline -vvv; fi
+        env:
+          DECIMALS: ${{ matrix.decimals }}
+          TOKEN_TYPE: ${{ matrix.token-type }}
+
+  forge-old:
+    if: ${{ always() }}
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every legacy test combination
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success
