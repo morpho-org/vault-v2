@@ -130,7 +130,7 @@ Verification is performed according to the following modeling conventions:
 
 # Getting started
 
-Install the `certora-cli` package with `pip install certora-cli==8.20.3`.
+Install the `certora-cli` package with `pip install certora-cli`.
 To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`.
 This requires a valid Certora key in the `CERTORAKEY` environment variable.
 The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, `solc-0.8.28`, and `solc-0.8.37`; the compiler versions required by a particular job are listed in its configuration.
