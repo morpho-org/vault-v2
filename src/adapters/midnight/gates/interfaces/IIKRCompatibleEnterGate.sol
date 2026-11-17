@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 
 import {IEnterGate} from "../../../../../lib/midnight/src/interfaces/IGate.sol";
 
-interface IVaultV2CompatibleEnterGate is IEnterGate {
+interface IIKRCompatibleEnterGate is IEnterGate {
     /* EVENTS */
 
     event AddAdmitterFactory(address indexed adapterFactory);

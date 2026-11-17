@@ -13,7 +13,7 @@ import {WAD} from "../../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
-import {IVaultV2CompatibleEnterGate} from "./gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {IIKRCompatibleEnterGate} from "./gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
@@ -66,7 +66,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev If enterGateFactory is not VaultV2CompatibleEnterGate, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
+/// @dev If enterGateFactory is not IKRCompatibleEnterGate, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
@@ -442,7 +442,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
                 // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
-                IVaultV2CompatibleEnterGate(market.enterGate).admit(taker, factory);
+                IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory);
                 admitting = true;
             }
             inForceDeallocate = true;
@@ -505,7 +505,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             inForceDeallocate = false;
             if (admitting) {
                 admitting = false;
-                IVaultV2CompatibleEnterGate(market.enterGate).unadmit();
+                IIKRCompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
             require(buyer == address(this), NotSelf());
@@ -546,7 +546,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(
                     market.enterGate == address(0) || enterGateFactory == address(0)
                         || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IVaultV2CompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                            && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)),
                     IncorrectEnterGate()
                 );
             }

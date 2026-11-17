@@ -7,7 +7,7 @@ Midnight Adapter. WIP.
 These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
 Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions.
 
-### `VaultV2CompatibleEnterGate`
+### `IKRCompatibleEnterGate`
 
 Despite its name, this is a Midnight enter gate, not a Vault V2 gate.
 Midnight calls its `canIncreaseCredit(account)` and `canIncreaseDebt(account)` functions.
@@ -15,15 +15,15 @@ One gate can be the enterGate of any number of markets.
 For ordinary permission checks, the gate calls its `subGate` with the account.
 During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval. The adapter sells through its own offer and is the buyer callback of that sale: it clears the admission in that callback, before Midnight transfers the loan token, so neither the buyer nor the token can reuse it.
 
-### `VaultV2CompatibleEnterGateFactory`
+### `IKRCompatibleEnterGateFactory`
 
-Deploys `VaultV2CompatibleEnterGate` contracts using `CREATE2`.
+Deploys `IKRCompatibleEnterGate` contracts using `CREATE2`.
 The factory records each gate in `isCreated[gate]`.
 
 ### `WhitelistEnterSubGate`
 
 A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
-`VaultV2CompatibleEnterGate` calls this subgate with an account.
+`IKRCompatibleEnterGate` calls this subgate with an account.
 It cannot be used directly as a Midnight or Vault V2 gate.
 
 Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
