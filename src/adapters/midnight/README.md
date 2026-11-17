@@ -13,17 +13,20 @@ With a compatible [`enterGateFactory`](#enter-gates) configured, market enter ga
 
 ### In-kind redemptions
 
-The vault shareholder uses `forceDeallocate` on the vault to obtain credit from the adapter.
+Anyone can call `forceSell(market, assets, taker)` on the adapter to buy its credit at face value.
+The caller must be the taker or authorized by the taker on Midnight, and the taker must authorize the adapter.
+Neither needs to hold vault shares.
 The payment is the credit amount before pending fees plus the Midnight settlement fee.
 In-kind redemptions therefore happen at a price of one asset per unit of credit, plus fees, whatever the time to maturity.
-The vault also charges its `forceDeallocate` penalty.
+The proceeds return to the vault without its `forceDeallocate` penalty.
+Calling `VaultV2.forceDeallocate` instead withdraws matured or repaid credit to the vault and still charges the vault penalty; it does not sell credit.
 The shareholder can then withdraw from the vault to complete the in-kind redemption.
 
 ### Enter gates
 
 The adapter can be configured with an `enterGateFactory`, such as [IKRCompatibleEnterGateFactory](./gates/IKRCompatibleEnterGateFactory.sol).
 When `enterGateFactory` is set, the adapter can only enter markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
-If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
+If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceSell`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 `IKRCompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
 
@@ -57,7 +60,7 @@ The adapter trades as a taker when a vault allocator calls `take`, or as a maker
 
 The adapter must have the allocator role on the vault to buy credit.
 It must have the allocator or sentinel role to sell or force-remove a market with stored net credit.
-[`forceDeallocate`](#in-kind-redemptions) does not require the adapter to have these roles.
+[`forceSell`](#in-kind-redemptions) requires the adapter to have the allocator or sentinel role; the caller needs no vault role.
 
 The adapter cannot be used as liquidity adapter.
 
@@ -154,7 +157,7 @@ Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to c
 This is a Midnight enter gate, not a Vault V2 gate.
 One gate can be the enterGate of multiple markets.
 For ordinary permission checks, the gate calls its `subGate` with the account.
-During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval.
+During `forceSell`, a Midnight adapter from a registered factory can temporarily admit a taker to receive credit without subgate approval.
 The adapter sells through its own offer and is the buyer callback of that sale: it clears the admission in that callback, before Midnight transfers the loan token, so neither the buyer nor the token can reuse it.
 `IKRCompatibleEnterGateFactory` deploys `IKRCompatibleEnterGate` contracts.
 

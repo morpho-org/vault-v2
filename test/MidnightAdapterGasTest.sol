@@ -36,7 +36,7 @@ import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.
 contract WorstCaseForceDeallocator {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    function forceDeallocate(
+    function forceSell(
         FlashLoanForceDeallocator exiter,
         IVaultV2 vault,
         address adapter,
@@ -47,7 +47,7 @@ contract WorstCaseForceDeallocator {
         uint256 gas
     ) external {
         vm.prank(caller, caller);
-        exiter.forceDeallocate{gas: gas}(vault, adapter, data, assets, onBehalf);
+        exiter.forceSell{gas: gas}(vault, adapter, data, assets, onBehalf);
     }
 }
 
@@ -58,9 +58,7 @@ contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
         morpho = morpho_;
     }
 
-    function forceDeallocate(IVaultV2 vault, address adapter, bytes memory data, uint256 assets, address onBehalf)
-        external
-    {
+    function forceSell(IVaultV2 vault, address adapter, bytes memory data, uint256 assets, address onBehalf) external {
         address asset = vault.asset();
         SafeERC20Lib.safeApprove(asset, adapter, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, address(morpho), type(uint256).max);
@@ -70,10 +68,11 @@ contract FlashLoanForceDeallocator is IMorphoFlashLoanCallback {
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
         require(msg.sender == address(morpho));
-        (IVaultV2 vault, address adapter, bytes memory forceDeallocateData, address onBehalf, address caller) =
+        (IVaultV2 vault, address adapter, bytes memory forceSellData, address onBehalf, address caller) =
             abi.decode(data, (IVaultV2, address, bytes, address, address));
 
-        vault.forceDeallocate(adapter, forceDeallocateData, assets, onBehalf);
+        (Market memory market, address taker) = abi.decode(forceSellData, (Market, address));
+        IMidnightAdapter(adapter).forceSell(market, assets, taker);
         vault.withdraw(assets, address(this), onBehalf);
 
         address asset = vault.asset();
@@ -115,7 +114,7 @@ contract MidnightAdapterGasTest is BaseTest {
     address internal managementFeeRecipient;
     address internal onBehalf;
     bytes32 internal soldMarketId;
-    bytes internal forceDeallocateData;
+    bytes internal forceSellData;
     uint256 internal oneToken;
     uint256 internal initialAssets;
     uint256 internal soldCollateralIndex;
@@ -271,7 +270,7 @@ contract MidnightAdapterGasTest is BaseTest {
 
         claimableSettlementFeeBefore = midnight.claimableSettlementFee(address(underlyingToken));
         continuousFeeCreditBefore = midnight.continuousFeeCredit(soldMarketId);
-        forceDeallocateData = abi.encode(soldMarket, address(exiter));
+        forceSellData = abi.encode(soldMarket, address(exiter));
 
         assertEq(vault.forceDeallocatePenalty(address(adapter)), MAX_FORCE_DEALLOCATE_PENALTY);
         assertNotEq(performanceFeeRecipient, managementFeeRecipient, "fee recipients");
@@ -286,18 +285,17 @@ contract MidnightAdapterGasTest is BaseTest {
         vm.resumeGasMetering();
     }
 
-    /// @dev Exercises the worst-case force deallocation through a Morpho Blue flash loan.
+    /// @dev Exercises the worst-case force sale through a Morpho Blue flash loan.
     /// forge-config: default.isolate = true
-    function testForceDeallocateGasWorstCase() public {
+    function testForceSellGasWorstCase() public {
         bytes memory callData = abi.encodeCall(
-            FlashLoanForceDeallocator.forceDeallocate,
-            (vault, address(adapter), forceDeallocateData, soldUnits, onBehalf)
+            FlashLoanForceDeallocator.forceSell, (vault, address(adapter), forceSellData, soldUnits, onBehalf)
         );
-        deallocator.forceDeallocate(
+        deallocator.forceSell(
             exiter,
             vault,
             address(adapter),
-            forceDeallocateData,
+            forceSellData,
             soldUnits,
             onBehalf,
             forceCaller,
@@ -305,7 +303,7 @@ contract MidnightAdapterGasTest is BaseTest {
         );
 
         uint256 sharesSpent = onBehalfSharesBefore - vault.balanceOf(onBehalf);
-        assertGt(sharesSpent, vault.previewWithdraw(soldUnits), "penalty shares");
+        assertEq(sharesSpent, vault.previewWithdraw(soldUnits), "no penalty shares");
         assertGt(vault.balanceOf(performanceFeeRecipient), 0, "performance fee shares");
         assertGt(vault.balanceOf(managementFeeRecipient), 0, "management fee shares");
         assertGt(

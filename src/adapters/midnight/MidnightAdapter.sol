@@ -24,7 +24,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), to call forceRemove and to self-fund buys.
+/// @dev The adapter must have the allocator or sentinel role to sell (including through forceSell), to call forceRemove and to self-fund buys.
 /// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
@@ -42,9 +42,9 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
 /// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
 ///
-/// FORCE DEALLOCATE
+/// FORCE SELL
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
-/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+/// @dev Anyone can buy credit at face value without vault shares or a vault penalty.
 /// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of the taker.
 ///
 /// ALLOCATOR GUARDRAILS
@@ -104,9 +104,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TRANSIENT STORAGE */
 
-    /// @dev Set to true during forceDeallocate's take, cleared in the buy callback.
-    bool public transient inForceDeallocate;
-    /// @dev Set to true after admitting the taker of forceDeallocate's take, cleared in the buy callback.
+    /// @dev Set to true during forceSell's take, cleared in the buy callback.
+    bool public transient inForceSell;
+    /// @dev Set to true after admitting the taker of forceSell's take, cleared in the buy callback.
     bool public transient admitting;
     /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
@@ -400,84 +400,83 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
     /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
-    /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
-    /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
+    /// @dev Called by this adapter from forceSell, a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
-    function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
+    function deallocate(bytes calldata data, uint256 assets, bytes4, address sender)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
         SafeERC20Lib.forceApproveMax(asset, parentVault);
-        if (selector == IVaultV2.forceDeallocate.selector) {
-            (Market memory market, address taker) = abi.decode(data, (Market, address));
-            require(taker == sender || IMidnight(midnight).isAuthorized(taker, sender), NotAuthorized());
-            require(IVaultV2(parentVault).balanceOf(taker) > 0, TakerHasNoShares());
-            require(market.loanToken == asset, LoanAssetMismatch());
-            bytes32 marketId = IdLib.toId(market);
-            require(!liquidationLocked(marketId), SellInProgress());
-            MarketData storage _marketData = marketData[marketId];
-            require(!_marketData.forceRemoved, ForceRemoved());
-            Offer memory offer = Offer({
-                market: market,
-                buy: false,
-                maker: address(this),
-                start: 0,
-                expiry: type(uint256).max,
-                tick: 0,
-                group: bytes32(0),
-                callback: address(0),
-                callbackData: hex"",
-                receiverIfMakerIsSeller: address(this),
-                ratifier: address(this),
-                reduceOnly: true,
-                maxUnits: 0,
-                maxAssets: type(uint128).max,
-                continuousFeeCap: type(uint256).max
-            });
-            uint256 settlementFeeAssets = assets.mulDivUp(
-                IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
-            );
-            SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
-            if (
-                market.enterGate != address(0) && enterGateFactory != address(0)
-                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-            ) {
-                // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
-                IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory);
-                admitting = true;
-            }
-            inForceDeallocate = true;
-            // Skip onSell since we are already in a deallocate call.
-            // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
-            // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
-            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
-
-            uint128 newNetCredit = currentNetCredit(marketId);
-            uint256 oldNetCredit = _marketData.netCredit;
-            _marketData.netCredit = newNetCredit;
-            if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
-            emit ForceDeallocate(marketId, assets, newNetCredit);
-            // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-            return (ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit));
-        } else if (sender != address(this)) {
+        if (sender != address(this)) {
             return withdrawToVault(abi.decode(data, (Market)), assets);
         } else {
             returnExactBytes(data);
         }
     }
 
+    /// @dev Buys adapter credit at face value plus the settlement fee, paid by msg.sender.
+    /// @dev The caller must be the taker or authorized by it on Midnight. Compatible enter gates temporarily admit the taker.
+    function forceSell(Market memory market, uint256 assets, address taker) external {
+        require(taker == msg.sender || IMidnight(midnight).isAuthorized(taker, msg.sender), NotAuthorized());
+        require(market.loanToken == asset, LoanAssetMismatch());
+        bytes32 marketId = IdLib.toId(market);
+        require(!liquidationLocked(marketId), SellInProgress());
+        MarketData storage _marketData = marketData[marketId];
+        require(!_marketData.forceRemoved, ForceRemoved());
+        Offer memory offer = Offer({
+            market: market,
+            buy: false,
+            maker: address(this),
+            start: 0,
+            expiry: type(uint256).max,
+            tick: 0,
+            group: bytes32(0),
+            callback: address(0),
+            callbackData: hex"",
+            receiverIfMakerIsSeller: address(this),
+            ratifier: address(this),
+            reduceOnly: true,
+            maxUnits: 0,
+            maxAssets: type(uint128).max,
+            continuousFeeCap: type(uint256).max
+        });
+        uint256 settlementFeeAssets = assets.mulDivUp(
+            IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
+        );
+        SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets + settlementFeeAssets);
+        if (
+            market.enterGate != address(0) && enterGateFactory != address(0)
+                && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+        ) {
+            // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
+            IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory);
+            admitting = true;
+        }
+        inForceSell = true;
+        // Skip onSell and settle the vault allocation after the take.
+        // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
+        // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceSell.
+        IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
+
+        uint128 newNetCredit = currentNetCredit(marketId);
+        uint256 oldNetCredit = _marketData.netCredit;
+        _marketData.netCredit = newNetCredit;
+        if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);
+        emit ForceSell(marketId, assets, newNetCredit);
+        settleSale(market, newNetCredit, oldNetCredit, assets);
+    }
+
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
+    /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceSell.
     function isRatified(Offer memory offer, bytes calldata ratifierData, address taker)
         external
         view
         returns (bytes32)
     {
-        if (inForceDeallocate) return CALLBACK_SUCCESS;
+        if (inForceSell) return CALLBACK_SUCCESS;
         require(!liquidationLocked(IdLib.toId(offer.market)), SellInProgress());
         // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.midnight == midnight, NotMidnight());
@@ -504,9 +503,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes calldata data
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
-        if (inForceDeallocate) {
+        if (inForceSell) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
-            inForceDeallocate = false;
+            inForceSell = false;
             if (admitting) {
                 admitting = false;
                 IIKRCompatibleEnterGate(market.enterGate).unadmit();
@@ -671,19 +670,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
-        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
-                sellerAssets
-            );
+        settleSale(market, newNetCredit, oldNetCredit, sellerAssets);
 
         emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function settleSale(Market memory market, uint128 newNetCredit, uint256 oldNetCredit, uint256 assets) internal {
+        // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
+        IVaultV2(parentVault)
+            .deallocate(
+                address(this), abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)), assets
+            );
+    }
 
     /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.

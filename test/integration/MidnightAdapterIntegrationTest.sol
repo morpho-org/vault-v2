@@ -273,7 +273,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vault.withdraw(units * 99 / 100, depositor, depositor);
     }
 
-    function testForceSell() public {
+    function testForceSellableMarket() public {
         testMakerBuy();
         Market memory market = _market(7 days);
         _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setForceSellable, (IdLib.toId(market))));
@@ -308,7 +308,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         adapter.take(offer, ratifierData, units, "");
     }
 
-    function testForceDeallocate() public {
+    function testPermissionlessForceSell() public {
         testMakerBuy();
         Market memory market = _market(7 days);
 
@@ -317,12 +317,12 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.startPrank(depositor);
         SafeERC20Lib.safeApprove(address(underlyingToken), address(adapter), units);
         midnight.setIsAuthorized(address(adapter), true, depositor);
-        vault.forceDeallocate(address(adapter), abi.encode(market, depositor), units, depositor);
+        adapter.forceSell(market, units, depositor);
         vault.withdraw(units, depositor, depositor);
         vm.stopPrank();
     }
 
-    function testWrapperGateForceDeallocateAfterRevocation() public {
+    function testWrapperGateForceSellAfterRevocation() public {
         address enterGateFactory = deployCode("IKRCompatibleEnterGateFactory.sol:IKRCompatibleEnterGateFactory");
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
@@ -493,7 +493,7 @@ contract MidnightAdapterExitRouter is IFlashLoanCallback {
         (Market memory market, address taker, uint256 settlementFeeAssets) =
             abi.decode(data, (Market, address, uint256));
         SafeERC20Lib.safeApprove(asset, adapter, assets[0] + settlementFeeAssets);
-        IVaultV2(parentVault).forceDeallocate(adapter, abi.encode(market, taker), assets[0], taker);
+        IMidnightAdapter(adapter).forceSell(market, assets[0], taker);
         // The taker keeps the credit. The vault withdrawal repays the flashloan.
         IVaultV2(parentVault).withdraw(assets[0], address(this), taker);
         SafeERC20Lib.safeApprove(asset, midnight, assets[0]);

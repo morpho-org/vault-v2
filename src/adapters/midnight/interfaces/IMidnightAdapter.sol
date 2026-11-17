@@ -50,7 +50,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Skim(address indexed token, uint256 assets);
     event Take(address indexed sender);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
+    event ForceSell(bytes32 indexed marketId, uint256 assets, uint256 newNetCredit);
     event ForceRemove(bytes32 indexed marketId, uint256 netCredit);
     event Buy(
         bytes32 indexed marketId, uint256 buyerAssets, uint256 boughtNetCredit, uint256 newNetCredit, uint256 newNetRate
@@ -103,7 +103,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error ForceSellPriceTooLow();
     error NetSellRateTooHigh();
     error SubRatifierFailed();
-    error TakerHasNoShares();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -145,6 +144,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseMaxTtm(uint256 newMaxTtm) external;
     function setShortfallAllowance(uint256 newShortfallAllowance) external;
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external;
+    function forceSell(Market memory market, uint256 assets, address taker) external;
+
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
