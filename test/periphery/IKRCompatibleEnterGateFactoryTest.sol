@@ -21,7 +21,7 @@ contract IKRCompatibleEnterGateFactoryTest is Test {
         bytes32 preSalt = bytes32(0);
         bytes32 salt = keccak256(abi.encode(preSalt, caller));
         bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(IKRCompatibleEnterGate).creationCode, abi.encode(forwardedGate, enabled)));
+            keccak256(bytes.concat(type(IKRCompatibleEnterGate).creationCode, abi.encode(forwardedGate, enabled)));
         address expected = vm.computeCreate2Address(salt, initCodeHash, address(factory));
         vm.recordLogs();
         vm.prank(caller);

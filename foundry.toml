@@ -139,39 +139,21 @@ test = ".forge-lint-unused"
 
 [profile.lint-test.lint]
 exclude_lints = [
-    # Existing mocks use partial interfaces, unchecked returns, and bounded casts.
+    # Revert tests have no successful transfer return value to assert.
     "erc20-unchecked-transfer",
+    # Bounded fixtures and partial mocks deliberately use raw casts and no-op methods.
     "unsafe-typecast",
-    "uninitialized-state",
     "empty-block",
-    # Deployment/signature hashes and reference calculations are deterministic fixtures.
-    "encode-packed-collision",
-    "weak-prng",
+    # Reference calculations preserve rounding order.
     "divide-before-multiply",
-    "type-based-tautology",
-    # Cheatcodes and assertions deliberately mutate state after external calls.
+    # Test setup and callbacks mutate state after cheatcodes and external calls.
     "reentrancy-no-eth",
-    "screaming-snake-case-immutable",
-    "asm-keccak256",
-    "unsafe-cheatcode",
-    "incorrect-shift",
-    "block-timestamp",
-    "internal-function-used-once",
-    "pragma-inconsistent",
     "missing-zero-check",
-    "low-level-calls",
-    "inline-assembly",
-    "literal-instead-of-constant",
     "require-revert-in-loop",
-    "multi-contract-file",
     "calls-loop",
     "arbitrary-send-erc20",
+    # Tests assert state, reverts, and emitted events rather than every return value.
     "unused-return",
-    "cyclomatic-complexity",
-    "boolean-cst",
-    "costly-loop",
     "missing-events-access-control",
-    "uninitialized-local",
     "reentrancy-events",
-    "environment-read-across-mutation",
 ]

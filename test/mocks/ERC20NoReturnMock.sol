@@ -6,7 +6,7 @@ import {ERC20NoReturn} from "../../lib/midnight/test/erc20s/ERC20NoReturn.sol";
 
 contract ERC20NoReturnMock is ERC20NoReturn {
     uint8 public immutable decimals;
-    uint256 public totalSupply;
+    uint256 public totalSupply = 0;
 
     constructor(uint8 _decimals) ERC20NoReturn("no-return") {
         decimals = _decimals;

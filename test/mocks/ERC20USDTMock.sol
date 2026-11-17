@@ -6,7 +6,7 @@ import {ERC20USDT} from "../../lib/midnight/test/erc20s/ERC20USDT.sol";
 
 contract ERC20USDTMock is ERC20USDT {
     uint8 public immutable decimals;
-    uint256 public totalSupply;
+    uint256 public totalSupply = 0;
 
     constructor(uint8 _decimals) ERC20USDT("usdt") {
         decimals = _decimals;

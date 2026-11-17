@@ -8,7 +8,7 @@ contract FactoryTest is BaseTest {
     function testCreateVaultV2(address _owner, address asset, bytes32 salt) public {
         vm.assume(asset != address(vm));
         vm.mockCall(asset, IERC20.decimals.selector, abi.encode(uint8(18)));
-        bytes32 initCodeHash = keccak256(abi.encodePacked(vm.getCode("VaultV2"), abi.encode(_owner, asset)));
+        bytes32 initCodeHash = keccak256(bytes.concat(vm.getCode("VaultV2"), abi.encode(_owner, asset)));
         address expectedVaultAddress = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vaultFactory), salt, initCodeHash))))
         );

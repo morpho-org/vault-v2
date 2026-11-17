@@ -220,7 +220,7 @@ contract MidnightAdapterGasTest is BaseTest {
 
         for (uint256 i; i < maxMarkets; i++) {
             Market memory market;
-            uint256 collateralIndex;
+            uint256 collateralIndex = 0;
             if (i == 0) {
                 market = soldMarket;
                 collateralIndex = soldCollateralIndex;
@@ -234,7 +234,7 @@ contract MidnightAdapterGasTest is BaseTest {
         delegatedAllowance = type(uint128).max;
         vm.startPrank(depositor);
         vault.approve(address(exiter), delegatedAllowance);
-        vault.transfer(address(exiter), 1);
+        assertTrue(vault.transfer(address(exiter), 1));
         vm.stopPrank();
         onBehalfSharesBefore = vault.balanceOf(onBehalf);
 

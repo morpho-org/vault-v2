@@ -191,7 +191,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
+            bytes.concat(
                 type(MorphoMarketV1AdapterV2).creationCode,
                 abi.encode(newParentVaultAddr, address(morpho), address(irm))
             )

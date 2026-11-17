@@ -14,9 +14,17 @@ contract ERC20WithoutBoolean {
 
 /// @dev Token returning false.
 contract ERC20WithBooleanAlwaysFalse {
-    function transfer(address to, uint256 value) public returns (bool res) {}
-    function transferFrom(address from, address to, uint256 value) public returns (bool res) {}
-    function approve(address, uint256) public pure returns (bool res) {}
+    function transfer(address to, uint256 value) public pure returns (bool) {
+        return false;
+    }
+
+    function transferFrom(address from, address to, uint256 value) public pure returns (bool) {
+        return false;
+    }
+
+    function approve(address, uint256) public pure returns (bool) {
+        return false;
+    }
 }
 
 /// @dev Normal token.
@@ -24,7 +32,7 @@ contract ERC20Normal {
     address public recordedFrom;
     address public recordedTo;
     uint256 public recordedValue;
-    uint256 public recordedAllowance;
+    uint256 public recordedAllowance = 0;
     address public recordedSpender;
 
     function transfer(address to, uint256 value) public returns (bool) {
