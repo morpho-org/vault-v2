@@ -89,7 +89,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vm.prank(allocator);
         adapter.setIsSubRatifier(address(priceSubRatifier), true);
         _submitAndSet(
-            address(adapter), abi.encodeCall(IMidnightAdapterBase.setMaxNetSellRate, (1e18 / uint256(365 days)))
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (1e18 / uint256(365 days)))
         );
         _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (type(uint128).max)));
 
