@@ -16,6 +16,8 @@ With a compatible [`enterGateFactory`](#enter-gates) configured, market enter ga
 The vault shareholder uses `forceDeallocate` on the vault to obtain credit from the adapter.
 The payment is the amortized value of the credit (before pending fees), discounted at the market's net rate until maturity, plus the Midnight settlement fee on the credit amount.
 In-kind redemptions therefore happen at the adapter's book price, plus fees.
+Allocators can also set a per-market redemption fee without a timelock, capped at 2%.
+The shareholder then receives credit worth the withdrawn assets minus this fee, which stays in the vault.
 The vault also charges its `forceDeallocate` penalty.
 The shareholder can then withdraw from the vault to complete the in-kind redemption.
 
@@ -141,7 +143,7 @@ The `skimRecipient` can call `skim` to collect any token held by the adapter, in
 The adapter reads roles directly from its `parentVault`:
 
 - **Curator**: Configures `maxTtm`, operational constraints, force-sellable markets, `skimRecipient`, and timelocks. Can submit market removals and revoke pending changes.
-- **Allocators**: Trade, withdraw repaid assets, manage sub-ratifiers, approve offers, and cancel offer approvals.
+- **Allocators**: Trade, withdraw repaid assets, manage sub-ratifiers, set redemption fees, approve offers, and cancel offer approvals.
 - **Sentinels**: Withdraw repaid assets, revoke pending changes, decrease `maxTtm`, and unset `forceSellable`. Can disable sub-ratifiers and cancel offer approvals.
 
 ## Midnight Enter Gates and Subgates

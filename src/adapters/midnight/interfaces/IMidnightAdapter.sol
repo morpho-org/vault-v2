@@ -47,6 +47,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(address indexed sender, bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
+    event SetRedemptionFee(address indexed sender, bytes32 indexed marketId, uint256 newRedemptionFee);
     event Skim(address indexed token, uint256 assets);
     event Take(address indexed sender);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 newNetCredit);
@@ -109,6 +110,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotIncreasing();
     error TooManyMarkets();
     error ForceRemoved();
+    error RedemptionFeeTooHigh();
 
     /* FUNCTIONS */
 
@@ -118,6 +120,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint256);
     function MAX_DURATIONS() external view returns (uint256);
+    function MAX_REDEMPTION_FEE() external view returns (uint256);
     function midnight() external view returns (address);
     function enterGateFactory() external view returns (address);
     function adapterId() external view returns (bytes32);
@@ -159,6 +162,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
         external;
     function setConsumed(bytes32 group, uint128 amount) external;
+    function redemptionFee(bytes32 marketId) external view returns (uint256);
+    function setRedemptionFee(bytes32 marketId, uint256 newRedemptionFee) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
 }

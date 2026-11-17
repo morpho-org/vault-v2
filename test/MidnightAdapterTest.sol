@@ -4610,6 +4610,69 @@ contract MidnightAdapterTest is Test {
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
     }
 
+    /* REDEMPTION FEE */
+
+    function testRedemptionFeeDefault(bytes32 marketId) public view {
+        assertEq(adapter.redemptionFee(marketId), 0, "no redemption fee by default");
+    }
+
+    function testSetRedemptionFeeAuthorized(bytes32 marketId, uint256 newRedemptionFee) public {
+        newRedemptionFee = bound(newRedemptionFee, 0, adapter.MAX_REDEMPTION_FEE());
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetRedemptionFee(signerAllocator, marketId, newRedemptionFee);
+        vm.prank(signerAllocator);
+        adapter.setRedemptionFee(marketId, newRedemptionFee);
+        assertEq(adapter.redemptionFee(marketId), newRedemptionFee, "redemptionFee");
+    }
+
+    function testSetRedemptionFeeNotAuthorized(address caller, bool sentinel, bytes32 marketId) public {
+        vm.assume(!parentVault.isAllocator(caller));
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.setRedemptionFee(marketId, 0);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(curator);
+        adapter.setRedemptionFee(marketId, 0);
+    }
+
+    function testSetRedemptionFeeTooHigh(bytes32 marketId, uint256 newRedemptionFee) public {
+        newRedemptionFee = bound(newRedemptionFee, adapter.MAX_REDEMPTION_FEE() + 1, type(uint256).max);
+        vm.expectRevert(IMidnightAdapterBase.RedemptionFeeTooHigh.selector);
+        vm.prank(signerAllocator);
+        adapter.setRedemptionFee(marketId, newRedemptionFee);
+    }
+
+    /// @dev The caller pays `assets` and receives credit whose amortized value is `assets` minus the redemption fee.
+    function testForceDeallocateWithRedemptionFee(uint256 assets, uint256 fee, uint256 elapsed) public {
+        fee = bound(fee, 0, adapter.MAX_REDEMPTION_FEE());
+        elapsed = bound(elapsed, 0, 7 days);
+        Offer memory boughtOffer = buy(7 days, 1e18, MAX_TICK / 2);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        skip(elapsed);
+        vm.prank(signerAllocator);
+        adapter.setRedemptionFee(marketId, fee);
+        MarketData memory dataBefore = adapter.marketData(marketId);
+        uint256 ttm = boughtOffer.market.maturity - block.timestamp;
+        assets = bound(assets, 1, uint256(dataBefore.netCredit) * 1e18 / (1e18 + dataBefore.netRate * ttm));
+        uint256 units = assets.mulDivDown(1e18 - fee, 1e18).mulDivDown(1e18 + dataBefore.netRate * ttm, 1e18);
+        uint256 realAssetsBefore = adapter.realAssets();
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        deal(address(loanToken), address(this), assets);
+
+        forceDeallocate(boughtOffer.market, assets);
+
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault got the assets");
+        assertEq(midnight.credit(marketId, address(this)), units, "caller credit net of the redemption fee");
+        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid assets");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
+        assertApproxEqAbs(
+            adapter.realAssets(), realAssetsBefore - assets.mulDivDown(1e18 - fee, 1e18), 3, "fee stays in the vault"
+        );
+    }
+
     /// @dev The caller pays the amortized value of the sold credit plus the settlement fee on the sold credit.
     function testForceDeallocateAtAmortizedValue(uint256 assets, uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 8 days);
@@ -4637,7 +4700,9 @@ contract MidnightAdapterTest is Test {
         if (units < dataBefore.netCredit) {
             assertEq(adapter.marketData(marketId).netRate, dataBefore.netRate, "rate unchanged");
         }
-        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault got the amortized value");
+        assertEq(
+            loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault got the amortized value"
+        );
         assertEq(loanToken.balanceOf(address(this)), 0, "caller paid amortized value and settlement fee");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
         assertEq(

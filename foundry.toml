@@ -59,16 +59,16 @@ paths = "test/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "paris"
 
-# The adapter's initcode is embedded in its factory. 833 is the highest optimizer_runs value for which the factory fits under EIP-170.
+# The adapter's initcode is embedded in its factory. 169 is the highest optimizer_runs value for which the factory fits under EIP-170.
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/midnight/MidnightAdapter.sol"
-optimizer_runs = 833
+optimizer_runs = 169
 evm_version = "osaka"
 
 # The enter gate only needs osaka. It is compiled with the adapter's settings.
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/midnight/gates/IKRCompatibleEnterGate*.sol"
-optimizer_runs = 833
+optimizer_runs = 169
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
@@ -116,8 +116,8 @@ optimizer_runs = 800
 evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]
-name = "833-osaka"
-optimizer_runs = 833
+name = "169-osaka"
+optimizer_runs = 169
 evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]

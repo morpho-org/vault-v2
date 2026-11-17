@@ -46,6 +46,8 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 /// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of the taker.
+/// @dev The taker receives credit worth `assets` minus the market's redemption fee, so the fee stays in the vault as unsold credit.
+/// @dev Allocators can set the redemption fee without timelock, so it is capped by MAX_REDEMPTION_FEE.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
@@ -89,6 +91,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Fillable with dust takes.
     uint256 public constant MAX_MARKETS = 250;
     uint256 public constant MAX_DURATIONS = 8;
+    uint256 public constant MAX_REDEMPTION_FEE = 0.02e18;
 
     /* IMMUTABLES */
 
@@ -127,6 +130,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
+    /// @dev Fee charged on forceDeallocate, as a WAD fraction of the withdrawn assets, taken from the sold credit.
+    mapping(bytes32 marketId => uint256) public redemptionFee;
 
     uint128 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
@@ -328,6 +333,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetConsumed(msg.sender, group, amount);
     }
 
+    function setRedemptionFee(bytes32 marketId, uint256 newRedemptionFee) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(newRedemptionFee <= MAX_REDEMPTION_FEE, RedemptionFeeTooHigh());
+        redemptionFee[marketId] = newRedemptionFee;
+        emit SetRedemptionFee(msg.sender, marketId, newRedemptionFee);
+    }
+
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
         require(
             IVaultV2(parentVault).isAllocator(msg.sender)
@@ -438,7 +450,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 continuousFeeCap: type(uint256).max
             });
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
-            uint256 units = assets.mulDivDown(WAD + _marketData.netRate * ttm, WAD);
+            uint256 units =
+                assets.mulDivDown(WAD - redemptionFee[marketId], WAD).mulDivDown(WAD + _marketData.netRate * ttm, WAD);
             uint256 settlementFeeAssets = units.mulDivUp(IMidnight(midnight).settlementFee(marketId, ttm), WAD);
             SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
             if (
