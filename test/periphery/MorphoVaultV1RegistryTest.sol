@@ -45,7 +45,8 @@ contract MorphoVaultV1RegistryTest is Test {
         assertEq(registry.isInRegistry(adapter), expected);
     }
 
-    // check that if the adapter isn't a vault adapter, it doesn't revert (basically checks the order of execution of solidity).
+    // check that if the adapter isn't a vault adapter, it doesn't revert (basically checks the order of execution of
+    // solidity).
     function testNoObscureRevert(address adapter) public {
         vm.mockCall(
             morphoVaultV1AdapterFactory,

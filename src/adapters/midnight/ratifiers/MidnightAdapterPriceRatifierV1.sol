@@ -15,9 +15,11 @@ import {HashLib} from "../../../../lib/midnight/src/ratifiers/libraries/HashLib.
 import {IVaultV2} from "../../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
-/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
+/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by
+/// the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
-/// @dev Allocators and sentinels can authorize other addresses through the adapter's Midnight instance to act on their behalf.
+/// @dev Allocators and sentinels can authorize other addresses through the adapter's Midnight instance to act on their
+/// behalf.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
 contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
@@ -47,8 +49,10 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
         return SET_IS_ROOT_RATIFIED_SUCCESS;
     }
 
-    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though the batch reverted.
-    /// @dev The signer must be an allocator, or a sentinel when unratifying. The caller must be the signer or be authorized by the signer on Midnight.
+    /// @dev Permissioned to not let people extract the signature of a batch and start taking before or take even though
+    /// the batch reverted.
+    /// @dev The signer must be an allocator, or a sentinel when unratifying. The caller must be the signer or be
+    /// authorized by the signer on Midnight.
     function setIsRootRatifiedWithSig(
         address maker,
         bytes32 root,

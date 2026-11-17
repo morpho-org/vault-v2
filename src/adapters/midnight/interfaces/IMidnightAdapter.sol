@@ -180,7 +180,8 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         );
 }
 
-/// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
+/// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function
+/// signatures.
 interface IMidnightAdapter is IMidnightAdapterBase {
     function marketData(bytes32 marketId) external view returns (MarketData memory);
 }

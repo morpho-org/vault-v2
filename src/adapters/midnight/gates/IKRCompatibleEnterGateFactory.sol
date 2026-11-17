@@ -8,7 +8,8 @@ import {IIKRCompatibleEnterGateFactory} from "./interfaces/IIKRCompatibleEnterGa
 contract IKRCompatibleEnterGateFactory is IIKRCompatibleEnterGateFactory {
     mapping(address account => bool) public isCreated;
 
-    /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
+    /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must
+    /// derive preSalt from the initiator too.
     function createIKRCompatibleEnterGate(address subGate, bool admitEnabled, bytes32 preSalt)
         external
         returns (address)
