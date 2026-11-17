@@ -26,7 +26,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
-          version: stable # Deliberately exercise the current stable release.
+          version: nightly # Catch upstream Foundry changes before the next stable release.
 
       - name: Run forge fmt
         run: forge fmt src test script certora --check
@@ -40,7 +40,7 @@ jobs:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
-          version: stable # Deliberately exercise the current stable release.
+          version: nightly # Catch upstream Foundry changes before the next stable release.
       - name: Lint contracts and verification harnesses
         run: forge lint src certora --deny notes
       - name: Lint tests
@@ -57,7 +57,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
-          version: stable # Deliberately exercise the current stable release.
+          version: nightly # Catch upstream Foundry changes before the next stable release.
 
       - name: Run forge build
         run: forge build --force --sizes
@@ -95,7 +95,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
-          version: stable # Deliberately exercise the current stable release.
+          version: nightly # Catch upstream Foundry changes before the next stable release.
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
