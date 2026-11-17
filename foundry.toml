@@ -133,8 +133,24 @@ evm_version = "cancun"
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 # Test-only baseline. Lists replace rather than extend the default exclusions.
+# Lint test/ as ordinary Solidity instead of applying Forge's test-only rule filter.
+[profile.lint-test]
+test = ".forge-lint-unused"
+
 [profile.lint-test.lint]
 exclude_lints = [
+    # Existing mocks use partial interfaces, unchecked returns, and bounded casts.
+    "erc20-unchecked-transfer",
+    "unsafe-typecast",
+    "uninitialized-state",
+    "empty-block",
+    # Deployment/signature hashes and reference calculations are deterministic fixtures.
+    "encode-packed-collision",
+    "weak-prng",
+    "divide-before-multiply",
+    "type-based-tautology",
+    # Cheatcodes and assertions deliberately mutate state after external calls.
+    "reentrancy-no-eth",
     "screaming-snake-case-immutable",
     "asm-keccak256",
     "unsafe-cheatcode",
