@@ -401,7 +401,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at its amortized value plus the settlement fee, paid by the sender.
-    /// @dev The sold credit is `assets` plus interest at the market's net rate until maturity, so that `assets` is its amortized value.
     /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
     /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
     /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
