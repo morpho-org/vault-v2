@@ -71,7 +71,6 @@ jobs:
       contents: read
     needs: sizes
     strategy:
-      fail-fast: true
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
