@@ -305,7 +305,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMinNetBuyRate(newMinNetBuyRate);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then submit the new value accounting for what was consumed.
+    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     /// @dev Timelocked only when increasing shortfallAllowance.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
         if (newShortfallAllowance > shortfallAllowance) timelocked();
