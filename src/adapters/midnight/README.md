@@ -14,7 +14,6 @@ With a compatible [`enterGateFactory`](#enter-gates) configured, market enter ga
 ### In-kind redemptions
 
 The vault shareholder uses `forceDeallocate` on the vault to obtain credit from the adapter.
-The shareholder must authorize the adapter on Midnight, and the caller must be the shareholder or an address authorized by the shareholder on Midnight.
 The payment is the credit amount before pending fees plus the Midnight settlement fee.
 In-kind redemptions therefore happen at a price of one asset per unit of credit, plus fees, whatever the time to maturity.
 The vault also charges its `forceDeallocate` penalty.
