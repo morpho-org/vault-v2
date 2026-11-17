@@ -1,4 +1,3 @@
-# Backup CI running an older, pinned forge version (the main CI uses the latest stable forge).
 name: forge-old
 
 on:
