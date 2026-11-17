@@ -9,12 +9,10 @@ import {
     IMidnightAdapterPriceRatifierV1
 } from "../../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IIKRCompatibleEnterGate} from "../../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {
-    IVaultV2CompatibleEnterGate
-} from "../../src/adapters/midnight/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
-import {
-    IVaultV2CompatibleEnterGateFactory
-} from "../../src/adapters/midnight/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
+    IIKRCompatibleEnterGateFactory
+} from "../../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGateFactory.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
@@ -325,7 +323,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
+        address enterGateFactory = deployCode("IKRCompatibleEnterGateFactory.sol:IKRCompatibleEnterGateFactory");
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
@@ -338,8 +336,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         IWhitelistEnterSubGate subGate =
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
-        market.enterGate = IVaultV2CompatibleEnterGateFactory(enterGateFactory)
-            .createVaultV2CompatibleEnterGate(address(subGate), true, bytes32(0));
+        market.enterGate = IIKRCompatibleEnterGateFactory(enterGateFactory)
+            .createIKRCompatibleEnterGate(address(subGate), true, bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
@@ -351,7 +349,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         subGate.setIsWhitelisted(true, address(gatedAdapter), true);
         // Let the borrower take on debt in the markets of this subgate.
         subGate.setIsWhitelisted(false, borrower, true);
-        IVaultV2CompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
+        IIKRCompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
         vm.stopPrank();
 
         _submitAndSet(address(gatedAdapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
