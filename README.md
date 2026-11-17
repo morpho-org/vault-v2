@@ -25,7 +25,7 @@ The following adapters are currently available:
 
 ### Caps
 
-The assets allocation of the vault is constrained by an id-based caps system.
+The allocation of the vault is constrained by an id-based caps system.
 An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
