@@ -30,7 +30,7 @@ With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter m
 ### Timelocked settings
 
 The adapter has its own [timelock system](../../../README.md#timelocks), with the same flow as the vault.
-Increasing `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
+Decreasing `minNetBuyRate` or `minForceSellPrice`, increasing `maxNetSellRate`, `shortfallAllowance` or `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault's timelocks.
 These delays ensure that depositors can always withdraw their assets before any critical configuration change takes effect.
 
@@ -108,7 +108,7 @@ Vault sentinels can only cancel offers.
 ### Operational constraints
 
 These constraints are intended for operational quality of life, not to provide guarantees to depositors.
-The curator can constrain allocator trades without a timelock:
+The curator can constrain allocator trades through these settings. Relaxing them is timelocked; tightening them or keeping them unchanged is available immediately to the curator. These timelocks are not hard guarantees for depositors and are not needed for the adapter to be noncustodial:
 
 - **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
 - **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
@@ -140,7 +140,7 @@ The `skimRecipient` can call `skim` to collect any token held by the adapter, in
 
 The adapter reads roles directly from its `parentVault`:
 
-- **Curator**: Configures `maxTtm`, operational constraints, force-sellable markets, `skimRecipient`, and timelocks. Can submit market removals and revoke pending changes.
+- **Curator**: Configures `maxTtm`, operational constraints (with timelocks when relaxing them), force-sellable markets, `skimRecipient`, and timelocks. Can submit market removals and revoke pending changes.
 - **Allocators**: Trade, withdraw repaid assets, manage sub-ratifiers, approve offers, and cancel offer approvals.
 - **Sentinels**: Withdraw repaid assets, revoke pending changes, decrease `maxTtm`, and unset `forceSellable`. Can disable sub-ratifiers and cancel offer approvals.
 

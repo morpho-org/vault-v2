@@ -49,7 +49,8 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
-/// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
+/// @dev These timelocks are not hard guarantees for depositors.
+/// @dev These timelocks are not needed for the adapter to be noncustodial.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
@@ -290,29 +291,35 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /* NON-TIMELOCKED CURATOR SETTINGS */
-
+    /// @dev Timelocked only when decreasing minNetBuyRate.
     function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        if (newMinNetBuyRate < minNetBuyRate) timelocked();
+        else require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minNetBuyRate = newMinNetBuyRate.toUint128();
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
+    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then submit the new value accounting for what was consumed.
+    /// @dev Timelocked only when increasing shortfallAllowance.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        if (newShortfallAllowance > shortfallAllowance) timelocked();
+        else require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         shortfallAllowance = newShortfallAllowance.toUint128();
         emit SetShortfallAllowance(newShortfallAllowance);
     }
 
+    /// @dev Timelocked only when increasing maxNetSellRate.
     function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        if (newMaxNetSellRate > maxNetSellRate) timelocked();
+        else require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         maxNetSellRate = newMaxNetSellRate.toUint128();
         emit SetMaxNetSellRate(newMaxNetSellRate);
     }
 
+    /// @dev Timelocked only when decreasing the market's minForceSellPrice.
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        if (newMinForceSellPrice < marketData[marketId].minForceSellPrice) timelocked();
+        else require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         marketData[marketId].minForceSellPrice = newMinForceSellPrice;
         emit SetMinForceSellPrice(marketId, newMinForceSellPrice);
     }

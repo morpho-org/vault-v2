@@ -88,10 +88,10 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vault.setMaxRate(1e18 / uint256(365 days));
         vm.prank(allocator);
         adapter.setIsSubRatifier(address(priceSubRatifier), true);
-        vm.prank(curator);
-        adapter.setMaxNetSellRate(1e18 / uint256(365 days));
-        vm.prank(curator);
-        adapter.setShortfallAllowance(type(uint128).max);
+        _submitAndSet(
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.setMaxNetSellRate, (1e18 / uint256(365 days)))
+        );
+        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (type(uint128).max)));
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
