@@ -91,7 +91,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         _submitAndSet(
             address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (1e18 / uint256(365 days)))
         );
-        _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (type(uint128).max)));
+        _submitAndSet(
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (type(uint128).max))
+        );
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));

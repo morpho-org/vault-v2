@@ -581,27 +581,37 @@ contract MidnightAdapterTest is Test {
         if (low > high) (low, high) = (high, low);
         setShortfallAllowance(high);
         vm.prank(curator);
-        adapter.setShortfallAllowance(low);
+        adapter.decreaseShortfallAllowance(low);
         assertEq(adapter.shortfallAllowance(), low);
         vm.prank(curator);
-        adapter.setShortfallAllowance(low);
-        if (low == high) return;
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (high));
+        adapter.decreaseShortfallAllowance(low);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (high));
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(curator);
-        adapter.setShortfallAllowance(high);
-        submitTimelock(IMidnightAdapterBase.setShortfallAllowance.selector, 1 days);
+        adapter.increaseShortfallAllowance(high);
+        submitTimelock(IMidnightAdapterBase.increaseShortfallAllowance.selector, 1 days);
         vm.prank(curator);
         adapter.submit(data);
         vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
-        adapter.setShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(high);
         skip(1 days);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setShortfallAllowance.selector, data);
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.increaseShortfallAllowance.selector, data);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallAllowance(high);
-        adapter.setShortfallAllowance(high);
+        emit IMidnightAdapterBase.IncreaseShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(high);
         assertEq(adapter.shortfallAllowance(), high);
+    }
+
+    function testShortfallAllowanceMonotonic() public {
+        setShortfallAllowance(1);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (0)));
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooLow.selector);
+        adapter.increaseShortfallAllowance(0);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooHigh.selector);
+        vm.prank(curator);
+        adapter.decreaseShortfallAllowance(2);
     }
 
     function testShortfallAllowanceNotAuthorized(address caller, bool sentinel) public {
@@ -612,24 +622,26 @@ contract MidnightAdapterTest is Test {
         setShortfallAllowance(1);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setShortfallAllowance(0);
+        adapter.decreaseShortfallAllowance(0);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.setShortfallAllowance(1);
+        adapter.decreaseShortfallAllowance(1);
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(caller);
-        adapter.setShortfallAllowance(2);
+        adapter.increaseShortfallAllowance(2);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (1)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (1)));
     }
 
     function testShortfallAllowanceOverflow() public {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (uint256(type(uint128).max) + 1)));
+        adapter.submit(
+            abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (uint256(type(uint128).max) + 1))
+        );
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
 
-        adapter.setShortfallAllowance(uint256(type(uint128).max) + 1);
+        adapter.increaseShortfallAllowance(uint256(type(uint128).max) + 1);
     }
 
     function testMaxNetSellRateDirections(uint128 low, uint128 high) public {
@@ -763,7 +775,7 @@ contract MidnightAdapterTest is Test {
     function testMulticall(uint128 newShortfallAllowance, uint128 newMaxNetSellRate) public {
         setMaxNetSellRate(type(uint128).max);
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (newShortfallAllowance));
+        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (newShortfallAllowance));
         data[1] = abi.encodeCall(IMidnightAdapterBase.decreaseMaxNetSellRate, (newMaxNetSellRate));
 
         vm.prank(curator);
@@ -775,7 +787,7 @@ contract MidnightAdapterTest is Test {
 
     function testMulticallFailing() public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (1));
+        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (1));
         data[1] = abi.encodeCall(IMidnightAdapterBase.increaseMinNetBuyRate, (uint256(type(uint128).max) + 1));
         vm.prank(curator);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
@@ -6035,12 +6047,14 @@ contract MidnightAdapterTest is Test {
     }
 
     function setShortfallAllowance(uint256 newShortfallAllowance) internal {
-        if (newShortfallAllowance > adapter.shortfallAllowance()) {
+        if (newShortfallAllowance >= adapter.shortfallAllowance()) {
             vm.prank(curator);
-            adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (newShortfallAllowance)));
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (newShortfallAllowance)));
+            adapter.increaseShortfallAllowance(newShortfallAllowance);
+        } else {
+            vm.prank(curator);
+            adapter.decreaseShortfallAllowance(newShortfallAllowance);
         }
-        vm.prank(curator);
-        adapter.setShortfallAllowance(newShortfallAllowance);
     }
 
     function setForceSellable(bytes32 marketId) internal {

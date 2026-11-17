@@ -42,7 +42,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseMinNetBuyRate(uint256 newMinNetBuyRate);
     event IncreaseMaxTtm(uint256 newMaxTtm);
     event DecreaseMaxTtm(address indexed sender, uint256 newMaxTtm);
-    event SetShortfallAllowance(uint256 newShortfallAllowance);
+    event IncreaseShortfallAllowance(uint256 newShortfallAllowance);
+    event DecreaseShortfallAllowance(uint256 newShortfallAllowance);
     event IncreaseMaxNetSellRate(uint256 newMaxNetSellRate);
     event DecreaseMaxNetSellRate(uint256 newMaxNetSellRate);
     event IncreaseMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
@@ -93,6 +94,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
+    error ShortfallAllowanceTooLow();
+    error ShortfallAllowanceTooHigh();
     error MinForceSellPriceTooLow();
     error MinForceSellPriceTooHigh();
     error MaxNetSellRateTooLow();
@@ -153,7 +156,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
-    function setShortfallAllowance(uint256 newShortfallAllowance) external;
+    function increaseShortfallAllowance(uint256 newShortfallAllowance) external;
+    function decreaseShortfallAllowance(uint256 newShortfallAllowance) external;
     function increaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function decreaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
