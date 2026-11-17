@@ -32,6 +32,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// BUYING
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
+/// @dev For maker buys, callbackData is part of the offer, so the ratified offer selects the funding source. Sub-ratifiers can constrain it if needed.
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
@@ -44,11 +45,16 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+/// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of the taker.
+/// @dev The caller pays the sold net credit plus the Midnight settlement fee, so in-kind redemptions happen at face value whatever the time to maturity.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
+/// @dev shortfallAllowance starts at 0, so sales below amortized value revert until the curator increases it.
+/// @dev minForceSellPrice starts at 0, so a forceSellable market can be sold at any price until the curator sets it.
+/// @dev minForceSellPrice is a price instead of a rate so that sales can happen below face value at or after maturity.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
@@ -66,10 +72,12 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev If enterGateFactory is not VaultV2CompatibleEnterGate, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
+/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory and lists the adapter's factory in canAdmit (which requires admitEnabled for VaultV2CompatibleEnterGate).
+/// @dev If enterGateFactory is not VaultV2CompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
+/// @dev To preserve the vault's non-custodial guarantees, increaseMaxTtm, setForceSellable and forceRemove must be timelocked long enough for depositors to exit.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
 /// MISC
