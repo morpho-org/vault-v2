@@ -4555,6 +4555,43 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(boughtOffer.market, 2e18);
     }
 
+    /// @dev The largest assets whose sold credit does not exceed the credit succeeds.
+    function testForceDeallocateUpToCredit(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 7 days);
+        Offer memory boughtOffer = buy(7 days, 1e18, MAX_TICK / 2);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        skip(elapsed);
+        (uint128 credit,,) = midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
+        uint256 netRate = adapter.marketData(marketId).netRate;
+        uint256 ttm = boughtOffer.market.maturity - block.timestamp;
+        uint256 assets = (uint256(credit) + 1).mulDivUp(1e18, 1e18 + netRate * ttm) - 1;
+        uint256 units = assets.mulDivDown(1e18 + netRate * ttm, 1e18);
+        assertLe(units, credit, "units");
+        deal(address(loanToken), address(this), assets);
+
+        forceDeallocate(boughtOffer.market, assets);
+
+        assertEq(midnight.credit(marketId, address(this)), units, "caller credit");
+        assertEq(midnight.credit(marketId, address(adapter)), credit - units, "adapter credit");
+        assertEq(midnight.debt(marketId, address(adapter)), 0, "adapter debt");
+    }
+
+    /// @dev The smallest assets whose sold credit exceeds the credit reverts.
+    function testForceDeallocateAboveCreditReverts(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 7 days);
+        Offer memory boughtOffer = buy(7 days, 1e18, MAX_TICK / 2);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        skip(elapsed);
+        (uint128 credit,,) = midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
+        uint256 netRate = adapter.marketData(marketId).netRate;
+        uint256 ttm = boughtOffer.market.maturity - block.timestamp;
+        uint256 assets = (uint256(credit) + 1).mulDivUp(1e18, 1e18 + netRate * ttm);
+        deal(address(loanToken), address(this), assets);
+
+        vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
+        forceDeallocate(boughtOffer.market, assets);
+    }
+
     function testForceDeallocateOK() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -4571,6 +4608,42 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.consumed(address(adapter), bytes32(0)), 0, "consumed");
         assertGe(loanToken.allowance(address(adapter), address(parentVault)), type(uint96).max / 2, "vault allowance");
         assertGe(loanToken.allowance(address(adapter), address(midnight)), type(uint96).max / 2, "midnight allowance");
+    }
+
+    /// @dev The caller pays the amortized value of the sold credit plus the settlement fee on the sold credit.
+    function testForceDeallocateAtAmortizedValue(uint256 assets, uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 8 days);
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP * (i == 0 ? 1 : i));
+        }
+        Offer memory boughtOffer = buy(7 days, 1e18, MAX_TICK / 2);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        skip(elapsed);
+        MarketData memory dataBefore = adapter.marketData(marketId);
+        uint256 ttm = boughtOffer.market.maturity.zeroFloorSub(block.timestamp);
+        if (ttm > 0) assertGt(dataBefore.netRate, 0, "positive rate");
+        assets = bound(assets, 1, uint256(dataBefore.netCredit) * 1e18 / (1e18 + dataBefore.netRate * ttm));
+        uint256 units = assets.mulDivDown(1e18 + dataBefore.netRate * ttm, 1e18);
+        uint256 settlementFee = units.mulDivUp(midnight.settlementFee(marketId, ttm), 1e18);
+        uint256 realAssetsBefore = adapter.realAssets();
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
+        deal(address(loanToken), address(this), assets + settlementFee);
+
+        forceDeallocate(boughtOffer.market, assets);
+
+        assertEq(midnight.credit(marketId, address(this)), units, "caller got the credit with interest");
+        assertEq(adapter.marketData(marketId).netCredit, dataBefore.netCredit - units, "netCredit");
+        if (units < dataBefore.netCredit) {
+            assertEq(adapter.marketData(marketId).netRate, dataBefore.netRate, "rate unchanged");
+        }
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault got the amortized value");
+        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid amortized value and settlement fee");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
+        assertEq(
+            midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + settlementFee, "settlement fee"
+        );
+        assertApproxEqAbs(adapter.realAssets(), realAssetsBefore - assets, 2, "realAssets dropped by assets");
     }
 
     function testForceDeallocateAfterUnsyncedLoss() public {

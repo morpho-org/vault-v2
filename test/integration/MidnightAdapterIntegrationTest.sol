@@ -402,8 +402,9 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         midnight.setMarketSettlementFee(marketId, 2, 0.00005e18);
         vm.stopPrank();
         units = 1000 * oneToken;
-        uint256 settlementFeeAssets =
-            units - units * (WAD - midnight.settlementFee(marketId, market.maturity - block.timestamp)) / WAD;
+        uint256 ttm = market.maturity - block.timestamp;
+        uint256 soldUnits = units * (WAD + gatedAdapter.marketData(marketId).netRate * ttm) / WAD;
+        uint256 settlementFeeAssets = MathLib.mulDivUp(soldUnits, midnight.settlementFee(marketId, ttm), WAD);
         deal(address(underlyingToken), depositor, settlementFeeAssets);
 
         // Midnight provides the flashloan. The depositor funds only the settlement fee.
@@ -471,9 +472,12 @@ contract MidnightAdapterExitRouter is IFlashLoanCallback {
 
     /// @dev The caller must authorize this router and the adapter on Midnight.
     function exit(Market memory market, uint256 assets) external {
-        uint256 settlementFee = IMidnight(midnight)
-            .settlementFee(IdLib.toId(market), MathLib.zeroFloorSub(market.maturity, block.timestamp));
-        uint256 settlementFeeAssets = MathLib.mulDivUp(assets, settlementFee, WAD);
+        bytes32 marketId = IdLib.toId(market);
+        uint256 ttm = MathLib.zeroFloorSub(market.maturity, block.timestamp);
+        // The adapter sells the credit whose amortized value is `assets`, and the settlement fee applies to that credit.
+        uint256 units =
+            MathLib.mulDivDown(assets, WAD + IMidnightAdapter(adapter).marketData(marketId).netRate * ttm, WAD);
+        uint256 settlementFeeAssets = MathLib.mulDivUp(units, IMidnight(midnight).settlementFee(marketId, ttm), WAD);
         if (settlementFeeAssets > 0) {
             SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
         }

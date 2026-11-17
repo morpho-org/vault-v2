@@ -14,8 +14,8 @@ With a compatible [`enterGateFactory`](#enter-gates) configured, market enter ga
 ### In-kind redemptions
 
 The vault shareholder uses `forceDeallocate` on the vault to obtain credit from the adapter.
-The payment is the credit amount before pending fees plus the Midnight settlement fee.
-In-kind redemptions therefore happen at a price of one asset per unit of credit, plus fees, whatever the time to maturity.
+The payment is the amortized value of the credit (before pending fees), discounted at the market's net rate until maturity, plus the Midnight settlement fee on the credit amount.
+In-kind redemptions therefore happen at the adapter's book price, plus fees.
 The vault also charges its `forceDeallocate` penalty.
 The shareholder can then withdraw from the vault to complete the in-kind redemption.
 

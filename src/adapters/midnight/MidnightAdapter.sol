@@ -400,7 +400,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at its amortized value plus the settlement fee, paid by the sender.
+    /// @dev The sold credit is `assets` plus interest at the market's net rate until maturity, so that `assets` is its amortized value.
     /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
     /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
     /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
@@ -437,9 +438,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 maxAssets: type(uint128).max,
                 continuousFeeCap: type(uint256).max
             });
-            uint256 settlementFeeAssets = assets.mulDivUp(
-                IMidnight(midnight).settlementFee(marketId, market.maturity.zeroFloorSub(block.timestamp)), WAD
-            );
+            uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
+            uint256 units = assets.mulDivDown(WAD + _marketData.netRate * ttm, WAD);
+            uint256 settlementFeeAssets = units.mulDivUp(IMidnight(midnight).settlementFee(marketId, ttm), WAD);
             SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
             if (
                 market.enterGate != address(0) && enterGateFactory != address(0)
@@ -453,7 +454,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
             // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
-            IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
+            IMidnight(midnight).take(offer, hex"", units, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
             uint256 oldNetCredit = _marketData.netCredit;
