@@ -17,14 +17,14 @@ methods {
     function _.withdraw(MidnightAdapter.Market, uint256, address, address) external => HAVOC_ECF;
 
     // Midnight.take only calls back the offer's callback and the taker callback, the other calls being views or loan token transfers.
-    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address taker, address, address takerCallback, bytes) external => cvlTake(offer, taker, takerCallback) expect(uint256, uint256);
+    function _.take(MidnightAdapter.Offer offer, bytes, uint256, address taker, address, address takerCallback, bytes) external => CVL_take(offer, taker, takerCallback) expect(uint256, uint256);
     function _.havocAll() external => HAVOC_ALL;
     function _.setIsAuthorized(address authorized, bool newIsAuthorized, address) external => CVL_recordAuthorization(calledContract, executingContract, authorized, newIsAuthorized) expect void;
 
     // The loan token and enter gate must not reenter the adapter.
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
     function _.admit(address, address) external => HAVOC_ECF;
-    function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
+    function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => CVL_updatePositionView(id, user) expect(uint128, uint128, uint128);
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
@@ -34,7 +34,7 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
-function cvlTake(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
+function CVL_take(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
     require offer.maker != taker, "proved by takeRequiresDistinctMakerAndTaker in Midnight's Ratification.spec (morpho-org/midnight#1253)";
     require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "the ratifier of an offer made by the adapter is the adapter: proved by takeRequiresMakerConsent in Midnight's Ratification.spec and adapterOnlyAuthorizesItself; take calls its isRatified and requires success: proved by takeRequiresRatifierSuccess (morpho-org/midnight#1253); isRatified requires the adapter as callback outside forceDeallocate: proved by isRatifiedRequiresAdapterCallback";
     address buyer = offer.buy ? offer.maker : taker;
@@ -91,13 +91,13 @@ function requireMarketIdsInvariants() {
     require forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].index == i, "see marketIdsIndex in MarketIdsMidnightAdapter.spec";
 }
 
-// Net credit can decrease at any read (sales, withdrawals, losses). Increases with the adapter as buyer-side callback precede onBuy, checked as an entry point; cvlTake models other callbacks.
-function cvlUpdatePositionView(bytes32 id, address user) returns (uint128, uint128, uint128) {
+// Net credit can decrease at any read (sales, withdrawals, losses). Increases with the adapter as buyer-side callback precede onBuy, checked as an entry point; CVL_take models other callbacks.
+function CVL_updatePositionView(bytes32 id, address user) returns (uint128, uint128, uint128) {
     uint128 credit;
     uint128 pendingFee;
     uint128 accruedFee;
     if (user == currentContract) {
-        require credit - pendingFee <= ghostMidnightNetCredit[id], "Midnight net credit increases are modeled in onBuy and cvlTake";
+        require credit - pendingFee <= ghostMidnightNetCredit[id], "Midnight net credit increases are modeled in onBuy and CVL_take";
         if (credit >= pendingFee) ghostMidnightNetCredit[id] = assert_uint128(credit - pendingFee);
     }
     return (credit, pendingFee, accruedFee);
