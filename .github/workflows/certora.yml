@@ -129,7 +129,7 @@ jobs:
       - name: Apply munging
         run: make -C lib/metamorpho/certora munged
 
-      - name: Verify ${{ matrix.conf }}
+      - name: Verify ${{ matrix.conf }} specification
         run: certoraRun "certora/confs/$CONF.conf"
         env:
           CONF: ${{ matrix.conf }}
