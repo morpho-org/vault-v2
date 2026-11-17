@@ -1,7 +1,7 @@
 # Midnight adapter
 
 [MidnightAdapter](./MidnightAdapter.sol) lets a [Vault V2](../../../README.md) allocate assets into [Midnight](https://github.com/morpho-org/midnight) fixed-rate, fixed-maturity markets.
-It buys, sells and hold credit on behalf of the vault, and withdraws repaid assets back to the vault.
+It buys, sells and holds credit on behalf of the vault, and withdraws repaid assets back to the vault.
 The adapter uses the roles of its parent vault (curator, allocators, and sentinels).
 [MidnightAdapterFactory](./MidnightAdapterFactory.sol) deploys instances of `MidnightAdapter`.
 All contracts are immutable.
@@ -22,7 +22,7 @@ The shareholder can then withdraw from the vault to complete the in-kind redempt
 ### Enter gates
 
 The adapter can be configured with an `enterGateFactory`, such as [IKRCompatibleEnterGateFactory](./gates/IKRCompatibleEnterGateFactory.sol).
-When `enterGateFactory` is set, the adapter can enter only in markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
+When `enterGateFactory` is set, the adapter can only enter markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
 If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 `IKRCompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
@@ -169,4 +169,4 @@ Each side has its own role setter, who grants or revokes the whitelister role on
 Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
 `setIsWhitelistedWithSig` accepts a stale nonce when the account is already set to the signed value. The signature must still be unexpired and from a current whitelister.
 A side can be made open at deployment, letting any account enter on that side (forever).
-`WhitelistEnterSubGateFactory` deploys  `WhitelistEnterSubGate` contracts.
+`WhitelistEnterSubGateFactory` deploys `WhitelistEnterSubGate` contracts.
