@@ -46,7 +46,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
 /// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
 /// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of the taker.
-/// @dev The caller pays the sold net credit plus the Midnight settlement fee, so in-kind redemptions happen at face value whatever the time to maturity.
+/// @dev The caller pays one asset per sold credit unit (credit before pending fees) plus the Midnight settlement fee, whatever the time to maturity.
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
