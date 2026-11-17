@@ -12,23 +12,15 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.
-/// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
-/// could break and the penalty could be paid in an arbitrary token.
+/// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system could break and the penalty could be paid in an arbitrary token.
 /// @dev The vault's allocators can manage the public allocators' settings.
-/// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller in the vault's
-/// asset. The penalty is set per vault by the allocators and is transferred directly to the vault (a donation, which
-/// increases the rate like forceDeallocate penalties).
-/// @dev The penalty parameter of reallocate and allocateFromIdle protects callers against penalty changes between
-/// signing and execution.
+/// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller in the vault's asset. The penalty is set per vault by the allocators and is transferred directly to the vault (a donation, which increases the rate like forceDeallocate penalties).
+/// @dev The penalty parameter of reallocate and allocateFromIdle protects callers against penalty changes between signing and execution.
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
-/// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
-/// deposits).
-/// @dev The BluePublicAllocator opens the door for anybody to manipulate relative caps through short-term deposits (but
-/// it requires capital).
-/// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an
-/// allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
-/// @dev Reallocations (notably through this contract) can reduce the vault's "direct" liquidity by pulling assets from
-/// idle and from the liquidity market. It can also block deposit by reaching the liquidity market's caps.
+/// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through deposits).
+/// @dev The BluePublicAllocator opens the door for anybody to manipulate relative caps through short-term deposits (but it requires capital).
+/// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
+/// @dev Reallocations (notably through this contract) can reduce the vault's "direct" liquidity by pulling assets from idle and from the liquidity market. It can also block deposit by reaching the liquidity market's caps.
 contract BluePublicAllocator is IBluePublicAllocator {
     /* IMMUTABLES */
 
@@ -50,8 +42,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     /* MULTICALL */
 
     /// @dev Useful for EOAs to batch allocator calls.
-    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
-    /// the multicall themselves.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);

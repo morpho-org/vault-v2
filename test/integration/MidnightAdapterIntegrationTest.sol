@@ -30,8 +30,7 @@ import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
-/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to
-/// this file require a human review.
+/// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
 contract MidnightAdapterIntegrationTest is BaseTest {
     /// @dev Price of about 0.994 assets per unit.
     uint256 internal constant TICK = 4400;

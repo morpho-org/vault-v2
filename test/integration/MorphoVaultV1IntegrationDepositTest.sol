@@ -105,9 +105,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Initial deposit
-        // We mint exactly one share otherwise the loss is not exactly the donation factor because you are still in the
-        // vault so you profit from the share that has been burned for less than the share price on your other shares,
-        // making testing difficult.
+        // We mint exactly one share otherwise the loss is not exactly the donation factor because you are still in the vault so you profit from the share that has been burned for less than the share price on your other shares, making testing difficult.
         vault.deposit(donationFactor, address(this));
         assertEq(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), 1, "shares");
 

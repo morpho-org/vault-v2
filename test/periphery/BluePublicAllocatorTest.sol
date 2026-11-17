@@ -9,8 +9,7 @@ import {IBluePublicAllocator} from "../../src/periphery/blue-public-allocator/in
 import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 
 /// @dev The public allocator is specialized to Morpho Blue, via the MorphoMarketV1AdapterV2 adapter.
-/// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
-/// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
+/// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
 contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
@@ -107,8 +106,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocate(assets, _currentPenalty());
     }
 
-    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to
-    /// the vaultData getter call instead of the reallocate call.
+    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to the vaultData getter call instead of the reallocate call.
     function _reallocate(uint128 assets, uint64 penalty_) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
@@ -120,8 +118,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocateAcrossAdapters(assets, _currentPenalty());
     }
 
-    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to
-    /// the vaultData getter call instead of the reallocate call.
+    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to the vaultData getter call instead of the reallocate call.
     function _reallocateAcrossAdapters(uint128 assets, uint64 penalty_) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
@@ -479,8 +476,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        // Vault absolute cap on market2 tightened below the amount so the vault's own allocate reverts first.
-        // decreaseAbsoluteCap is not timelocked; the curator can call it directly.
+        // Vault absolute cap on market2 tightened below the amount so the vault's own allocate reverts first. decreaseAbsoluteCap is not timelocked; the curator can call it directly.
         vm.prank(curator);
         vault.decreaseAbsoluteCap(expectedIdData2[2], amount - 1);
 

@@ -320,8 +320,7 @@ contract MidnightAdapterGasTest is BaseTest {
         assertGt(underlyingToken.balanceOf(forceCaller), 0, "force caller received assets");
     }
 
-    /// @dev Returns the intrinsic gas for a transaction with the given calldata. The EIP-7623 calldata floor doesn't
-    /// reduce the gas available to execution.
+    /// @dev Returns the intrinsic gas for a transaction with the given calldata. The EIP-7623 calldata floor doesn't reduce the gas available to execution.
     function _intrinsicGas(bytes memory callData) internal pure returns (uint256 gas) {
         gas = 21_000;
         for (uint256 i = 0; i < callData.length; i++) {

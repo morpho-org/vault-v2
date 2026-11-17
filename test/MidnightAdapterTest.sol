@@ -118,8 +118,7 @@ contract SaleCallback {
     }
 }
 
-/// @notice Loan token with a transferFrom hook. Once armed, its first transferFrom tries to buy credit in another
-/// market for a given buyer.
+/// @notice Loan token with a transferFrom hook. Once armed, its first transferFrom tries to buy credit in another market for a given buyer.
 contract HookedToken is ERC20Mock {
     IMidnight internal immutable midnight;
     bytes internal attackData;
@@ -282,8 +281,7 @@ contract MidnightAdapterTest is Test {
         deal(storedCollaterals[0].token, address(this), 1_000_000e18);
         deal(storedCollaterals[1].token, address(this), 1_000_000e18);
 
-        // The test contract is the forceDeallocate caller: the adapter takes on its behalf and pulls the payment from
-        // it.
+        // The test contract is the forceDeallocate caller: the adapter takes on its behalf and pulls the payment from it.
         midnight.setIsAuthorized(address(adapter), true, address(this));
         SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
         parentVault.setBalanceOf(address(this), 1);
@@ -2870,8 +2868,7 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(keccak256(familyData)), 0, "second family exited");
     }
 
-    /// @dev Midnight still accepts takes (the loss factor is below its maximum), but the adapter's credit rounds down
-    /// to 0 while its stored net credit does not change.
+    /// @dev Midnight still accepts takes (the loss factor is below its maximum), but the adapter's credit rounds down to 0 while its stored net credit does not change.
     function testBuyAfterCreditRoundsToZero(bool zeroUnits) public {
         Offer memory first = buy(1 days, 1e18);
         Offer memory offer = buy(7 days, 1e18, discountTick);
@@ -4055,8 +4052,7 @@ contract MidnightAdapterTest is Test {
         Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
         take(boughtOffer);
 
-        // The attacker's vault is a real VaultV2 whose asset is a token with a transferFrom hook. Its adapter comes
-        // from the registered factory.
+        // The attacker's vault is a real VaultV2 whose asset is a token with a transferFrom hook. Its adapter comes from the registered factory.
         HookedToken hookedToken = new HookedToken(address(midnight), address(loanToken));
         IVaultV2Factory vaultFactory = IVaultV2Factory(deployCode("out/VaultV2Factory.sol/VaultV2Factory.json"));
         IVaultV2 hookedVault = IVaultV2(vaultFactory.createVaultV2(owner, address(hookedToken), bytes32(0)));
@@ -4088,8 +4084,7 @@ contract MidnightAdapterTest is Test {
         SafeERC20Lib.safeApprove(address(hookedToken), address(hookedVault), type(uint256).max);
         hookedVault.deposit(9e18, address(this));
 
-        // The attack needs the adapter to manage to get whitelisted: only then can it hold credit in the gated market,
-        // and only force deallocations of held markets reach the funding transfer.
+        // The attack needs the adapter to manage to get whitelisted: only then can it hold credit in the gated market, and only force deallocations of held markets reach the funding transfer.
         gate.setIsWhitelisted(true, address(hookedAdapter), true);
         Offer memory gatedSellOffer = makeExternalOffer(gatedMarket, false, 1e18, MAX_TICK);
         vm.prank(signerAllocator);
@@ -4746,8 +4741,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer sells it.
-    /// Both route through the same onBuy/onSell accounting as the maker flows.
+    /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer sells it. Both route through the same onBuy/onSell accounting as the maker flows.
     function testAllocatorTakeRealVault() public {
         setUpRealVault();
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
@@ -5996,8 +5990,7 @@ contract MidnightAdapterTest is Test {
         this.takeWithAccrual(offer, "", taker, address(0));
     }
 
-    /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell offers
-    /// get a collateralized one.
+    /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell offers get a collateralized one.
     function makeExternalOffer(Market memory market, bool isBuy, uint256 assets, uint256 tick)
         internal
         returns (Offer memory offer)

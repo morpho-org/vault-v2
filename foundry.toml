@@ -9,9 +9,6 @@ ignored_error_codes = ["transient-storage"]
 ignored_error_codes_from = [["test", ["code-size", "init-code-size"]]]
 ignored_warnings_from = ["lib"]
 
-[profile.default.fmt]
-wrap_comments = true
-
 [lint]
 ignore = [
     "test/**/*.sol",

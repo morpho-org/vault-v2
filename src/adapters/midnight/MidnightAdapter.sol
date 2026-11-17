@@ -17,89 +17,67 @@ import {IIKRCompatibleEnterGate} from "./gates/interfaces/IIKRCompatibleEnterGat
 import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
-/// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until
-/// maturity.
-/// @dev When rounded, position amortized values and rates are rounded down on buys, sales, and realAssets evaluations,
-/// which can accrue some interest earlier.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
-/// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
+/// @dev When rounded, position amortized values and rates are rounded down on buys, sales, and realAssets evaluations, which can accrue some interest earlier.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
 /// ROLES
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), to call
-/// forceRemove and to self-fund buys.
-/// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so
-/// deposits would revert.
+/// @dev The adapter must have the allocator or sentinel role to sell (except through forceDeallocate), to call forceRemove and to self-fund buys.
+/// @dev This adapter must not be used as the vault's liquidity adapter: allocate only accepts self-reported changes, so deposits would revert.
 /// @dev Sub-ratifiers define which offers are authorized.
 /// @dev The sentinel can only remove sub-ratifiers.
 ///
 /// BUYING
-/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
-/// deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to
-/// abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Sub-ratifiers can constrain the funding source of maker buys if needed.
 ///
 /// SELLING
 /// @dev A sale has a shortfall when the proceeds are less than the amortized value of the sold net credit.
-/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their
-/// rates, so the adapter's amortized value decreases only by the received assets.
+/// @dev A non-forceSellable shortfall reduces remaining interest proportionally across all markets by decreasing their rates, so the adapter's amortized value decreases only by the received assets.
 /// @dev ForceSellable sales do not reduce rates; they realize shortfalls as instant losses.
-/// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net
-/// credit is stale.
+/// @dev A sale with a shortfall reverts while another market has a sale in progress, since that market's stored net credit is stale.
 /// @dev Bad debt that is visible in onSell is applied before the shortfall.
-/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market
-/// by at most the shortfall right after the sale, and by zero at maturity.
+/// @dev This includes bad debt realized during the sale (e.g. in the buyer callback), which then overvalues the market by at most the shortfall right after the sale, and by zero at maturity.
+///
 /// FORCE DEALLOCATE
 /// @dev The caller must be the taker, or be authorized by the taker on Midnight.
-/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty
-/// allows.
-/// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of
-/// the taker.
+/// @dev The taker must hold at least 1 share of the parent vault and can then forceDeallocate as much as the penalty allows.
+/// @dev The taker must have authorized the adapter on Midnight, since the adapter takes its own sell offer on behalf of the taker.
+///
 /// ALLOCATOR GUARDRAILS
-/// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for
-/// allocators.
+/// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
 /// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
-/// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by
-/// minForceSellPrice instead.
+/// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
+///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
-/// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for
-/// Midnight positions.
+/// @dev When enabled, relative caps compare this face value with recorded total assets, which use book value for Midnight positions.
 /// @dev When trading between adapters of the same vault, caps can be transiently exceeded and make the trade revert.
 ///
 /// DURATION CAPS
 /// @dev Durations can be used to cap the amount of credit above specific TTMs.
-/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter,
-/// duration)).
+/// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("this/duration", adapter, duration)).
 /// @dev A position counts toward every duration <= its current remaining time to maturity.
-/// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps
-/// as well.
-/// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each
-/// check.
+/// @dev The vault does not store the allocations of duration ids. The adapter stores them instead and enforces the caps as well.
+/// @dev The adapter checks these caps against the stored net credit, which is an upper bound of the exposure at each check.
 /// @dev Unlike the vault's ids, duration ids do not require a non-zero allocation on deallocation.
 /// @dev A duration of 0 can effectively always be used, through adapterId, since it means capping all Midnight markets.
 ///
 /// ENTER GATE
-/// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit
-/// in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before
-/// Midnight transfers the loan token.
-/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory
-/// and lists the adapter's factory in canAdmit (which requires admitEnabled for IKRCompatibleEnterGate).
-/// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow
-/// in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory =
-/// address(0), no restriction is put on the enter gate of the adapter's markets.
+/// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
+/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory and lists the adapter's factory in canAdmit (which requires admitEnabled for IKRCompatibleEnterGate).
+/// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
+///
 /// TIMELOCKS
-/// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be
-/// pending.
-/// @dev To preserve the vault's non-custodial guarantees, increaseMaxTtm, setForceSellable and forceRemove must be
-/// timelocked long enough for depositors to exit.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
+/// @dev To preserve the vault's non-custodial guarantees, increaseMaxTtm, setForceSellable and forceRemove must be timelocked long enough for depositors to exit.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
 /// MISC
-/// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each
-/// other, as the buyer's onBuy accrues interest on the vault mid-sale.
+/// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each other, as the buyer's onBuy accrues interest on the vault mid-sale.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
@@ -130,8 +108,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bool public transient inForceDeallocate;
     /// @dev Set to true after admitting the taker of forceDeallocate's take, cleared in the buy callback.
     bool public transient admitting;
-    /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before
-    /// allocate.
+    /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;
     uint64 public transient inProgressBuyNetRate;
@@ -189,8 +166,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MULTICALL */
 
     /// @dev Useful for EOAs to batch curator and allocator calls.
-    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
-    /// the multicall themselves.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -204,8 +180,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TIMELOCK FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         // 68 bytes = 4-byte selector + two 32-byte arguments for increaseTimelock/decreaseTimelock.
@@ -247,8 +222,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
@@ -294,9 +268,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
     }
 
-    /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g.
-    /// the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it
-    /// becomes force sellable.
+    /// @dev When submitting setForceSellable, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it becomes force sellable.
     function setForceSellable(bytes32 marketId) external {
         timelocked();
         marketData[marketId].forceSellable = true;
@@ -326,8 +298,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMinNetBuyRate(newMinNetBuyRate);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it
-    /// safely, set it to 0, then set the new value accounting for what was consumed.
+    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     function setShortfallAllowance(uint256 newShortfallAllowance) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         shortfallAllowance = newShortfallAllowance.toUint128();
@@ -390,9 +361,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Irreversibly removes a market without moving its Midnight credit.
     /// @dev Buys, withdrawals, sales and force deallocations of the market then revert.
-    /// @dev When submitting forceRemove, it's recommended to put the cap of at least one of the market's ids (e.g. the
-    /// caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it is force
-    /// removed.
+    /// @dev When submitting forceRemove, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it is force removed.
     function forceRemove(bytes32 marketId) external {
         timelocked();
         MarketData storage _marketData = marketData[marketId];
@@ -431,12 +400,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         returnExactBytes(data);
     }
 
-    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker
-    /// at face value plus the settlement fee, paid by the sender.
-    /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market
-    /// (`abi.encode(market)`) to the vault.
-    /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded
-    /// `(bytes32[] ids, int256 change)`.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
+    /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
+    /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
     /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
@@ -486,8 +452,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
             // Use onBuy to unadmit the buyer before Midnight transfers the loan token.
-            // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during
-            // forceDeallocate.
+            // forge-lint: disable-next-item(reentrancy-no-eth) onBuy only clears transient state during forceDeallocate.
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
@@ -506,8 +471,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own
-    /// offer through forceDeallocate.
+    /// @dev Returns the result of the sub-ratifier selected in ratifierData, except while the adapter takes its own offer through forceDeallocate.
     function isRatified(Offer memory offer, bytes calldata ratifierData, address taker)
         external
         view
@@ -528,8 +492,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
     }
 
-    /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the
-    /// vault has not paid yet.
+    /// @dev Between recording the purchase and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     /// @dev Can revert on extremely high rates.
     function onBuy(
         bytes32 id,
@@ -701,8 +664,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
-                    // Rates are rounded down (and shares up), so stop once the shortfall is realized to not reduce
-                    // rates more than needed.
+                    // Rates are rounded down (and shares up), so stop once the shortfall is realized to not reduce rates more than needed.
                     if (realizedShortfall >= shortfall) break;
                 }
             }
@@ -723,8 +685,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* INTERNAL FUNCTIONS */
 
-    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored
-    /// market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
+    /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
     function withdrawToVault(Market memory market, uint256 withdrawnAssets)
         internal
@@ -795,8 +756,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF
-    /// threshold and liquidator gate), and each collateral token.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
     /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
@@ -817,8 +777,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return packedDurations.unpack(durationsLength);
     }
 
-    /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left
-    /// to maturity.
+    /// @dev Returns, for the first length durations, the stored net credit of markets with at least that duration left to maturity.
     function durationAllocations(uint256 length) public view returns (uint256[] memory) {
         require(length <= durationsLength, InvalidLength());
         uint256[] memory allocations = new uint256[](length);
@@ -859,8 +818,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 netRate = _marketData.netRate;
             }
             // Cannot overflow: numerator (uint128 * WAD) and denominator (WAD + uint64 * uint40) are << 2^256.
-            // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets
-            // does not overflow either.
+            // Each iteration adds at most netCredit (uint128) and there are at most MAX_MARKETS additions, so assets does not overflow either.
             unchecked {
                 assets += netCredit * WAD / (WAD + netRate * maturity.zeroFloorSub(block.timestamp));
             }
