@@ -49,7 +49,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
-/// @dev These timelocks are not hard guarantees for depositors.
+/// @dev Relaxing these guardrails is timelocked, but these timelocks are not hard guarantees for depositors.
 /// @dev These timelocks are not needed for the adapter to be noncustodial.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
 ///
