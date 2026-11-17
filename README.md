@@ -12,7 +12,7 @@ All the contracts are immutable.
 
 Vaults allocate assets to underlying markets via separate contracts called adapters.
 They hold positions on behalf of the vault.
-Adapters are also used to know how much these investments are worth (interest and loss realization).
+Adapters are also used to know how much these positions are worth (interest and loss realization).
 
 An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapters a vault can have and add.
 This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
@@ -25,7 +25,7 @@ The following adapters are currently available:
 
 ### Caps
 
-The funds allocation of the vault is constrained by an id-based caps system.
+The allocation of the vault is constrained by an id-based caps system.
 An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
@@ -105,7 +105,7 @@ Each fee goes to its respective recipient set by the curator.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying markets (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
-  They are notably responsible for the vault's performance and liquidity.
+  Their allocations notably determine the vault's performance and liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
   They are able to revoke pending actions, deallocate funds to idle and decrease caps.
