@@ -54,7 +54,6 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
 /// @dev shortfallAllowance starts at 0, so sales below amortized value revert until the curator increases it.
 /// @dev minForceSellPrice starts at 0, so a forceSellable market can be sold at any price until the curator sets it.
-/// @dev minForceSellPrice is a price instead of a rate so that sales can happen below face value at or after maturity.
 ///
 /// CAPS
 /// @dev Midnight positions fill caps with their stored net credit, not their discounted book value.
