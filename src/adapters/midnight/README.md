@@ -1,7 +1,7 @@
 # Midnight adapter
 
 [MidnightAdapter](./MidnightAdapter.sol) lets a [Vault V2](../../../README.md) allocate assets into [Midnight](https://github.com/morpho-org/midnight) fixed-rate, fixed-maturity markets.
-It buys, sells and hold credit on behalf of the vault, and withdraws repaid assets back to the vault.
+It buys, sells and holds credit on behalf of the vault, and withdraws repaid assets back to the vault.
 The adapter uses the roles of its parent vault (curator, allocators, and sentinels).
 [MidnightAdapterFactory](./MidnightAdapterFactory.sol) deploys instances of `MidnightAdapter`.
 All contracts are immutable.
@@ -21,11 +21,11 @@ The shareholder can then withdraw from the vault to complete the in-kind redempt
 
 ### Enter gates
 
-The adapter can be configured with an `enterGateFactory`, such as [VaultV2CompatibleEnterGateFactory](./gates/VaultV2CompatibleEnterGateFactory.sol).
-When `enterGateFactory` is set, the adapter can enter only in markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
+The adapter can be configured with an `enterGateFactory`, such as [IKRCompatibleEnterGateFactory](./gates/IKRCompatibleEnterGateFactory.sol).
+When `enterGateFactory` is set, the adapter can only enter markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
 If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
-`VaultV2CompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
+`IKRCompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
 
 ### Timelocked settings
 
@@ -149,19 +149,19 @@ The adapter reads roles directly from its `parentVault`:
 These contracts control increases in credit or debt in Midnight markets, not transfers of vault shares or assets.
 Midnight calls the gate at `Market.enterGate`. That gate can call a subgate to check permissions.
 
-### `VaultV2CompatibleEnterGate`
+### `IKRCompatibleEnterGate`
 
 This is a Midnight enter gate, not a Vault V2 gate.
 One gate can be the enterGate of multiple markets.
 For ordinary permission checks, the gate calls its `subGate` with the account.
 During `forceDeallocate`, a Midnight adapter from a registered factory can temporarily admit a shareholder of its parent vault to receive credit without subgate approval.
 The adapter sells through its own offer and is the buyer callback of that sale: it clears the admission in that callback, before Midnight transfers the loan token, so neither the buyer nor the token can reuse it.
-`VaultV2CompatibleEnterGateFactory` deploys `VaultV2CompatibleEnterGate` contracts.
+`IKRCompatibleEnterGateFactory` deploys `IKRCompatibleEnterGate` contracts.
 
 ### `WhitelistEnterSubGate`
 
 A subgate that restricts which accounts can increase their credit or debt in the markets of the gates that use it.
-`VaultV2CompatibleEnterGate` calls this subgate with an account.
+`IKRCompatibleEnterGate` calls this subgate with an account.
 It cannot be used directly as a Midnight or Vault V2 gate.
 
 Each side (credit, debt) has one whitelist for all markets: only whitelisted accounts can enter on that side.
@@ -169,4 +169,4 @@ Each side has its own role setter, who grants or revokes the whitelister role on
 Whitelisters edit the lists directly with `setIsWhitelisted` or allow to edit the list by EIP-712 signatures used by `setIsWhitelistedWithSig`.
 `setIsWhitelistedWithSig` accepts a stale nonce when the account is already set to the signed value. The signature must still be unexpired and from a current whitelister.
 A side can be made open at deployment, letting any account enter on that side (forever).
-`WhitelistEnterSubGateFactory` deploys  `WhitelistEnterSubGate` contracts.
+`WhitelistEnterSubGateFactory` deploys `WhitelistEnterSubGate` contracts.
