@@ -100,7 +100,7 @@ jobs:
           version: nightly # Catch upstream Foundry changes before the next stable release.
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
-        run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
+        run: if [ ${{ matrix.isolate }} = true ]; then forge test --deny warnings -vvv --isolate; else forge test --deny warnings -vvv; fi
         env:
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           DECIMALS: ${{ matrix.decimals }}

@@ -14,11 +14,11 @@ contract ERC20WithoutBoolean {
 
 /// @dev Token returning false.
 contract ERC20WithBooleanAlwaysFalse {
-    function transfer(address to, uint256 value) public pure returns (bool) {
+    function transfer(address, uint256) public pure returns (bool) {
         return false;
     }
 
-    function transferFrom(address from, address to, uint256 value) public pure returns (bool) {
+    function transferFrom(address, address, uint256) public pure returns (bool) {
         return false;
     }
 
