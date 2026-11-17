@@ -69,7 +69,6 @@ jobs:
   test:
     permissions:
       contents: read
-    needs: sizes
     strategy:
       matrix:
         decimals: [0, 6, 8, 18, 24]
