@@ -108,7 +108,7 @@ Vault sentinels can only cancel offers.
 ### Operational constraints
 
 These constraints are intended for operational quality of life, not to provide guarantees to depositors.
-The curator can constrain allocator trades through these settings.
+The curator can constrain allocator trades through these settings:
 
 - **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
 - **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
