@@ -26,6 +26,8 @@ When `enterGateFactory` is set, the adapter can only enter markets that allow in
 If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 `IKRCompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
+Registered adapter factories are trusted: their `isCreated` must be accurate and never change, and their adapters must behave correctly, otherwise `forceDeallocate` (and thus IKR) can be blocked for adapters they created.
+The adapter's `factory` is its deployer (`msg.sender` at construction), so depositors relying on IKR should check that `factory` is a genuine `MidnightAdapterFactory` registered in the gate.
 
 ### Timelocked settings
 
