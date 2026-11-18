@@ -118,7 +118,7 @@ The curator can constrain allocator trades through these settings:
 Only `minForceSellPrice` is set per market.
 The other three settings are set for the whole adapter.
 
-`decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate. Each function requires its named monotonic direction, allowing equality.
+`decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate.
 
 ### Force-sellable markets
 
