@@ -405,7 +405,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Called by this adapter from a buy callback to update the vault's allocations.
     /// @dev Returns the bought market's ids and the change in the adapter's net credit in this market.
-    function allocate(bytes calldata data, uint256, bytes4, address sender)
+    function allocate(bytes memory data, uint256, bytes4, address sender)
         external
         view
         returns (bytes32[] memory, int256)
@@ -737,11 +737,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Ends the external call, returning data without ABI encoding.
-    function returnExactBytes(bytes calldata data) internal pure {
+    function returnExactBytes(bytes memory data) internal pure {
         assembly ("memory-safe") {
-            let ptr := mload(0x40)
-            calldatacopy(ptr, data.offset, data.length)
-            return(ptr, data.length)
+            return(add(data, 32), mload(data))
         }
     }
 
