@@ -54,7 +54,7 @@ rule reentrancyViewSafe(method f, env e, calldataarg data) {
         bytes adapterData;
         uint256 assets;
         address onBehalf;
-
+    
         // Used to show that the penalty withdrawal does not deallocate again.
         require forceDeallocatePenalty(e, adapter) <= 10 ^ 18, "see forceDeallocatePenaltyBound in Invariants.spec";
         forceDeallocate(e, adapter, adapterData, assets, onBehalf);
