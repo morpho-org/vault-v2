@@ -9,7 +9,7 @@ import {IIKRCompatibleEnterGate} from "./interfaces/IIKRCompatibleEnterGate.sol"
 /// @dev Uses a subgate and lets vault users be temporarily "admitted" to increase their credit through forceDeallocate.
 /// @dev Any market, on any Midnight, can use this gate as its enterGate. The subgate's permissions apply to all of them.
 /// @dev roleSetter permanently registers adapter factories; their debt-free adapters admit a vault shareholder only during their own sale and clear admission in the buyer callback before token transfers.
-/// @dev Registered adapter factories are trusted: their isCreated must be accurate and never change, and their adapters must behave correctly, otherwise forceDeallocate (and thus IKR) can be blocked for adapters they created.
+/// @dev Registered adapter factories are trusted to always return true to isCreated on adapters they deployed, and their adapters must behave correctly. Otherwise, in-kind redemptions can be blocked even when admitEnabled is set to true.
 contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
     address public immutable subGate;
     /// @dev Immutable to preserve registered vaults' IKR guarantee. When false, markets using this gate won't be usable in vaults that need IKR (enterGateFactory != 0).
