@@ -15,6 +15,7 @@ import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 import {IIKRCompatibleEnterGate} from "./gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
+import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
@@ -68,7 +69,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory and lists the adapter's factory in canAdmit (which requires admitEnabled for IKRCompatibleEnterGate).
+/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory and lists the adapter's factory in canAdmit (which requires admitEnabled for IKRCompatibleEnterGate), and whose adapter factory recognizes this adapter in isCreated.
 /// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
@@ -549,7 +550,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(
                     market.enterGate == address(0) || enterGateFactory == address(0)
                         || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                            && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)
+                            && IMidnightAdapterFactory(factory).isCreated(address(this))),
                     IncorrectEnterGate()
                 );
             }

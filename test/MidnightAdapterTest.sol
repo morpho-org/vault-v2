@@ -48,6 +48,7 @@ import {IKRCompatibleEnterGateFactory} from "../src/adapters/midnight/gates/IKRC
 import {IIKRCompatibleEnterGate} from "../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {IWhitelistReceiveSharesGate} from "../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 import {EnterGateMock} from "./mocks/EnterGateMock.sol";
+import {MidnightAdapterFactoryMock} from "./mocks/MidnightAdapterFactoryMock.sol";
 import {IWhitelistEnterSubGate} from "../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
 import {IEnterSubGate} from "../src/adapters/midnight/gates/interfaces/IEnterSubGate.sol";
 
@@ -3761,6 +3762,44 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
         assertEq(realVault.allocation(adapter.adapterId()), 1e18);
         assertEq(loanToken.balanceOf(address(realVault)), 9e18);
+    }
+
+    function testEnterGateRequiresCreatedAdapter(bool adapterIsMaker) public {
+        (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
+        vm.startPrank(address(otherFactory));
+        adapter = IMidnightAdapter(
+            deployCode(
+                "MidnightAdapter.sol:MidnightAdapter",
+                abi.encode(address(realVault), address(midnight), allDurations, address(gateFactory))
+            )
+        );
+        vm.stopPrank();
+        disableDurationCaps(adapter);
+        setUpMaxTtm(type(uint32).max);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
+        addSubRatifier(adapter, address(priceRatifier));
+        bytes memory idData = abi.encode("this", address(adapter));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        storedOffer.callback = address(adapter);
+        address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);
+        vm.prank(IKRCompatibleEnterGate(wrapper).roleSetter());
+        IKRCompatibleEnterGate(wrapper).addAdmitterFactory(address(otherFactory));
+        Offer memory offer = makeEnterGateBuyOffer(wrapper, adapterIsMaker);
+
+        assertEq(adapter.factory(), address(otherFactory));
+        assertTrue(gateFactory.isCreated(wrapper));
+        assertTrue(IKRCompatibleEnterGate(wrapper).canAdmit(address(otherFactory)));
+        assertFalse(otherFactory.isCreated(address(adapter)));
+        vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
+        takeEnterGateOffer(offer, adapterIsMaker);
+
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0);
+        assertEq(loanToken.balanceOf(address(realVault)), 10e18);
     }
 
     function testEnterGateRequiresAdmitterFactory(bool enabled) public {
