@@ -119,6 +119,7 @@ Only `minForceSellPrice` is set per market.
 The other three settings are set for the whole adapter.
 
 `decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate.
+These timelocks are not hard guarantees on depositors' future interest, and the adapter does not need them to be noncustodial.
 
 ### Force-sellable markets
 
