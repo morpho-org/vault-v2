@@ -137,7 +137,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         } else {
             vault.deposit(assets, address(this));
             checkAssetsInMorphoVaultV1Markets(assets);
-            uint256 positionOnMorpho = 0;
+            uint256 positionOnMorpho;
             for (uint256 i; i < MORPHO_VAULT_V1_NB_MARKETS; i++) {
                 positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(morphoVaultV1));
             }

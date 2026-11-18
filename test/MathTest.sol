@@ -7,6 +7,8 @@ import {MathLib} from "../src/libraries/MathLib.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 
 contract MathTest is Test {
+    function setUp() public {}
+
     function testMulDivDown(uint256 x, uint256 y, uint256 d) public pure {
         vm.assume(d != 0);
         // Proof that it's the tightest bound when y != 0:

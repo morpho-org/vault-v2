@@ -792,6 +792,7 @@ contract SettersTest is BaseTest {
         public
     {
         vm.assume(rdm != curator && rdm != sentinel);
+        vm.assume(newAbsoluteCap >= 0);
         vm.assume(idData.length > 0);
         newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max - 1);
         oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint128).max - 1);

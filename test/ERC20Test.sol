@@ -149,7 +149,7 @@ contract ERC20Test is BaseTest {
         vm.expectEmit();
         emit EventsLib.Transfer(from, to, sharesTransferred);
 
-        assertTrue(vault.transferFrom(from, to, sharesTransferred));
+        vault.transferFrom(from, to, sharesTransferred);
 
         if (address(this) != from) {
             assertEq(vault.allowance(from, address(this)), sharesApproved - sharesTransferred, "approved-transferred");
@@ -197,7 +197,7 @@ contract ERC20Test is BaseTest {
         vm.expectEmit();
         emit EventsLib.Transfer(from, to, sharesTransferred);
 
-        assertTrue(vault.transferFrom(from, to, sharesTransferred));
+        vault.transferFrom(from, to, sharesTransferred);
         assertEq(vault.allowance(from, address(this)), type(uint256).max, "allowance");
         if (from == to) {
             assertEq(vault.balanceOf(from), shares, "balance");

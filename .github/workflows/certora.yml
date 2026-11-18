@@ -23,40 +23,10 @@ jobs:
       - id: list
         run: echo "confs=$(find certora/confs -type f -name '*.conf' | sed 's|^certora/confs/||;s|\.conf$||' | sort | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
 
-  format:
-    permissions:
-      contents: read
-    name: Certora formatting
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ">=3.15.2"
-      - run: pip install certora-cli
-      - name: Run Certora Config Linter
-        run: |
-          find certora/confs -type f -name '*.conf' | sort |
-          while read -r file; do
-            jq . "$file" | diff -u "$file" -
-          done
-      - name: Run Certora Specs Linter
-        run: |
-          find certora -type f -name '*.spec' | sort |
-          while read -r file; do
-            certoraCVLFormatter "$file" | diff -u "$file" -
-          done
-
   verify:
     permissions:
       contents: read
-    needs: [matrix, format]
+    needs: matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -79,6 +49,23 @@ jobs:
 
       - name: Install certora
         run: pip install certora-cli
+
+      # Per-conf lint, unlike the other repos: the formatter would put each long helper definition on one line.
+      - name: Run Certora Config Linter
+        run: |
+          file="certora/confs/$CONF.conf"
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(jq < "$file")
+        env:
+          CONF: ${{ matrix.conf }}
+
+      - name: Run Certora Specs Linter
+        run: |
+          file="certora/specs/$CONF.spec"
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(certoraCVLFormatter "$file")
+        env:
+          CONF: ${{ matrix.conf }}
 
       - name: Install solc (0.8.19)
         run: |

@@ -386,7 +386,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         bytes32 root = HashLib.hashNode(proof[0], this.leaf(sibling, 0, taker));
         bytes32 typeHash =
             isRate() ? HashLib.rateRatifierV1OfferTreeTypeHash(1) : HashLib.priceRatifierV1OfferTreeTypeHash(1);
-        bytes32 structHash = keccak256(abi.encode(typeHash, maker, root, true, uint128(0), vm.getBlockTimestamp()));
+        bytes32 structHash = keccak256(abi.encode(typeHash, maker, root, true, uint128(0), block.timestamp));
         bytes32 domain = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(ratifier)));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(allocatorKey, keccak256(bytes.concat("\x19\x01", domain, structHash)));
         vm.prank(allocator);

@@ -6,7 +6,7 @@ import {ERC20RevertToZero} from "../../lib/midnight/test/erc20s/ERC20RevertToZer
 
 contract ERC20RevertToZeroMock is ERC20RevertToZero {
     uint8 public immutable decimals;
-    uint256 public totalSupply = 0;
+    uint256 public totalSupply;
 
     constructor(uint8 _decimals) ERC20RevertToZero("revert-to-zero") {
         decimals = _decimals;

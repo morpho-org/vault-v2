@@ -121,7 +121,7 @@ contract MorphoVaultV1AdapterTest is Test {
         ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
         bytes32 initCodeHash = keccak256(
-            bytes.concat(
+            abi.encodePacked(
                 type(MorphoVaultV1Adapter).creationCode, abi.encode(address(newParentVault), address(newVault))
             )
         );
