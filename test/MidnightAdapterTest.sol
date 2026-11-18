@@ -6077,7 +6077,12 @@ contract MidnightAdapterTest is Test {
     }
 
     function familyIdData(Market memory market) internal pure returns (bytes memory) {
-        return abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate);
+        return abi.encode(
+            "collateralParams/rcfThreshold/liquidatorGate",
+            market.collateralParams,
+            market.rcfThreshold,
+            market.liquidatorGate
+        );
     }
 
     function increaseFamilyCap(IVaultV2 vault, Market memory market) internal {

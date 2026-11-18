@@ -80,7 +80,6 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each other, as the buyer's onBuy accrues interest on the vault mid-sale.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
-    using MathLib for uint128;
     using MathLib for uint40;
     using PackedDurationsLib for bytes32;
 
@@ -763,8 +762,14 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] =
-            keccak256(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
+        idsArray[j++] = keccak256(
+            abi.encode(
+                "collateralParams/rcfThreshold/liquidatorGate",
+                market.collateralParams,
+                market.rcfThreshold,
+                market.liquidatorGate
+            )
+        );
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
         }
