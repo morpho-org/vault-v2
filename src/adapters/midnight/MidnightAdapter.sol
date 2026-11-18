@@ -179,18 +179,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    function isCurator(address account) internal view returns (bool) {
-        return account == IVaultV2(parentVault).curator();
-    }
-
-    function isSentinel(address account) internal view returns (bool) {
-        return IVaultV2(parentVault).isSentinel(account);
-    }
-
-    function isAllocator(address account) internal view returns (bool) {
-        return IVaultV2(parentVault).isAllocator(account);
-    }
-
     /* TIMELOCK FUNCTIONS */
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
@@ -711,6 +699,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function isCurator(address account) internal view returns (bool) {
+        return account == IVaultV2(parentVault).curator();
+    }
+
+    function isSentinel(address account) internal view returns (bool) {
+        return IVaultV2(parentVault).isSentinel(account);
+    }
+
+    function isAllocator(address account) internal view returns (bool) {
+        return IVaultV2(parentVault).isAllocator(account);
+    }
 
     /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.
