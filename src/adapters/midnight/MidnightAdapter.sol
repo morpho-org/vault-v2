@@ -304,6 +304,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit IncreaseShortfallAllowance(newShortfallAllowance);
     }
 
+    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
     function decreaseShortfallAllowance(uint256 newShortfallAllowance) external {
         require(isCurator(msg.sender), NotAuthorized());
         require(newShortfallAllowance <= shortfallAllowance, ShortfallAllowanceTooHigh());
