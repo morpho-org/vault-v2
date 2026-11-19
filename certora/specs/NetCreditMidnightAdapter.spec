@@ -24,6 +24,10 @@ methods {
     function _.transferFrom(address, address, uint256) external => HAVOC_ECF;
     function _.admit(address, address) external => HAVOC_ECF;
     function _.updatePositionView(MidnightAdapter.Market, bytes32 id, address user) external => cvlUpdatePositionView(id, user) expect(uint128, uint128, uint128);
+
+    // Resolve these static calls so the invariant is not checked between Midnight crediting the buy and the adapter recording it.
+    function _.isCreated(address) external => NONDET;
+    function _.canAdmit(address) external => NONDET;
 }
 
 // The adapter's net credit (credit minus pending fee) in each Midnight market.
