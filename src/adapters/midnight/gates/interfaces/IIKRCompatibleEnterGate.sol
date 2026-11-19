@@ -19,6 +19,7 @@ interface IIKRCompatibleEnterGate is IEnterGate {
 
     function subGate() external view returns (address);
     function admitEnabled() external view returns (bool);
+    /// @dev Returns factory registration. Check admitEnabled() as well before relying on admission.
     function canAdmit(address adapterFactory) external view returns (bool);
     function roleSetter() external view returns (address);
     function addAdmitterFactory(address adapterFactory) external;
