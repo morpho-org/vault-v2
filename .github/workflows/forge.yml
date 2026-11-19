@@ -72,6 +72,7 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
