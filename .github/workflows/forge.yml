@@ -44,7 +44,7 @@ jobs:
       - name: Lint tests
         run: forge lint test --deny notes
 
-  sizes:
+  build:
     permissions:
       contents: read
     runs-on: ubuntu-latest

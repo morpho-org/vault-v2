@@ -10,9 +10,8 @@ ignored_error_codes_from = [["test", ["code-size", "init-code-size"]]]
 ignored_warnings_from = ["lib"]
 
 [lint]
-ignore = [
-    "test/**/*.sol",
-]
+# Silence warnings on import files that produce no artifact.
+ignore = ["test/imports/*.sol"]
 exclude_lints = [
     "screaming-snake-case-immutable",
     "asm-keccak256",
@@ -41,7 +40,7 @@ exclude_lints = [
 [profile.no_via_ir]
 via_ir = false
 
-[fuzz]
+[profile.default.fuzz]
 runs = 2048
 
 [[profile.default.compilation_restrictions]]
