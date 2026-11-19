@@ -28,7 +28,6 @@ contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
     }
 
     function addAdmitterFactory(address adapterFactory) external {
-        require(admitEnabled, AdmitDisabled());
         require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[adapterFactory] = true;
         emit AddAdmitterFactory(adapterFactory);

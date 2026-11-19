@@ -53,20 +53,16 @@ contract IKRCompatibleEnterGateTest is Test {
         assertFalse(disabled.canAdmit(address(adapterFactory)));
     }
 
-    function testAdmitDisabled(address user, address factory) public {
+    function testAdmitDisabledEvenWithRegisteredFactory(address user) public {
         IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
+        vm.prank(creditRoleSetter);
+        disabled.addAdmitterFactory(address(adapterFactory));
+        assertTrue(disabled.canAdmit(address(adapterFactory)));
+
         vm.expectRevert(IIKRCompatibleEnterGate.AdmitDisabled.selector);
         vm.prank(adapter);
-        disabled.admit(user, factory);
+        disabled.admit(user, address(adapterFactory));
         assertFalse(disabled.canIncreaseCredit(user));
-    }
-
-    function testAddAdmitterFactoryDisabled(address factory) public {
-        IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
-        vm.expectRevert(IIKRCompatibleEnterGate.AdmitDisabled.selector);
-        vm.prank(creditRoleSetter);
-        disabled.addAdmitterFactory(factory);
-        assertFalse(disabled.canAdmit(factory));
     }
 
     function testDisabledAdmissionPreservesSubGatePermissions() public {
