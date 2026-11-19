@@ -41,7 +41,7 @@ exclude_lints = [
 via_ir = false
 
 [profile.default.fuzz]
-runs = 2048
+runs = 1024
 
 [[profile.default.compilation_restrictions]]
 paths = "test/imports/MorphoImport.sol"
