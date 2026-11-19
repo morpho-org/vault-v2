@@ -525,34 +525,32 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
             uint64 oldNetRate = _marketData.netRate;
-            _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
                 uint256 amortizedValue =
                     (newNetCredit - boughtNetCredit).mulDivDown(WAD, WAD + oldNetRate * ttm) + buyerAssets;
                 // Can revert if pre-buy amortized credit and buyerAssets are both 0.
-                _marketData.netRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
+                uint64 newNetRate = (newNetCredit - amortizedValue).mulDivDown(WAD, amortizedValue * ttm).toUint64();
                 if (oldNetCredit == 0) {
                     require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+                    require(
+                        market.enterGate == address(0) || enterGateFactory == address(0)
+                            || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                                && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                        IncorrectEnterGate()
+                    );
                     _marketData.maturity = market.maturity.toUint40();
                     // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
                     _marketData.index = uint8(marketIds.length);
                     marketIds.push(id);
                 }
+                _marketData.netRate = newNetRate;
             } else if (oldNetCredit > 0) {
                 removeMarket(id);
             }
+            _marketData.netCredit = newNetCredit;
 
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
-
-            if (newNetCredit > 0 && oldNetCredit == 0) {
-                require(
-                    market.enterGate == address(0) || enterGateFactory == address(0)
-                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)),
-                    IncorrectEnterGate()
-                );
-            }
 
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();

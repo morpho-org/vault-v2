@@ -74,6 +74,20 @@ contract GarbageSubRatifier {
     }
 }
 
+contract MarketStateEnterGateMock {
+    IMidnightAdapter internal immutable adapter;
+    bytes32 internal immutable marketId;
+
+    constructor(IMidnightAdapter adapter_, bytes32 marketId_) {
+        adapter = adapter_;
+        marketId = marketId_;
+    }
+
+    function canAdmit(address) external view returns (bool) {
+        return adapter.marketIdsLength() == 0 && adapter.marketData(marketId).netCredit == 0;
+    }
+}
+
 contract SaleCallback {
     struct Action {
         address target;
@@ -3761,6 +3775,21 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 1e18);
         assertEq(realVault.allocation(adapter.adapterId()), 1e18);
         assertEq(loanToken.balanceOf(address(realVault)), 9e18);
+    }
+
+    function testEnterGateChecksBeforeRecordingMarket() public {
+        (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);
+        Offer memory offer = makeEnterGateBuyOffer(wrapper, true);
+        bytes32 marketId = _marketId(offer.market);
+        MarketStateEnterGateMock mock = new MarketStateEnterGateMock(adapter, marketId);
+        vm.mockFunction(wrapper, address(mock), abi.encodeCall(IIKRCompatibleEnterGate.canAdmit, (address(factory))));
+        vm.expectCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), 1);
+
+        takeEnterGateOffer(offer, true);
+
+        assertEq(adapter.marketIds(0), marketId);
+        assertEq(adapter.marketData(marketId).netCredit, 1e18);
     }
 
     function testEnterGateRequiresAdmitterFactory(bool enabled) public {
