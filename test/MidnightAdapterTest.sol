@@ -4183,6 +4183,24 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
+    function testEnterGateForceDeallocateRevertingAdmit(bool whitelisted) public {
+        (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
+        gate.setIsWhitelisted(true, buyer, whitelisted);
+        vm.mockCallRevert(wrapper, abi.encodeWithSelector(IIKRCompatibleEnterGate.admit.selector), "admit reverted");
+
+        if (!whitelisted) vm.expectRevert(IMidnight.BuyerGatedFromIncreasingCredit.selector);
+        realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
+
+        assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), whitelisted ? 0.5e18 : 0);
+        assertFalse(adapter.admitting());
+    }
+
+    /// forge-config: default.isolate = false
     function testEnterGateShareholderExitBypassesRevertingSubGate() public {
         (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
         address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);

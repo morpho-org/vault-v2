@@ -402,7 +402,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
     /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
     /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
-    /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
+    /// @dev If the market's enter gate comes from enterGateFactory, the adapter tries to admit the taker in it during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
         external
@@ -444,9 +444,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 market.enterGate != address(0) && enterGateFactory != address(0)
                     && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
             ) {
+                // A failed admission is ignored: Midnight still lets the take through if the gate allows the taker.
                 // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
-                IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory);
-                admitting = true;
+                try IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory) {
+                    admitting = true;
+                } catch {}
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
