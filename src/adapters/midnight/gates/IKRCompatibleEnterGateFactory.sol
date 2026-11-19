@@ -9,6 +9,7 @@ contract IKRCompatibleEnterGateFactory is IIKRCompatibleEnterGateFactory {
     mapping(address account => bool) public isCreated;
 
     /// @dev The salt is derived from msg.sender to prevent front-running issues. Bundles (shared msg.sender) must derive preSalt from the initiator too.
+    // forge-lint: disable-next-line(mixed-case-function) IKR is an acronym.
     function createIKRCompatibleEnterGate(address subGate, bool admitEnabled, bytes32 preSalt)
         external
         returns (address)

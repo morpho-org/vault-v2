@@ -37,16 +37,15 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
           version: nightly
-      - name: Lint contracts and verification harnesses
-        run: forge lint src certora --deny notes
-      - name: Lint tests
-        run: forge lint test --deny notes
+      - name: Run forge lint
+        run: forge lint src certora test --deny notes
 
   build:
-    name: sizes
+    name: sizes-and-locked
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -68,8 +67,10 @@ jobs:
         run: forge build --locked
 
   test:
+    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, ${{ matrix.token }} token)"
     permissions:
       contents: read
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         decimals: [0, 6, 8, 18, 24]
@@ -85,9 +86,6 @@ jobs:
           - { decimals: 18, isolate: false, token-type: 2, token: usdt }
           - { decimals: 18, isolate: false, token-type: 3, token: revert-to-zero }
           - { decimals: 18, isolate: false, token-type: 4, token: no-return }
-
-    runs-on: ubuntu-latest
-    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, ${{ matrix.token }} token)"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
