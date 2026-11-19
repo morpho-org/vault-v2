@@ -49,7 +49,8 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ALLOCATOR GUARDRAILS
 /// @dev minNetBuyRate, maxNetSellRate, shortfallAllowance and minForceSellPrice help the curator set guardrails for allocators.
-/// @dev Changing these parameters is not timelocked, because they are not used to provide guarantees to depositors.
+/// @dev Relaxing these guardrails is timelocked, but these timelocks are not hard guarantees on future interest for depositors.
+/// @dev These timelocks are not needed for the adapter to be non-custodial.
 /// @dev Sales in forceSellable markets ignore maxNetSellRate and shortfallAllowance, and are bounded by minForceSellPrice instead.
 ///
 /// CAPS
@@ -181,7 +182,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(isCurator(msg.sender), NotAuthorized());
         // 68 bytes = 4-byte selector + two 32-byte arguments for increaseTimelock/decreaseTimelock.
         require(data.length <= 68, DataTooLong());
         require(executableAt[data] == 0, DataAlreadyPending());
@@ -209,10 +210,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function revoke(bytes calldata data) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        require(isCurator(msg.sender) || isSentinel(msg.sender), NotAuthorized());
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
@@ -258,10 +256,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function decreaseMaxTtm(uint256 newMaxTtm) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        require(isCurator(msg.sender) || isSentinel(msg.sender), NotAuthorized());
         require(newMaxTtm <= maxTtm, MaxTtmTooHigh());
         maxTtm = newMaxTtm.toUint128();
         emit DecreaseMaxTtm(msg.sender, newMaxTtm);
@@ -275,10 +270,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function unsetForceSellable(bytes32 marketId) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        require(isCurator(msg.sender) || isSentinel(msg.sender), NotAuthorized());
         marketData[marketId].forceSellable = false;
         emit UnsetForceSellable(msg.sender, marketId);
     }
@@ -289,50 +281,74 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /* NON-TIMELOCKED CURATOR SETTINGS */
-
-    function setMinNetBuyRate(uint256 newMinNetBuyRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+    function increaseMinNetBuyRate(uint256 newMinNetBuyRate) external {
+        require(isCurator(msg.sender), NotAuthorized());
+        require(newMinNetBuyRate >= minNetBuyRate, MinNetBuyRateTooLow());
         minNetBuyRate = newMinNetBuyRate.toUint128();
-        emit SetMinNetBuyRate(newMinNetBuyRate);
+        emit IncreaseMinNetBuyRate(newMinNetBuyRate);
+    }
+
+    function decreaseMinNetBuyRate(uint256 newMinNetBuyRate) external {
+        timelocked();
+        require(newMinNetBuyRate <= minNetBuyRate, MinNetBuyRateTooHigh());
+        minNetBuyRate = newMinNetBuyRate.toUint128();
+        emit DecreaseMinNetBuyRate(newMinNetBuyRate);
     }
 
     /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
-    function setShortfallAllowance(uint256 newShortfallAllowance) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+    function increaseShortfallAllowance(uint256 newShortfallAllowance) external {
+        timelocked();
+        require(newShortfallAllowance >= shortfallAllowance, ShortfallAllowanceTooLow());
         shortfallAllowance = newShortfallAllowance.toUint128();
-        emit SetShortfallAllowance(newShortfallAllowance);
+        emit IncreaseShortfallAllowance(newShortfallAllowance);
     }
 
-    function setMaxNetSellRate(uint256 newMaxNetSellRate) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
+    function decreaseShortfallAllowance(uint256 newShortfallAllowance) external {
+        require(isCurator(msg.sender), NotAuthorized());
+        require(newShortfallAllowance <= shortfallAllowance, ShortfallAllowanceTooHigh());
+        shortfallAllowance = newShortfallAllowance.toUint128();
+        emit DecreaseShortfallAllowance(newShortfallAllowance);
+    }
+
+    function increaseMaxNetSellRate(uint256 newMaxNetSellRate) external {
+        timelocked();
+        require(newMaxNetSellRate >= maxNetSellRate, MaxNetSellRateTooLow());
         maxNetSellRate = newMaxNetSellRate.toUint128();
-        emit SetMaxNetSellRate(newMaxNetSellRate);
+        emit IncreaseMaxNetSellRate(newMaxNetSellRate);
     }
 
-    function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+    function decreaseMaxNetSellRate(uint256 newMaxNetSellRate) external {
+        require(isCurator(msg.sender), NotAuthorized());
+        require(newMaxNetSellRate <= maxNetSellRate, MaxNetSellRateTooHigh());
+        maxNetSellRate = newMaxNetSellRate.toUint128();
+        emit DecreaseMaxNetSellRate(newMaxNetSellRate);
+    }
+
+    function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
+        require(isCurator(msg.sender), NotAuthorized());
+        require(newMinForceSellPrice >= marketData[marketId].minForceSellPrice, MinForceSellPriceTooLow());
         marketData[marketId].minForceSellPrice = newMinForceSellPrice;
-        emit SetMinForceSellPrice(marketId, newMinForceSellPrice);
+        emit IncreaseMinForceSellPrice(marketId, newMinForceSellPrice);
+    }
+
+    function decreaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
+        timelocked();
+        require(newMinForceSellPrice <= marketData[marketId].minForceSellPrice, MinForceSellPriceTooHigh());
+        marketData[marketId].minForceSellPrice = newMinForceSellPrice;
+        emit DecreaseMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
     /* ALLOCATOR FUNCTIONS */
 
     function setConsumed(bytes32 group, uint128 amount) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        require(isAllocator(msg.sender) || isSentinel(msg.sender), NotAuthorized());
         IMidnight(midnight).setConsumed(group, amount, address(this));
         emit SetConsumed(msg.sender, group, amount);
     }
 
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender)
-                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
-            NotAuthorized()
-        );
+        require(isAllocator(msg.sender) || (!newIsSubRatifier && isSentinel(msg.sender)), NotAuthorized());
         isSubRatifier[subRatifier] = newIsSubRatifier;
         emit SetIsSubRatifier(msg.sender, subRatifier, newIsSubRatifier);
     }
@@ -342,7 +358,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
         external
     {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(!liquidationLocked(IdLib.toId(offer.market)), SellInProgress());
         emit Take(msg.sender);
@@ -683,6 +699,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function isCurator(address account) internal view returns (bool) {
+        return account == IVaultV2(parentVault).curator();
+    }
+
+    function isSentinel(address account) internal view returns (bool) {
+        return IVaultV2(parentVault).isSentinel(account);
+    }
+
+    function isAllocator(address account) internal view returns (bool) {
+        return IVaultV2(parentVault).isAllocator(account);
+    }
 
     /// @dev Withdraws `withdrawnAssets` of matured or repaid credit from `market` to this adapter, updates stored market state, and returns the market's ids and net credit change for the vault to pull `withdrawnAssets`.
     /// @dev Can be called with `withdrawnAssets == 0` to synchronize `marketData` after a loss.

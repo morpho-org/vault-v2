@@ -512,12 +512,271 @@ contract MidnightAdapterTest is Test {
         adapter.setSkimRecipient(recipient);
     }
 
+    function testMinNetBuyRateDirections(uint128 low, uint128 high) public {
+        if (low > high) (low, high) = (high, low);
+        setMinNetBuyRate(low);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.IncreaseMinNetBuyRate(high);
+        vm.prank(curator);
+        adapter.increaseMinNetBuyRate(high);
+        assertEq(adapter.minNetBuyRate(), high);
+        vm.prank(curator);
+        adapter.increaseMinNetBuyRate(high);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.decreaseMinNetBuyRate, (low));
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(curator);
+        adapter.decreaseMinNetBuyRate(low);
+        submitTimelock(IMidnightAdapterBase.decreaseMinNetBuyRate.selector, 1 days);
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.decreaseMinNetBuyRate(low);
+        skip(1 days);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.decreaseMinNetBuyRate.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DecreaseMinNetBuyRate(low);
+        adapter.decreaseMinNetBuyRate(low);
+        assertEq(adapter.minNetBuyRate(), low);
+    }
+
+    function testMinNetBuyRateMonotonic() public {
+        setMinNetBuyRate(1);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinNetBuyRate, (2)));
+        vm.expectRevert(IMidnightAdapterBase.MinNetBuyRateTooHigh.selector);
+        adapter.decreaseMinNetBuyRate(2);
+        vm.expectRevert(IMidnightAdapterBase.MinNetBuyRateTooLow.selector);
+        vm.prank(curator);
+        adapter.increaseMinNetBuyRate(0);
+    }
+
+    function testMinNetBuyRateNotAuthorized(address caller, bool sentinel) public {
+        vm.assume(caller != curator);
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        setMinNetBuyRate(1);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.increaseMinNetBuyRate(2);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.increaseMinNetBuyRate(1);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.decreaseMinNetBuyRate(0);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinNetBuyRate, (1)));
+    }
+
+    function testMinNetBuyRateOverflow() public {
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vm.prank(curator);
+        adapter.increaseMinNetBuyRate(uint256(type(uint128).max) + 1);
+    }
+
+    function testShortfallAllowanceDirections(uint128 low, uint128 high) public {
+        if (low > high) (low, high) = (high, low);
+        setShortfallAllowance(high);
+        vm.prank(curator);
+        adapter.decreaseShortfallAllowance(low);
+        assertEq(adapter.shortfallAllowance(), low);
+        vm.prank(curator);
+        adapter.decreaseShortfallAllowance(low);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (high));
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(curator);
+        adapter.increaseShortfallAllowance(high);
+        submitTimelock(IMidnightAdapterBase.increaseShortfallAllowance.selector, 1 days);
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.increaseShortfallAllowance(high);
+        skip(1 days);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.increaseShortfallAllowance.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.IncreaseShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(high);
+        assertEq(adapter.shortfallAllowance(), high);
+    }
+
+    function testShortfallAllowanceMonotonic() public {
+        setShortfallAllowance(1);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (0)));
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooLow.selector);
+        adapter.increaseShortfallAllowance(0);
+        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooHigh.selector);
+        vm.prank(curator);
+        adapter.decreaseShortfallAllowance(2);
+    }
+
+    function testShortfallAllowanceNotAuthorized(address caller, bool sentinel) public {
+        vm.assume(caller != curator);
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        setShortfallAllowance(1);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.decreaseShortfallAllowance(0);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.decreaseShortfallAllowance(1);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.increaseShortfallAllowance(2);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (1)));
+    }
+
+    function testShortfallAllowanceOverflow() public {
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (uint256(type(uint128).max) + 1))
+        );
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+
+        adapter.increaseShortfallAllowance(uint256(type(uint128).max) + 1);
+    }
+
+    function testMaxNetSellRateDirections(uint128 low, uint128 high) public {
+        if (low > high) (low, high) = (high, low);
+        setMaxNetSellRate(high);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DecreaseMaxNetSellRate(low);
+        vm.prank(curator);
+        adapter.decreaseMaxNetSellRate(low);
+        assertEq(adapter.maxNetSellRate(), low);
+        vm.prank(curator);
+        adapter.decreaseMaxNetSellRate(low);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (high));
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(curator);
+        adapter.increaseMaxNetSellRate(high);
+        submitTimelock(IMidnightAdapterBase.increaseMaxNetSellRate.selector, 1 days);
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.increaseMaxNetSellRate(high);
+        skip(1 days);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.increaseMaxNetSellRate.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.IncreaseMaxNetSellRate(high);
+        adapter.increaseMaxNetSellRate(high);
+        assertEq(adapter.maxNetSellRate(), high);
+    }
+
+    function testMaxNetSellRateMonotonic() public {
+        setMaxNetSellRate(1);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (0)));
+        vm.expectRevert(IMidnightAdapterBase.MaxNetSellRateTooLow.selector);
+        adapter.increaseMaxNetSellRate(0);
+        vm.expectRevert(IMidnightAdapterBase.MaxNetSellRateTooHigh.selector);
+        vm.prank(curator);
+        adapter.decreaseMaxNetSellRate(2);
+    }
+
+    function testMaxNetSellRateNotAuthorized(address caller, bool sentinel) public {
+        vm.assume(caller != curator);
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        setMaxNetSellRate(1);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.decreaseMaxNetSellRate(0);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.decreaseMaxNetSellRate(1);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.increaseMaxNetSellRate(2);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (1)));
+    }
+
+    function testMaxNetSellRateOverflow() public {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (uint256(type(uint128).max) + 1)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+
+        adapter.increaseMaxNetSellRate(uint256(type(uint128).max) + 1);
+    }
+
+    function testMinForceSellPriceDirections(uint128 low, uint128 high, bytes32 marketId) public {
+        if (low > high) (low, high) = (high, low);
+        setMinForceSellPrice(marketId, low);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.IncreaseMinForceSellPrice(marketId, high);
+        vm.prank(curator);
+        adapter.increaseMinForceSellPrice(marketId, high);
+        assertEq(adapter.marketData(marketId).minForceSellPrice, high);
+        vm.prank(curator);
+        adapter.increaseMinForceSellPrice(marketId, high);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, low));
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(curator);
+        adapter.decreaseMinForceSellPrice(marketId, low);
+        submitTimelock(IMidnightAdapterBase.decreaseMinForceSellPrice.selector, 1 days);
+        vm.prank(curator);
+        adapter.submit(data);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.decreaseMinForceSellPrice(marketId, low);
+        skip(1 days);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.decreaseMinForceSellPrice.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DecreaseMinForceSellPrice(marketId, low);
+        adapter.decreaseMinForceSellPrice(marketId, low);
+        assertEq(adapter.marketData(marketId).minForceSellPrice, low);
+    }
+
+    function testMinForceSellPriceMonotonic(bytes32 marketId) public {
+        setMinForceSellPrice(marketId, 1);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, 2)));
+        vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceTooHigh.selector);
+        adapter.decreaseMinForceSellPrice(marketId, 2);
+        vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceTooLow.selector);
+        vm.prank(curator);
+        adapter.increaseMinForceSellPrice(marketId, 0);
+    }
+
+    function testMinForceSellPriceNotAuthorized(address caller, bool sentinel, bytes32 marketId) public {
+        vm.assume(caller != curator);
+        if (sentinel) {
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        setMinForceSellPrice(marketId, 1);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.increaseMinForceSellPrice(marketId, 2);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.increaseMinForceSellPrice(marketId, 1);
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.decreaseMinForceSellPrice(marketId, 0);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, 1)));
+    }
+
     /* MULTICALL */
 
     function testMulticall(uint128 newShortfallAllowance, uint128 newMaxNetSellRate) public {
+        setMaxNetSellRate(type(uint128).max);
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (newShortfallAllowance));
-        data[1] = abi.encodeCall(IMidnightAdapterBase.setMaxNetSellRate, (newMaxNetSellRate));
+        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (newShortfallAllowance));
+        data[1] = abi.encodeCall(IMidnightAdapterBase.decreaseMaxNetSellRate, (newMaxNetSellRate));
 
         vm.prank(curator);
         adapter.multicall(data);
@@ -528,8 +787,8 @@ contract MidnightAdapterTest is Test {
 
     function testMulticallFailing() public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IMidnightAdapterBase.setShortfallAllowance, (1));
-        data[1] = abi.encodeCall(IMidnightAdapterBase.setMinNetBuyRate, (uint256(type(uint128).max) + 1));
+        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (1));
+        data[1] = abi.encodeCall(IMidnightAdapterBase.increaseMinNetBuyRate, (uint256(type(uint128).max) + 1));
         vm.prank(curator);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         adapter.multicall(data);
@@ -562,33 +821,6 @@ contract MidnightAdapterTest is Test {
     }
 
     /* SHORTFALL ALLOWANCE */
-
-    function testSetShortfallAllowanceAuthorized(uint128 oldValue, uint128 newValue) public {
-        vm.prank(curator);
-        adapter.setShortfallAllowance(oldValue);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallAllowance(newValue);
-        vm.prank(curator);
-        adapter.setShortfallAllowance(newValue);
-        assertEq(adapter.shortfallAllowance(), newValue, "value updated immediately");
-    }
-
-    function testSetShortfallAllowanceOverflow(uint256 newValue) public {
-        newValue = bound(newValue, uint256(type(uint128).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        vm.prank(curator);
-        adapter.setShortfallAllowance(newValue);
-    }
-
-    function testSetShortfallAllowanceNotAuthorized(address caller, bool sentinel) public {
-        vm.assume(caller != curator);
-        if (sentinel) {
-            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
-        }
-        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        vm.prank(caller);
-        adapter.setShortfallAllowance(1);
-    }
 
     function testShortfallAllowanceBlocksShortfallSale() public {
         Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
@@ -1255,32 +1487,6 @@ contract MidnightAdapterTest is Test {
 
     /* MIN RATE */
 
-    function testSetMinNetBuyRateNotAuthorized(address caller, uint256 newMinNetBuyRate) public {
-        vm.assume(caller != curator);
-        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        vm.prank(caller);
-        adapter.setMinNetBuyRate(newMinNetBuyRate);
-    }
-
-    function testSetMinNetBuyRateAuthorized(uint256 oldMinNetBuyRate, uint256 newMinNetBuyRate) public {
-        oldMinNetBuyRate = bound(oldMinNetBuyRate, 0, type(uint128).max);
-        newMinNetBuyRate = bound(newMinNetBuyRate, 0, type(uint128).max);
-        vm.prank(curator);
-        adapter.setMinNetBuyRate(oldMinNetBuyRate);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMinNetBuyRate(newMinNetBuyRate);
-        vm.prank(curator);
-        adapter.setMinNetBuyRate(newMinNetBuyRate);
-        assertEq(adapter.minNetBuyRate(), newMinNetBuyRate, "minNetBuyRate");
-    }
-
-    function testSetMinNetBuyRateOverflow(uint256 newMinNetBuyRate) public {
-        newMinNetBuyRate = bound(newMinNetBuyRate, uint256(type(uint128).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        vm.prank(curator);
-        adapter.setMinNetBuyRate(newMinNetBuyRate);
-    }
-
     function testMinNetBuyRateRejectsPreviouslyRatifiedZeroRateOffer() public {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
@@ -1501,31 +1707,6 @@ contract MidnightAdapterTest is Test {
         offer.maxAssets = 0;
     }
 
-    function testSetMaxNetSellRateNotAuthorized(address caller, bool sentinel, uint256 newMaxNetSellRate) public {
-        vm.assume(caller != curator);
-        if (sentinel) {
-            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
-        }
-        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        vm.prank(caller);
-        adapter.setMaxNetSellRate(newMaxNetSellRate);
-    }
-
-    function testSetMaxNetSellRateAuthorized(uint128 newMaxNetSellRate) public {
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMaxNetSellRate(newMaxNetSellRate);
-        vm.prank(curator);
-        adapter.setMaxNetSellRate(newMaxNetSellRate);
-        assertEq(adapter.maxNetSellRate(), newMaxNetSellRate, "maxNetSellRate");
-    }
-
-    function testSetMaxNetSellRateOverflows(uint256 newMaxNetSellRate) public {
-        newMaxNetSellRate = bound(newMaxNetSellRate, uint256(type(uint128).max) + 1, type(uint256).max);
-        vm.expectRevert(ErrorsLib.CastOverflow.selector);
-        vm.prank(curator);
-        adapter.setMaxNetSellRate(newMaxNetSellRate);
-    }
-
     function testMaxNetSellRateDefault() public {
         MidnightAdapter newAdapter = MidnightAdapter(
             factory.createMidnightAdapter(address(parentVault), allDurations, address(0), bytes32("default"))
@@ -1670,29 +1851,6 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(initial.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(marketId).netCredit, 1e18, "net credit");
-    }
-
-    function testSetMinForceSellPriceNotAuthorized(
-        address caller,
-        bool sentinel,
-        bytes32 marketId,
-        uint256 newMinForceSellPrice
-    ) public {
-        vm.assume(caller != curator);
-        if (sentinel) {
-            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
-        }
-        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
-        vm.prank(caller);
-        adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
-    }
-
-    function testSetMinForceSellPriceAuthorized(bytes32 marketId, uint256 newMinForceSellPrice) public {
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetMinForceSellPrice(marketId, newMinForceSellPrice);
-        vm.prank(curator);
-        adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
-        assertEq(adapter.marketData(marketId).minForceSellPrice, newMinForceSellPrice, "minForceSellPrice");
     }
 
     function testMinForceSellPriceDefault(bytes32 marketId) public view {
@@ -5889,8 +6047,14 @@ contract MidnightAdapterTest is Test {
     }
 
     function setShortfallAllowance(uint256 newShortfallAllowance) internal {
-        vm.prank(curator);
-        adapter.setShortfallAllowance(newShortfallAllowance);
+        if (newShortfallAllowance >= adapter.shortfallAllowance()) {
+            vm.prank(curator);
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (newShortfallAllowance)));
+            adapter.increaseShortfallAllowance(newShortfallAllowance);
+        } else {
+            vm.prank(curator);
+            adapter.decreaseShortfallAllowance(newShortfallAllowance);
+        }
     }
 
     function setForceSellable(bytes32 marketId) internal {
@@ -5913,18 +6077,38 @@ contract MidnightAdapterTest is Test {
     }
 
     function setMinNetBuyRate(uint256 newMinNetBuyRate) internal {
-        vm.prank(curator);
-        adapter.setMinNetBuyRate(newMinNetBuyRate);
+        if (newMinNetBuyRate <= adapter.minNetBuyRate()) {
+            vm.prank(curator);
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinNetBuyRate, (newMinNetBuyRate)));
+            adapter.decreaseMinNetBuyRate(newMinNetBuyRate);
+        } else {
+            vm.prank(curator);
+            adapter.increaseMinNetBuyRate(newMinNetBuyRate);
+        }
     }
 
     function setMaxNetSellRate(uint256 newMaxNetSellRate) internal {
-        vm.prank(curator);
-        adapter.setMaxNetSellRate(newMaxNetSellRate);
+        if (newMaxNetSellRate >= adapter.maxNetSellRate()) {
+            vm.prank(curator);
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (newMaxNetSellRate)));
+            adapter.increaseMaxNetSellRate(newMaxNetSellRate);
+        } else {
+            vm.prank(curator);
+            adapter.decreaseMaxNetSellRate(newMaxNetSellRate);
+        }
     }
 
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) internal {
-        vm.prank(curator);
-        adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
+        if (newMinForceSellPrice <= adapter.marketData(marketId).minForceSellPrice) {
+            vm.prank(curator);
+            adapter.submit(
+                abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, newMinForceSellPrice))
+            );
+            adapter.decreaseMinForceSellPrice(marketId, newMinForceSellPrice);
+        } else {
+            vm.prank(curator);
+            adapter.increaseMinForceSellPrice(marketId, newMinForceSellPrice);
+        }
     }
 
     function take(Offer memory offer) internal {
