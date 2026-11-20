@@ -94,8 +94,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
-    error ShortfallAllowanceTooLow();
-    error ShortfallAllowanceTooHigh();
     error MinForceSellPriceTooLow();
     error MinForceSellPriceTooHigh();
     error MaxNetSellRateTooLow();
@@ -156,8 +154,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseMinNetBuyRate(uint256 newMinNetBuyRate) external;
     function increaseMaxTtm(uint256 newMaxTtm) external;
     function decreaseMaxTtm(uint256 newMaxTtm) external;
-    function increaseShortfallAllowance(uint256 newShortfallAllowance) external;
-    function decreaseShortfallAllowance(uint256 newShortfallAllowance) external;
+    function increaseShortfallAllowance(uint256 allowanceIncrease) external;
+    function decreaseShortfallAllowance(uint256 allowanceDecrease) external;
     function increaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function decreaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;

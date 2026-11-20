@@ -121,6 +121,8 @@ The other three settings are set for the whole adapter.
 `decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate.
 These timelocks are not hard guarantees on depositors' future interest, and the adapter does not need them to be noncustodial.
 
+Shortfall allowance updates take deltas and apply them to the remaining allowance at execution. A decrease larger than the remaining allowance sets it to zero.
+
 ### Force-sellable markets
 
 The curator can mark a market as `forceSellable` through a timelock.
