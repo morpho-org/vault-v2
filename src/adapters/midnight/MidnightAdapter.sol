@@ -785,6 +785,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold, liquidator gate and enter gate), and each collateral token.
     /// @dev The ids ignore maturity, so markets differing only by maturity share caps.
+    /// @dev Regardless of id caps, adapters that use IKRCompatibleEnterGateFactory as enterGateFactory will only enter ungated markets or markets with gates that allow in-kind redemptions.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
