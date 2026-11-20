@@ -97,6 +97,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
+        _increaseCaps(abi.encode("enterGate", address(0)));
         Market memory market = _market(0);
         _increaseCaps(
             abi.encode(
@@ -368,6 +369,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
             address(vault), abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(gatedAdapter), 0.02e18))
         );
         _increaseCaps(abi.encode("this", address(gatedAdapter)));
+        _increaseCaps(abi.encode("enterGate", market.enterGate));
         _increaseCaps(abi.encode("this/duration", address(gatedAdapter), 7 days));
         _increaseCaps(
             abi.encode(
