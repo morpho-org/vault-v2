@@ -5445,9 +5445,10 @@ contract MidnightAdapterTest is Test {
             uint256 ttm = data.maturity - block.timestamp;
             uint256 credit = data.netCredit;
             if (i == 0) credit -= sold;
-            uint256 value = credit.mulDivDown(WAD, WAD + data.netRate * ttm);
+            uint256 divisor = WAD + data.netRate * ttm;
+            uint256 value = credit.mulDivDown(WAD, divisor);
             if (i == 0) {
-                shortfall = uint256(data.netCredit).mulDivDown(WAD, WAD + data.netRate * ttm) - value - proceeds;
+                shortfall = uint256(data.netCredit).mulDivDown(WAD, divisor) - value - proceeds;
             }
             values[i] = [credit, value, ttm];
             totalInterest += credit - value;
