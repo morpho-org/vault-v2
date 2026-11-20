@@ -43,21 +43,21 @@ contract IKRCompatibleEnterGateTest is Test {
         assertTrue(wrapper.admitEnabled());
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
-        assertTrue(wrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)));
     }
 
     function testConstructorAdmissionDisabled() public {
         IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
         assertEq(disabled.subGate(), address(subGate));
         assertFalse(disabled.admitEnabled());
-        assertFalse(disabled.canAdmit(address(adapterFactory)));
+        assertFalse(disabled.admitterFactory(address(adapterFactory)));
     }
 
     function testAdmitDisabledEvenWithRegisteredFactory(address user) public {
         IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
         vm.prank(creditRoleSetter);
         disabled.addAdmitterFactory(address(adapterFactory));
-        assertTrue(disabled.canAdmit(address(adapterFactory)));
+        assertTrue(disabled.admitterFactory(address(adapterFactory)));
 
         vm.expectRevert(IIKRCompatibleEnterGate.AdmitDisabled.selector);
         vm.prank(adapter);
@@ -80,8 +80,8 @@ contract IKRCompatibleEnterGateTest is Test {
         emit IIKRCompatibleEnterGate.AddAdmitterFactory(factory);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(factory);
-        assertTrue(wrapper.canAdmit(factory));
-        assertTrue(wrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(factory));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)));
     }
 
     function testAddAdmitterFactoryRequiresCreditRoleSetter(address caller) public {
@@ -231,7 +231,7 @@ contract IKRCompatibleEnterGateTest is Test {
 
     function testSharedSubGateKeepsAdmissionsAndFactoriesSeparate() public {
         IKRCompatibleEnterGate otherWrapper = new IKRCompatibleEnterGate(address(subGate), true);
-        assertFalse(otherWrapper.canAdmit(address(adapterFactory)));
+        assertFalse(otherWrapper.admitterFactory(address(adapterFactory)));
         vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         otherWrapper.admit(depositor, address(adapterFactory));
@@ -268,8 +268,8 @@ contract IKRCompatibleEnterGateTest is Test {
         otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(newRoleSetter);
         otherWrapper.addAdmitterFactory(address(adapterFactory));
-        assertTrue(wrapper.canAdmit(address(adapterFactory)), "existing registration remains");
-        assertTrue(otherWrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)), "existing registration remains");
+        assertTrue(otherWrapper.admitterFactory(address(adapterFactory)));
     }
 
     function testSharedSubGateOpenSides(bool creditOpen, bool debtOpen) public {

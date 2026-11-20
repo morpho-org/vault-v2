@@ -3774,7 +3774,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeEnterGateBuyOffer(address(wrapper), adapterIsMaker);
 
         assertTrue(gateFactory.isCreated(address(wrapper)));
-        assertEq(wrapper.canAdmit(address(factory)), !enabled);
+        assertEq(wrapper.admitterFactory(address(factory)), !enabled);
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
         takeEnterGateOffer(offer, adapterIsMaker);
     }
