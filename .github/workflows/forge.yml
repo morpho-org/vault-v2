@@ -10,8 +10,7 @@ on:
 permissions: {}
 
 jobs:
-  fmt:
-    name: format
+  format:
     permissions:
       contents: read
     runs-on: ubuntu-latest

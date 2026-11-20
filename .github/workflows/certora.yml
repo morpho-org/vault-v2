@@ -20,6 +20,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Run Certora Config Formatter
+        run: |
+          find certora -type f -name '*.conf' | sort |
+          while read -r file; do
+            jq . "$file" | diff -u "$file" -
+          done
       - id: list
         run: echo "confs=$(find certora/confs -type f -name '*.conf' | sed 's|^certora/confs/||;s|\.conf$||' | sort | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
 
@@ -45,16 +51,8 @@ jobs:
       - name: Install certora
         run: pip install certora-cli
 
-      # Per-conf lint, unlike the other repos: the formatter would put each long helper definition on one line.
-      - name: Run Certora Config Linter
-        run: |
-          file="certora/confs/$CONF.conf"
-          echo "Fix lint errors by applying the following diff to $file:"
-          diff -u "$file" <(jq < "$file")
-        env:
-          CONF: ${{ matrix.conf }}
-
-      - name: Run Certora Specs Linter
+      # Per-conf spec formatting: formatting all specs would put each long helper definition on one line.
+      - name: Run Certora Specs Formatter
         run: |
           file="certora/specs/$CONF.spec"
           echo "Fix lint errors by applying the following diff to $file:"
