@@ -579,39 +579,40 @@ contract MidnightAdapterTest is Test {
 
     function testShortfallAllowanceDirections(uint128 low, uint128 high) public {
         if (low > high) (low, high) = (high, low);
+        uint256 delta = high - low;
         setShortfallAllowance(high);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DecreaseShortfallAllowance(low);
         vm.prank(curator);
-        adapter.decreaseShortfallAllowance(low);
+        adapter.decreaseShortfallAllowance(delta);
         assertEq(adapter.shortfallAllowance(), low);
         vm.prank(curator);
-        adapter.decreaseShortfallAllowance(low);
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (high));
+        adapter.decreaseShortfallAllowance(0);
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (delta));
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(curator);
-        adapter.increaseShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(delta);
         submitTimelock(IMidnightAdapterBase.increaseShortfallAllowance.selector, 1 days);
         vm.prank(curator);
         adapter.submit(data);
         vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
-        adapter.increaseShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(delta);
         skip(1 days);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.increaseShortfallAllowance.selector, data);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.IncreaseShortfallAllowance(high);
-        adapter.increaseShortfallAllowance(high);
+        adapter.increaseShortfallAllowance(delta);
         assertEq(adapter.shortfallAllowance(), high);
     }
 
-    function testShortfallAllowanceMonotonic() public {
+    function testDecreaseShortfallAllowanceFloorsAtZero() public {
         setShortfallAllowance(1);
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (0)));
-        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooLow.selector);
-        adapter.increaseShortfallAllowance(0);
-        vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceTooHigh.selector);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.DecreaseShortfallAllowance(0);
         vm.prank(curator);
         adapter.decreaseShortfallAllowance(2);
+        assertEq(adapter.shortfallAllowance(), 0);
     }
 
     function testShortfallAllowanceNotAuthorized(address caller, bool sentinel) public {
@@ -636,12 +637,9 @@ contract MidnightAdapterTest is Test {
 
     function testShortfallAllowanceOverflow() public {
         vm.prank(curator);
-        adapter.submit(
-            abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (uint256(type(uint128).max) + 1))
-        );
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (1)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
-
-        adapter.increaseShortfallAllowance(uint256(type(uint128).max) + 1);
+        adapter.increaseShortfallAllowance(1);
     }
 
     function testMaxNetSellRateDirections(uint128 low, uint128 high) public {
@@ -772,16 +770,16 @@ contract MidnightAdapterTest is Test {
 
     /* MULTICALL */
 
-    function testMulticall(uint128 newShortfallAllowance, uint128 newMaxNetSellRate) public {
+    function testMulticall(uint128 allowanceDecrease, uint128 newMaxNetSellRate) public {
         setMaxNetSellRate(type(uint128).max);
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (newShortfallAllowance));
+        data[0] = abi.encodeCall(IMidnightAdapterBase.decreaseShortfallAllowance, (allowanceDecrease));
         data[1] = abi.encodeCall(IMidnightAdapterBase.decreaseMaxNetSellRate, (newMaxNetSellRate));
 
         vm.prank(curator);
         adapter.multicall(data);
 
-        assertEq(adapter.shortfallAllowance(), newShortfallAllowance, "wrong shortfallAllowance");
+        assertEq(adapter.shortfallAllowance(), type(uint128).max - allowanceDecrease, "wrong shortfallAllowance");
         assertEq(adapter.maxNetSellRate(), newMaxNetSellRate, "wrong maxNetSellRate");
     }
 
@@ -845,12 +843,18 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 10e18, tick);
 
         setShortfallAllowance(shortfall + 1);
+        uint256 allowanceIncrease = shortfall * 2;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (allowanceIncrease)));
         sellUnits(offer.market, 10e18, tick);
         assertEq(adapter.marketData(marketId).netCredit, netCredit - 10e18, "shortfall sale accepted");
         assertEq(adapter.shortfallAllowance(), 1, "shortfall consumed");
 
         vm.expectRevert(IMidnightAdapterBase.ShortfallAllowanceExceeded.selector);
         sellUnits(offer.market, 10e18, tick);
+
+        adapter.increaseShortfallAllowance(allowanceIncrease);
+        assertEq(adapter.shortfallAllowance(), 1 + allowanceIncrease, "increase does not restore consumed allowance");
     }
 
     /* FORCE SELLABLE. */
@@ -3921,18 +3925,20 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9e18);
     }
 
-    function testEnterGateRequiresAdmitterFactory(bool enabled) public {
+    function testEnterGateRequiresEnabledAdmissionAndRegisteredFactory(bool enabled, bool adapterIsMaker) public {
         (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
-        address wrapper = gateFactory.createIKRCompatibleEnterGate(address(gate), enabled, bytes32(0));
-        Offer memory offer = makeEnterGateBuyOffer(wrapper, true);
+        IKRCompatibleEnterGate wrapper =
+            IKRCompatibleEnterGate(gateFactory.createIKRCompatibleEnterGate(address(gate), enabled, bytes32(0)));
+        if (!enabled) wrapper.addAdmitterFactory(address(factory));
         gate.setIsWhitelisted(true, address(adapter), true);
         gate.setIsWhitelisted(false, taker, true);
         gate.setIsWhitelisted(false, makeAddr("externalSeller"), true);
+        Offer memory offer = makeEnterGateBuyOffer(address(wrapper), adapterIsMaker);
 
-        assertTrue(gateFactory.isCreated(wrapper));
-        assertFalse(IKRCompatibleEnterGate(wrapper).canAdmit(address(factory)));
+        assertTrue(gateFactory.isCreated(address(wrapper)));
+        assertEq(wrapper.admitterFactory(address(factory)), !enabled);
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
-        takeEnterGateOffer(offer, true);
+        takeEnterGateOffer(offer, adapterIsMaker);
     }
 
     /// forge-config: default.isolate = true
@@ -6047,13 +6053,15 @@ contract MidnightAdapterTest is Test {
     }
 
     function setShortfallAllowance(uint256 newShortfallAllowance) internal {
-        if (newShortfallAllowance >= adapter.shortfallAllowance()) {
+        uint256 oldShortfallAllowance = adapter.shortfallAllowance();
+        if (newShortfallAllowance >= oldShortfallAllowance) {
+            uint256 allowanceIncrease = newShortfallAllowance - oldShortfallAllowance;
             vm.prank(curator);
-            adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (newShortfallAllowance)));
-            adapter.increaseShortfallAllowance(newShortfallAllowance);
+            adapter.submit(abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (allowanceIncrease)));
+            adapter.increaseShortfallAllowance(allowanceIncrease);
         } else {
             vm.prank(curator);
-            adapter.decreaseShortfallAllowance(newShortfallAllowance);
+            adapter.decreaseShortfallAllowance(oldShortfallAllowance - newShortfallAllowance);
         }
     }
 

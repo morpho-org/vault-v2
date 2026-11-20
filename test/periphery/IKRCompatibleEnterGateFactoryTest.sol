@@ -42,7 +42,7 @@ contract IKRCompatibleEnterGateFactoryTest is Test {
         assertEq(IKRCompatibleEnterGate(created).admitEnabled(), enabled);
         assertTrue(IEnterGateFactory(address(factory)).isCreated(created));
         assertEq(IKRCompatibleEnterGate(created).subGate(), forwardedGate);
-        assertFalse(IKRCompatibleEnterGate(created).canAdmit(adapterFactory));
+        assertFalse(IKRCompatibleEnterGate(created).admitterFactory(adapterFactory));
     }
 
     function testCreateMultipleGatesWithDifferentSalts() public {

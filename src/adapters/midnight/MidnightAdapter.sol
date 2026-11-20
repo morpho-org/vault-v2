@@ -69,7 +69,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 ///
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
-/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory and lists the adapter's factory in canAdmit (which requires admitEnabled for IKRCompatibleEnterGate).
+/// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory, has admission enabled and lists the adapter's factory in admitterFactory.
 /// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
@@ -295,19 +295,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMinNetBuyRate(newMinNetBuyRate);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
-    function increaseShortfallAllowance(uint256 newShortfallAllowance) external {
+    function increaseShortfallAllowance(uint256 allowanceIncrease) external {
         timelocked();
-        require(newShortfallAllowance >= shortfallAllowance, ShortfallAllowanceTooLow());
-        shortfallAllowance = newShortfallAllowance.toUint128();
+        uint128 newShortfallAllowance = (shortfallAllowance + allowanceIncrease).toUint128();
+        shortfallAllowance = newShortfallAllowance;
         emit IncreaseShortfallAllowance(newShortfallAllowance);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
-    function decreaseShortfallAllowance(uint256 newShortfallAllowance) external {
+    /// @dev Floors at zero so that a sale consuming allowance cannot cause a pending decrease to revert.
+    function decreaseShortfallAllowance(uint256 allowanceDecrease) external {
         require(isCurator(msg.sender), NotAuthorized());
-        require(newShortfallAllowance <= shortfallAllowance, ShortfallAllowanceTooHigh());
-        shortfallAllowance = newShortfallAllowance.toUint128();
+        uint128 newShortfallAllowance = uint256(shortfallAllowance).zeroFloorSub(allowanceDecrease).toUint128();
+        shortfallAllowance = newShortfallAllowance;
         emit DecreaseShortfallAllowance(newShortfallAllowance);
     }
 
@@ -565,7 +564,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 require(
                     market.enterGate == address(0) || enterGateFactory == address(0)
                         || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IIKRCompatibleEnterGate(market.enterGate).canAdmit(factory)),
+                            && IIKRCompatibleEnterGate(market.enterGate).admitEnabled()
+                            && IIKRCompatibleEnterGate(market.enterGate).admitterFactory(factory)),
                     IncorrectEnterGate()
                 );
             }
