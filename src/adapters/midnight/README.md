@@ -23,7 +23,7 @@ The shareholder can then withdraw from the vault to complete the in-kind redempt
 
 The adapter can be configured with an `enterGateFactory`, such as [IKRCompatibleEnterGateFactory](./gates/IKRCompatibleEnterGateFactory.sol).
 When `enterGateFactory` is set, the adapter can only enter markets that allow in-kind redemptions (i.e. without gate or with an enter gate deployed by `enterGateFactory` that ensures IKR can be done).
-If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `canAdmit` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
+If `admitEnabled` (fixed at deployment) is set to true and the adapter factory is in the gate's `admitterFactory` mapping, the adapter can then temporarily allow the shareholder to receive credit during `forceDeallocate`, even if the sub-gate would reject them, effectively ensuring that IKR can be done.
 With `admitEnabled = false`, adapters with `enterGateFactory` set cannot enter markets that use this gate.
 `IKRCompatibleEnterGate` uses an arbitrary separate contract, called the sub-gate, to check who can normally receive credit.
 Registered adapter factories are trusted to always return true to `isCreated` on adapters they deployed, and their adapters must behave correctly. Otherwise, in-kind redemptions can be blocked even when the gate's `admitEnabled` is set to true.

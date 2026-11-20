@@ -3925,18 +3925,20 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9e18);
     }
 
-    function testEnterGateRequiresAdmitterFactory(bool enabled) public {
+    function testEnterGateRequiresEnabledAdmissionAndRegisteredFactory(bool enabled, bool adapterIsMaker) public {
         (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
-        address wrapper = gateFactory.createIKRCompatibleEnterGate(address(gate), enabled, bytes32(0));
-        Offer memory offer = makeEnterGateBuyOffer(wrapper, true);
+        IKRCompatibleEnterGate wrapper =
+            IKRCompatibleEnterGate(gateFactory.createIKRCompatibleEnterGate(address(gate), enabled, bytes32(0)));
+        if (!enabled) wrapper.addAdmitterFactory(address(factory));
         gate.setIsWhitelisted(true, address(adapter), true);
         gate.setIsWhitelisted(false, taker, true);
         gate.setIsWhitelisted(false, makeAddr("externalSeller"), true);
+        Offer memory offer = makeEnterGateBuyOffer(address(wrapper), adapterIsMaker);
 
-        assertTrue(gateFactory.isCreated(wrapper));
-        assertFalse(IKRCompatibleEnterGate(wrapper).canAdmit(address(factory)));
+        assertTrue(gateFactory.isCreated(address(wrapper)));
+        assertEq(wrapper.admitterFactory(address(factory)), !enabled);
         vm.expectRevert(IMidnightAdapterBase.IncorrectEnterGate.selector);
-        takeEnterGateOffer(offer, true);
+        takeEnterGateOffer(offer, adapterIsMaker);
     }
 
     /// forge-config: default.isolate = true

@@ -15,7 +15,7 @@ contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
     /// @dev Immutable to preserve registered vaults' IKR guarantee. When false, markets using this gate won't be usable in vaults that need IKR (enterGateFactory != 0).
     bool public immutable admitEnabled;
 
-    mapping(address adapterFactory => bool) public canAdmit;
+    mapping(address account => bool) public admitterFactory;
 
     address transient admitted;
 
@@ -28,10 +28,10 @@ contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
         return IEnterSubGate(subGate).roleSetter(true);
     }
 
+    /// @dev If admitEnabled is false, adding admitter factories has no effect on admission.
     function addAdmitterFactory(address adapterFactory) external {
-        require(admitEnabled, AdmitDisabled());
         require(msg.sender == roleSetter(), Unauthorized());
-        canAdmit[adapterFactory] = true;
+        admitterFactory[adapterFactory] = true;
         emit AddAdmitterFactory(adapterFactory);
     }
 
@@ -40,7 +40,8 @@ contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
     function admit(address user, address adapterFactory) external {
         require(admitEnabled, AdmitDisabled());
         require(
-            canAdmit[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender), Unauthorized()
+            admitterFactory[adapterFactory] && IMidnightAdapterFactory(adapterFactory).isCreated(msg.sender),
+            Unauthorized()
         );
         admitted = user;
         emit Admit(msg.sender, user, adapterFactory);
