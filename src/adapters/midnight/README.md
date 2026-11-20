@@ -44,7 +44,7 @@ The granularity of the caps is the following:
 - Each collateral token
 - Enter gate: all markets with the same enter gate share the cap, including ungated markets under `address(0)`.
 
-Before allocating to a market, the curator must configure the absolute and relative caps for its enter-gate ID, `keccak256(abi.encode("enterGate", market.enterGate))`.
+
 
 ### Duration caps
 
