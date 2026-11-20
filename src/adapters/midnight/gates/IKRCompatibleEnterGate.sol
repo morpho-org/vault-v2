@@ -27,6 +27,7 @@ contract IKRCompatibleEnterGate is IIKRCompatibleEnterGate {
         return IEnterSubGate(subGate).roleSetter(true);
     }
 
+    /// @dev If admitEnabled is false, adding admitter factories has no effect on admission.
     function addAdmitterFactory(address adapterFactory) external {
         require(msg.sender == roleSetter(), Unauthorized());
         canAdmit[adapterFactory] = true;
