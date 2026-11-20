@@ -4197,6 +4197,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
+        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
