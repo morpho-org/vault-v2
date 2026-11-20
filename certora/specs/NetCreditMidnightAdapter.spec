@@ -35,12 +35,15 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
 function CVL_take(MidnightAdapter.Offer offer, address taker, address takerCallback) returns (uint256, uint256) {
-    require offer.maker != taker, "proved by takeRequiresDistinctMakerAndTaker in Midnight's Ratification.spec (morpho-org/midnight#1253)";
-    require offer.maker == currentContract => currentContract.inForceDeallocate || offer.callback == currentContract, "the ratifier of an offer made by the adapter is the adapter: proved by takeRequiresMakerConsent in Midnight's Ratification.spec and adapterOnlyAuthorizesItself; take calls its isRatified and requires success: proved by takeRequiresRatifierSuccess (morpho-org/midnight#1253); isRatified requires the adapter as callback outside forceDeallocate: proved by isRatifiedRequiresAdapterCallback";
+    require offer.maker != taker, "proved by takeRequiresDistinctMakerAndTaker in Midnight's Ratification.spec";
+    require offer.maker == currentContract => offer.ratifier == currentContract, "take requires the maker to authorize the ratifier: proved by takeRequiresMakerConsent in Midnight's Ratification.spec; the adapter only authorizes itself: proved by adapterOnlyAuthorizesItself";
+    bool ratifiedByAdapter;
+    require offer.ratifier == currentContract => ratifiedByAdapter, "take calls the ratifier's isRatified and requires success: proved by takeRequiresRatifierSuccess in Midnight's Ratification.spec";
+    require ratifiedByAdapter && !currentContract.inForceDeallocate => offer.callback == currentContract, "proved by isRatifiedRequiresAdapterCallback";
     address buyer = offer.buy ? offer.maker : taker;
     address buyerCallback = offer.buy ? offer.callback : takerCallback;
 
-    // If the buyer-side callback is the adapter, Midnight credits it before onBuy, checked as an entry point (netCreditIncreaseCallsOnBuy, midnight PR #1252).
+    // If the buyer-side callback is the adapter, Midnight credits it before onBuy, checked as an entry point (netCreditIncreaseCallsOnBuy in Midnight's NetCredit.spec).
     // The invariants exclude other callbacks: take passes itself, isRatified checks its offers, and forceDeallocate makes it the seller of a sell offer.
     if (buyer == currentContract && buyerCallback != currentContract) {
         bytes32 marketId;
