@@ -641,7 +641,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            uint256 discount = WAD + _marketData.netRate * ttm;
+            uint256 soldAmortizedValue = (newNetCredit + soldNetCredit).mulDivDown(WAD, discount)
+                - uint256(newNetCredit).mulDivDown(WAD, discount);
+            shortfall = soldAmortizedValue.zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
                 shortfallAllowance -= shortfall.toUint128();
