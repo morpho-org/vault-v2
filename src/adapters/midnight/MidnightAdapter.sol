@@ -295,19 +295,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMinNetBuyRate(newMinNetBuyRate);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
-    function increaseShortfallAllowance(uint256 newShortfallAllowance) external {
+    function increaseShortfallAllowance(uint256 allowanceIncrease) external {
         timelocked();
-        require(newShortfallAllowance >= shortfallAllowance, ShortfallAllowanceTooLow());
-        shortfallAllowance = newShortfallAllowance.toUint128();
+        uint128 newShortfallAllowance = (shortfallAllowance + allowanceIncrease).toUint128();
+        shortfallAllowance = newShortfallAllowance;
         emit IncreaseShortfallAllowance(newShortfallAllowance);
     }
 
-    /// @dev A shortfall sale can front-run any allowance update and consume the remaining allowance first. To update it safely, set it to 0, then set the new value accounting for what was consumed.
-    function decreaseShortfallAllowance(uint256 newShortfallAllowance) external {
+    /// @dev Floors at zero so that a sale consuming allowance cannot cause a pending decrease to revert.
+    function decreaseShortfallAllowance(uint256 allowanceDecrease) external {
         require(isCurator(msg.sender), NotAuthorized());
-        require(newShortfallAllowance <= shortfallAllowance, ShortfallAllowanceTooHigh());
-        shortfallAllowance = newShortfallAllowance.toUint128();
+        uint128 newShortfallAllowance = uint256(shortfallAllowance).zeroFloorSub(allowanceDecrease).toUint128();
+        shortfallAllowance = newShortfallAllowance;
         emit DecreaseShortfallAllowance(newShortfallAllowance);
     }
 
