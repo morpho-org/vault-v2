@@ -177,7 +177,6 @@ contract MidnightAdapterGasTest is BaseTest {
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
-        _increaseCaps(abi.encode("enterGate", address(0)));
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         vm.startPrank(address(this));
@@ -512,10 +511,11 @@ contract MidnightAdapterGasTest is BaseTest {
 
     function _familyIdData(Market memory market) internal pure returns (bytes memory) {
         return abi.encode(
-            "collateralParams/rcfThreshold/liquidatorGate",
+            "collateralParams/rcfThreshold/liquidatorGate/enterGate",
             market.collateralParams,
             market.rcfThreshold,
-            market.liquidatorGate
+            market.liquidatorGate,
+            market.enterGate
         );
     }
 
