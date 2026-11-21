@@ -532,7 +532,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             uint256 ttm = market.maturity - block.timestamp;
             require(ttm <= maxTtm, BuyTtmTooHigh());
             MarketData storage _marketData = marketData[id];
-            require(!_marketData.forceRemoved, ForceRemoved());
             require(!_marketData.forceSellable, UnauthorizedBuy());
             uint256 boughtNetCredit = units - pendingFeeIncrease;
             require(boughtNetCredit >= buyerAssets, BuyAtLoss());
@@ -611,6 +610,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 );
 
             SafeERC20Lib.forceApproveMax(asset, midnight);
+            require(!_marketData.forceRemoved, ForceRemoved());
             emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
         return CALLBACK_SUCCESS;
@@ -630,7 +630,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(seller == address(this), NotSelf());
         require(data.length == 0, NonEmptyCallbackData());
         MarketData storage _marketData = marketData[id];
-        require(!_marketData.forceRemoved, ForceRemoved());
 
         uint128 newNetCredit = currentNetCredit(id);
         uint256 soldNetCredit = units - pendingFeeDecrease;
@@ -695,6 +694,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 sellerAssets
             );
 
+        require(!_marketData.forceRemoved, ForceRemoved());
         emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }

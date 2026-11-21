@@ -1129,9 +1129,13 @@ contract MidnightAdapterTest is Test {
         offer.group = bytes32("removed buy");
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+        vm.prank(address(adapter));
+        loanToken.approve(address(midnight), 0);
+        vm.expectCall(address(loanToken), abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
         vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         take(offer);
 
+        assertEq(loanToken.allowance(address(adapter), address(midnight)), 0, "approval rolled back");
         assertTrue(adapter.marketData(marketId).forceRemoved, "removal is permanent");
         assertEq(adapter.marketIdsLength(), 0, "market not reinserted");
     }
@@ -1147,13 +1151,14 @@ contract MidnightAdapterTest is Test {
             forceDeallocate(offer.market, 0.5e18);
         } else {
             offer = makeSellOffer(offer.market, 0.5e18, MAX_TICK);
+            vm.expectCall(address(parentVault), abi.encodeWithSelector(IVaultV2.deallocate.selector));
             vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
             take(offer);
         }
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "credit unchanged");
     }
 
-    function testForceRemovedSaleRejectsBeforeShortfallAccounting() public {
+    function testForceRemovedSaleCanRevertDuringShortfallAccounting() public {
         Offer memory removed = buy(7 days, 1e18);
         Offer memory remaining = buy(1 days, 1e18);
         bytes32 marketId = _marketId(removed.market);
@@ -1169,7 +1174,7 @@ contract MidnightAdapterTest is Test {
             abi.encodeCall(IMidnight.liquidationLocked, (_marketId(remaining.market), address(adapter))),
             abi.encode(true)
         );
-        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        vm.expectRevert(IMidnightAdapterBase.OtherSellInProgress.selector);
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, address(0), address(0), "");
 
