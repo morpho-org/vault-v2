@@ -2864,7 +2864,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testFamilyIdDependsOnMarketConfig(uint256 configField, uint160 delta) public view {
-        configField = bound(configField, 0, 5);
+        configField = bound(configField, 0, 6);
         delta = uint160(bound(delta, 1, type(uint160).max));
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
@@ -2879,8 +2879,10 @@ contract MidnightAdapterTest is Test {
             market.collateralParams[0].lltv ^= delta;
         } else if (configField == 4) {
             market.collateralParams[0].liquidationCursor ^= delta;
-        } else {
+        } else if (configField == 5) {
             market.collateralParams[0].oracle = address(uint160(market.collateralParams[0].oracle) ^ delta);
+        } else {
+            market.enterGate = address(delta);
         }
 
         bytes32[] memory changedIds = adapter.ids(market);
@@ -2892,12 +2894,7 @@ contract MidnightAdapterTest is Test {
         assertEq(changedIds[3], originalIds[3], "other collateral token unchanged");
     }
 
-    function testIdsIgnoreFixedFieldsAndEnterGate(
-        uint256 chainId,
-        address midnightAddress,
-        address otherLoanToken,
-        address otherEnterGate
-    ) public view {
+    function testIdsIgnoreFixedFields(uint256 chainId, address midnightAddress, address otherLoanToken) public view {
         Market memory market = storedOffer.market;
         bytes32[] memory originalIds = adapter.ids(market);
         market.chainId = chainId;
@@ -2906,8 +2903,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.ids(market), originalIds, "ids do not depend on midnight");
         market.loanToken = otherLoanToken;
         assertEq(adapter.ids(market), originalIds, "ids do not depend on loanToken");
-        market.enterGate = otherEnterGate;
-        assertEq(adapter.ids(market), originalIds, "ids do not depend on enterGate");
     }
 
     function testFamilyIdDependsOnCollateralSet() public view {
@@ -2923,7 +2918,7 @@ contract MidnightAdapterTest is Test {
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 4);
+        configField = bound(configField, 0, 5);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -2942,10 +2937,12 @@ contract MidnightAdapterTest is Test {
         } else if (configField == 3) {
             offer.market.collateralParams[0].liquidationCursor = 0.5e18;
             midnight.enableLiquidationCursor(0.5e18);
-        } else {
+        } else if (configField == 4) {
             OracleMock oracle = new OracleMock();
             oracle.setPrice(ORACLE_PRICE_SCALE);
             offer.market.collateralParams[0].oracle = address(oracle);
+        } else {
+            offer.market.enterGate = gate;
         }
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
@@ -4017,6 +4014,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(_marketId(second.market)).netCredit, 1e18);
         assertEq(adapter.marketIdsLength(), 2);
         assertEq(realVault.allocation(adapter.adapterId()), 2e18);
+        assertEq(realVault.allocation(keccak256(familyIdData(first.market))), 1e18);
+        assertEq(realVault.allocation(keccak256(familyIdData(second.market))), 1e18);
         assertEq(loanToken.balanceOf(address(realVault)), 8e18);
     }
 
@@ -4033,6 +4032,7 @@ contract MidnightAdapterTest is Test {
         take(second);
         assertEq(adapter.marketIdsLength(), 2);
         assertEq(realVault.allocation(adapter.adapterId()), 2e18);
+        assertEq(realVault.allocation(keccak256(familyIdData(first.market))), 2e18);
     }
 
     function testEnterGateUnregisteredGate(bool adapterIsMaker, bool wrap) public {
@@ -4202,6 +4202,7 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnight.MakerCreditOrDebtIncreased.selector);
         realVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
 
+        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
         realVault.forceDeallocate(address(adapter), data, 0, address(this));
 
         assertEq(midnight.debt(_marketId(attackerMarket), address(adapter)), 0);
@@ -6270,10 +6271,11 @@ contract MidnightAdapterTest is Test {
 
     function familyIdData(Market memory market) internal pure returns (bytes memory) {
         return abi.encode(
-            "collateralParams/rcfThreshold/liquidatorGate",
+            "collateralParams/rcfThreshold/liquidatorGate/enterGate",
             market.collateralParams,
             market.rcfThreshold,
-            market.liquidatorGate
+            market.liquidatorGate,
+            market.enterGate
         );
     }
 

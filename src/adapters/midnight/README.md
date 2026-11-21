@@ -41,7 +41,7 @@ The vault caps the stored net credit of the adapter, not its amortized net credi
 The granularity of the caps is the following:
 
 - Adapter-wide
-- Market "family": the market configuration without the maturity and enter gate
+- Market "family": collateral parameters, RCF threshold, liquidator gate, and enter gate, regardless of maturity
 - Each collateral token
 
 ### Duration caps

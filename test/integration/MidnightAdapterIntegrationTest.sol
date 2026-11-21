@@ -100,10 +100,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         Market memory market = _market(0);
         _increaseCaps(
             abi.encode(
-                "collateralParams/rcfThreshold/liquidatorGate",
+                "collateralParams/rcfThreshold/liquidatorGate/enterGate",
                 market.collateralParams,
                 market.rcfThreshold,
-                market.liquidatorGate
+                market.liquidatorGate,
+                market.enterGate
             )
         );
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
@@ -371,10 +372,11 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         _increaseCaps(abi.encode("this/duration", address(gatedAdapter), 7 days));
         _increaseCaps(
             abi.encode(
-                "collateralParams/rcfThreshold/liquidatorGate",
+                "collateralParams/rcfThreshold/liquidatorGate/enterGate",
                 market.collateralParams,
                 market.rcfThreshold,
-                market.liquidatorGate
+                market.liquidatorGate,
+                market.enterGate
             )
         );
         uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
