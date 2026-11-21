@@ -45,7 +45,7 @@ strong invariant marketIdsLengthBounded()
 
 // Prove that the index stored for each listed market is its position in the list.
 strong invariant marketIdsIndex()
-    forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].index == i
+    forall uint256 i. i < currentContract.marketIds.length => currentContract.storedMarketData[currentContract.marketIds[i]].index == i
     {
         preserved {
             requireInvariant marketIdsLengthBounded();
@@ -55,7 +55,7 @@ strong invariant marketIdsIndex()
 
 // Prove that a market in the list has a non-zero stored net credit.
 strong invariant listedHasNonZeroNetCredit()
-    forall uint256 i. i < currentContract.marketIds.length => currentContract.marketData[currentContract.marketIds[i]].netCredit != 0
+    forall uint256 i. i < currentContract.marketIds.length => currentContract.storedMarketData[currentContract.marketIds[i]].netCredit != 0
     {
         preserved {
             requireInvariant marketIdsIndex();
