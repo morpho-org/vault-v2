@@ -4,45 +4,44 @@ optimizer = true
 optimizer_runs = 100000
 bytecode_hash = "none"
 evm_version = "cancun"
-dynamic_test_linking = true
 ignored_error_codes = ["transient-storage"]
 ignored_error_codes_from = [["test", ["code-size", "init-code-size"]]]
 ignored_warnings_from = ["lib"]
 
 [lint]
-ignore = [
-    "test/**/*.sol",
-]
+# Silence warnings on import files that produce no artifact.
+ignore = ["test/imports/*.sol"]
+severity = ["high", "medium", "low", "info"]
 exclude_lints = [
-    "screaming-snake-case-immutable",
-    "asm-keccak256",
-    "unsafe-cheatcode",
-    "incorrect-shift",
-    "block-timestamp",
-    "internal-function-used-once",
-    "pragma-inconsistent",
-    "missing-zero-check",
-    "low-level-calls",
-    "inline-assembly",
-    "literal-instead-of-constant",
-    "require-revert-in-loop",
-    "multi-contract-file",
-    "calls-loop",
     "arbitrary-send-erc20",
-    "unused-return",
-    "cyclomatic-complexity",
+    "block-timestamp",
     "boolean-cst",
-    "costly-loop",
+    "calls-loop",
+    "cyclomatic-complexity",
+    "incorrect-shift",
+    "inline-assembly",
+    "internal-function-used-once",
+    "literal-instead-of-constant",
+    "low-level-calls",
     "missing-events-access-control",
-    "uninitialized-local",
+    "missing-zero-check",
+    "mixed-case-variable",
+    "multi-contract-file",
+    "pragma-inconsistent",
     "reentrancy-events",
+    "require-revert-in-loop",
+    "screaming-snake-case-immutable",
+    "too-many-digits",
+    "uninitialized-local",
+    "unsafe-cheatcode",
+    "unused-return",
 ]
 
 [profile.no_via_ir]
 via_ir = false
 
-[fuzz]
-runs = 2048
+[profile.default.fuzz]
+runs = 1024
 
 [[profile.default.compilation_restrictions]]
 paths = "test/imports/MorphoImport.sol"

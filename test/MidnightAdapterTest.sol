@@ -6023,12 +6023,12 @@ contract MidnightAdapterTest is Test {
 
     function makeBuyOffer(uint256 duration, uint256 assets, uint256 tick) internal view returns (Offer memory offer) {
         offer = storedOffer;
-        offer.market.maturity = block.timestamp + duration;
+        offer.market.maturity = vm.getBlockTimestamp() + duration;
         offer.buy = true;
         offer.tick = tick;
         offer.group = bytes32(duration);
         offer.maxUnits = uint128(assets * 1e18 / TickLib.tickToPrice(tick));
-        offer.expiry = block.timestamp;
+        offer.expiry = vm.getBlockTimestamp();
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(address(0), bytes(""));
     }
@@ -6161,7 +6161,7 @@ contract MidnightAdapterTest is Test {
         offer.reduceOnly = true;
         offer.tick = tick;
         offer.maxUnits = uint128(units);
-        offer.expiry = block.timestamp;
+        offer.expiry = vm.getBlockTimestamp();
         offer.maker = address(adapter);
         offer.callback = address(adapter);
         offer.ratifier = address(adapter);
@@ -6322,7 +6322,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(market);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
         uint256 netCredit = credit - pendingFee;
-        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(vm.getBlockTimestamp());
         assertEq(
             adapter.realAssets(),
             netCredit.mulDivDown(1e18, 1e18 + rate * timeToMaturity),
