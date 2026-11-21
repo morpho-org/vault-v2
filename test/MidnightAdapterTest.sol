@@ -16,6 +16,7 @@ import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {
     IMidnightAdapter,
+    IMidnightAdapterStaticTyping,
     IMidnightAdapterBase,
     MarketData
 } from "../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
@@ -1260,6 +1261,7 @@ contract MidnightAdapterTest is Test {
 
         setForceSellable(marketId);
         uint256 proceeds = soldUnits.mulDivUp(TickLib.tickToPrice(tick), 1e18);
+        setMinForceSellPrice(marketId, 0);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(marketId, proceeds, soldUnits, netCredit - soldUnits, 0, 0);
         if (takerSale) {
@@ -1278,6 +1280,7 @@ contract MidnightAdapterTest is Test {
         bytes32 firstMarketId = _marketId(first.market);
         bytes32 secondMarketId = _marketId(second.market);
         setForceSellable(firstMarketId);
+        setMinForceSellPrice(firstMarketId, 0);
 
         sellUnits(first.market, 1e18, MAX_TICK / 2);
         vm.expectRevert(IMidnightAdapterBase.ShortfallTooHigh.selector);
@@ -1840,6 +1843,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
         setForceSellable(marketId);
+        setMinForceSellPrice(marketId, 0);
         sellUnits(initial.market, 1e18, tick);
         assertEq(adapter.marketData(marketId).netCredit, netCreditBefore - 1e18, "net credit");
     }
@@ -1858,7 +1862,41 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinForceSellPriceDefault(bytes32 marketId) public view {
-        assertEq(adapter.marketData(marketId).minForceSellPrice, 0, "no minimum price by default");
+        assertEq(adapter.marketData(marketId).minForceSellPrice, WAD, "face value by default");
+        (,,,,,, uint256 price) = IMidnightAdapterStaticTyping(address(adapter)).marketData(marketId);
+        assertEq(price, WAD, "static typing getter");
+    }
+
+    function testMinForceSellPriceDefaultRejectsDiscount(bool takerSale) public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        setForceSellable(marketId);
+        uint256 tick = MAX_TICK - DEFAULT_TICK_SPACING;
+        Offer memory offer =
+            takerSale ? makeExternalOffer(initial.market, true, 1e18, tick) : makeSellOffer(initial.market, 1e18, tick);
+        vm.expectRevert(IMidnightAdapterBase.ForceSellPriceTooLow.selector);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", 1e18, "");
+        } else {
+            take(offer);
+        }
+    }
+
+    function testMinForceSellPriceRetainedOnReentry(uint256 price) public {
+        Offer memory initial = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        setMinForceSellPrice(marketId, price);
+        sellUnits(initial.market, 1e18, MAX_TICK);
+        assertEq(adapter.marketIdsLength(), 0);
+        assertEq(adapter.marketData(marketId).minForceSellPrice, price);
+        Offer memory reentry = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        reentry.group = bytes32("reentry");
+        midnight.supplyCollateral(reentry.market, 0, reentry.maxUnits, taker);
+        midnight.supplyCollateral(reentry.market, 1, reentry.maxUnits, taker);
+        take(reentry);
+        assertEq(adapter.marketIdsLength(), 1);
+        assertEq(adapter.marketData(marketId).minForceSellPrice, price);
     }
 
     /// @dev The sale is priced exactly at minForceSellPrice, so one wei higher reverts.
@@ -3054,7 +3092,7 @@ contract MidnightAdapterTest is Test {
             vm.prank(taker);
             midnight.take(offer, data, 0, taker, taker, address(0), "");
 
-            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, false, 0)));
+            assertEq(abi.encode(adapter.marketData(marketId)), abi.encode(MarketData(0, 0, 0, 0, false, false, WAD)));
             assertEq(parentVault.allocation(adapter.adapterId()), 2e18, "allocation");
             assertMarkets([_marketId(first.market), _marketId(last.market)]);
         } else {
@@ -3098,7 +3136,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(
             abi.encode(adapter.marketData(_marketId(soldOffer.market))),
-            abi.encode(MarketData(0, 0, 0, 0, false, false, 0))
+            abi.encode(MarketData(0, 0, 0, 0, false, false, WAD))
         );
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
@@ -3282,7 +3320,10 @@ contract MidnightAdapterTest is Test {
         offer.expiry = boughtOffer.market.maturity + 365 days;
         bytes memory data = takerSale ? bytes("") : ratify([offer], signerAllocator);
         skip(30 days + bound(elapsed, 0, 365 days));
-        if (forceSellable) setForceSellable(marketId);
+        if (forceSellable) {
+            setForceSellable(marketId);
+            setMinForceSellPrice(marketId, 0);
+        }
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 assetsBefore = adapter.realAssets();
 
@@ -3372,7 +3413,8 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, data, 0, taker, taker, address(0), "");
 
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, false, false, WAD))
         );
         assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
         assertMarkets([_marketId(first.market)]);
@@ -5052,6 +5094,7 @@ contract MidnightAdapterTest is Test {
         }
 
         setForceSellable(marketId);
+        setMinForceSellPrice(marketId, 0);
         this.takeWithAccrual(sellOffer, data, buyer, address(0));
 
         assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit sold");
@@ -5278,7 +5321,8 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 200e18, tick);
         assertEq(adapter.marketIdsLength(), 0);
         assertEq(
-            abi.encode(adapter.marketData(_marketId(offer.market))), abi.encode(MarketData(0, 0, 0, 0, false, false, 0))
+            abi.encode(adapter.marketData(_marketId(offer.market))),
+            abi.encode(MarketData(0, 0, 0, 0, false, false, WAD))
         );
     }
 
@@ -5782,7 +5826,9 @@ contract MidnightAdapterTest is Test {
         assertEq(uint64(packed >> 128), data.netRate, "packed net rate");
         assertEq(uint8(packed >> 240), forceSellable ? 1 : 0, "force sellable shares first slot");
         assertEq(uint8(packed >> 248), forceRemoved ? 1 : 0, "force removed shares first slot");
-        assertEq(uint256(vm.load(address(adapter), reads[1])), type(uint256).max, "full-width minimum price");
+        assertEq(
+            uint256(vm.load(address(adapter), reads[1])), type(uint256).max ^ WAD, "encoded full-width minimum price"
+        );
     }
 
     function testRealAssetsReadsOneMarketDataSlotPerMarket() public {

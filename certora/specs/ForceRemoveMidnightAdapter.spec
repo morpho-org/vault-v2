@@ -29,12 +29,12 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
 
 // Prove that a force removed market has a zero stored net credit.
 strong invariant forceRemovedHasZeroNetCredit()
-    forall bytes32 marketId. currentContract.marketData[marketId].forceRemoved => currentContract.marketData[marketId].netCredit == 0;
+    forall bytes32 marketId. currentContract.storedMarketData[marketId].forceRemoved => currentContract.storedMarketData[marketId].netCredit == 0;
 
 // Check that a buy reverts in a force removed market.
 rule buyRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
     require !currentContract.inForceDeallocate, "assume the adapter is not in forceDeallocate";
-    require currentContract.marketData[marketId].forceRemoved, "assume the market is force removed";
+    require currentContract.storedMarketData[marketId].forceRemoved, "assume the market is force removed";
 
     onBuy@withrevert(e, marketId, market, paidAssets, boughtCredit, buyPendingFeeIncrease, buyer, callbackData);
 
@@ -43,7 +43,7 @@ rule buyRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Mar
 
 // Check that a sale reverts in a force removed market.
 rule saleRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
-    require currentContract.marketData[marketId].forceRemoved, "assume the market is force removed";
+    require currentContract.storedMarketData[marketId].forceRemoved, "assume the market is force removed";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
@@ -53,7 +53,7 @@ rule saleRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Ma
 // Check that a withdrawal and a force deallocation revert in a force removed market.
 rule deallocateRevertsInForceRemovedMarket(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     require sender != currentContract, "assume the call is a withdrawal or a force deallocation, not a change that the adapter reports itself";
-    require currentContract.marketData[globalMarketId].forceRemoved, "assume the market is force removed";
+    require currentContract.storedMarketData[globalMarketId].forceRemoved, "assume the market is force removed";
 
     deallocate@withrevert(e, data, assets, selector, sender);
 
@@ -62,9 +62,9 @@ rule deallocateRevertsInForceRemovedMarket(env e, bytes data, uint256 assets, by
 
 // Check that a force removal cannot be deactivated.
 rule forceRemovalCannotBeDeactivated(env e, method f, calldataarg args, bytes32 marketId) {
-    require currentContract.marketData[marketId].forceRemoved, "assume the market is force removed";
+    require currentContract.storedMarketData[marketId].forceRemoved, "assume the market is force removed";
 
     f(e, args);
 
-    assert currentContract.marketData[marketId].forceRemoved;
+    assert currentContract.storedMarketData[marketId].forceRemoved;
 }
