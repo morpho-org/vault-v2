@@ -709,43 +709,21 @@ contract MidnightAdapterTest is Test {
         adapter.increaseMaxNetSellRate(uint256(type(uint128).max) + 1);
     }
 
-    function testMinForceSellPriceDirections(uint128 low, uint128 high, bytes32 marketId) public {
+    function testMinForceSellPriceDirections(uint256 low, uint256 high, bytes32 marketId) public {
         if (low > high) (low, high) = (high, low);
         setMinForceSellPrice(marketId, low);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.IncreaseMinForceSellPrice(marketId, high);
+        emit IMidnightAdapterBase.SetMinForceSellPrice(marketId, high);
         vm.prank(curator);
-        adapter.increaseMinForceSellPrice(marketId, high);
+        adapter.setMinForceSellPrice(marketId, high);
         assertEq(adapter.marketData(marketId).minForceSellPrice, high);
         vm.prank(curator);
-        adapter.increaseMinForceSellPrice(marketId, high);
-        bytes memory data = abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, low));
-        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        vm.prank(curator);
-        adapter.decreaseMinForceSellPrice(marketId, low);
-        submitTimelock(IMidnightAdapterBase.decreaseMinForceSellPrice.selector, 1 days);
-        vm.prank(curator);
-        adapter.submit(data);
-        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
-        adapter.decreaseMinForceSellPrice(marketId, low);
-        skip(1 days);
+        adapter.setMinForceSellPrice(marketId, high);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.decreaseMinForceSellPrice.selector, data);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.DecreaseMinForceSellPrice(marketId, low);
-        adapter.decreaseMinForceSellPrice(marketId, low);
+        emit IMidnightAdapterBase.SetMinForceSellPrice(marketId, low);
+        vm.prank(curator);
+        adapter.setMinForceSellPrice(marketId, low);
         assertEq(adapter.marketData(marketId).minForceSellPrice, low);
-    }
-
-    function testMinForceSellPriceMonotonic(bytes32 marketId) public {
-        setMinForceSellPrice(marketId, 1);
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, 2)));
-        vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceTooHigh.selector);
-        adapter.decreaseMinForceSellPrice(marketId, 2);
-        vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceTooLow.selector);
-        vm.prank(curator);
-        adapter.increaseMinForceSellPrice(marketId, 0);
     }
 
     function testMinForceSellPriceNotAuthorized(address caller, bool sentinel, bytes32 marketId) public {
@@ -756,16 +734,13 @@ contract MidnightAdapterTest is Test {
         setMinForceSellPrice(marketId, 1);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.increaseMinForceSellPrice(marketId, 2);
+        adapter.setMinForceSellPrice(marketId, 2);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.increaseMinForceSellPrice(marketId, 1);
-        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        vm.prank(caller);
-        adapter.decreaseMinForceSellPrice(marketId, 0);
+        adapter.setMinForceSellPrice(marketId, 1);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, 1)));
+        adapter.setMinForceSellPrice(marketId, 0);
     }
 
     /* MULTICALL */
@@ -6108,16 +6083,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) internal {
-        if (newMinForceSellPrice <= adapter.marketData(marketId).minForceSellPrice) {
-            vm.prank(curator);
-            adapter.submit(
-                abi.encodeCall(IMidnightAdapterBase.decreaseMinForceSellPrice, (marketId, newMinForceSellPrice))
-            );
-            adapter.decreaseMinForceSellPrice(marketId, newMinForceSellPrice);
-        } else {
-            vm.prank(curator);
-            adapter.increaseMinForceSellPrice(marketId, newMinForceSellPrice);
-        }
+        vm.prank(curator);
+        adapter.setMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
     function take(Offer memory offer) internal {
