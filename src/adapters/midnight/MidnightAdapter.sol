@@ -434,7 +434,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             bytes32 marketId = IdLib.toId(market);
             require(!liquidationLocked(marketId), SellInProgress());
             MarketData storage _marketData = marketData[marketId];
-            require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
                 market: market,
                 buy: false,
@@ -471,6 +470,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             IMidnight(midnight).take(offer, hex"", assets, taker, address(0), address(this), hex"");
 
             uint128 newNetCredit = currentNetCredit(marketId);
+            require(!_marketData.forceRemoved, ForceRemoved());
             uint256 oldNetCredit = _marketData.netCredit;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(marketId);

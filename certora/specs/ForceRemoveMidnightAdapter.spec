@@ -16,6 +16,15 @@ methods {
 // The id of the market given to the adapter, when the adapter computes it from the market.
 persistent ghost bytes32 globalMarketId;
 
+persistent ghost bool forceRemovedHadNonZeroNetCredit;
+
+// forceRemove zeros netCredit before setting forceRemoved, so only a netCredit write can break the property.
+hook Sstore currentContract.marketData[KEY bytes32 marketId].netCredit uint128 newNetCredit {
+    if (newNetCredit != 0 && currentContract.marketData[marketId].forceRemoved) {
+        forceRemovedHadNonZeroNetCredit = true;
+    }
+}
+
 function arbitraryIds() returns bytes32[] {
     bytes32[] idsArray;
     return idsArray;
@@ -27,9 +36,18 @@ function arbitraryAllocations(uint256 length) returns uint256[] {
     return allocations;
 }
 
-// Prove that a force removed market has a zero stored net credit.
-strong invariant forceRemovedHasZeroNetCredit()
+// A force removed market can only have non-zero stored net credit during calls that revert.
+invariant forceRemovedHasZeroNetCredit()
     forall bytes32 marketId. currentContract.marketData[marketId].forceRemoved => currentContract.marketData[marketId].netCredit == 0;
+
+rule breakingForceRemovedHasZeroNetCreditReverts(env e, method f, calldataarg args) {
+    requireInvariant forceRemovedHasZeroNetCredit();
+    require !forceRemovedHadNonZeroNetCredit, "start tracking violations at the beginning of the call";
+
+    f@withrevert(e, args);
+
+    assert forceRemovedHadNonZeroNetCredit => lastReverted;
+}
 
 // Check that a buy reverts in a force removed market.
 rule buyRevertsInForceRemovedMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {

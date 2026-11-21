@@ -1147,8 +1147,10 @@ contract MidnightAdapterTest is Test {
 
         if (forceDeallocation) {
             deal(address(loanToken), address(this), 0.5e18);
+            vm.expectCall(address(midnight), abi.encodeWithSelector(IMidnight.updatePositionView.selector));
             vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
             forceDeallocate(offer.market, 0.5e18);
+            assertEq(loanToken.balanceOf(address(this)), 0.5e18, "payment rolled back");
         } else {
             offer = makeSellOffer(offer.market, 0.5e18, MAX_TICK);
             vm.expectCall(address(parentVault), abi.encodeWithSelector(IVaultV2.deallocate.selector));
