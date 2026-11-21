@@ -5333,13 +5333,43 @@ contract MidnightAdapterTest is Test {
         uint256 amortizedValue,
         uint256 ttm,
         uint256 shortfall,
-        uint256 totalInterest
+        uint256 totalInterest,
+        uint256 remainingShortfall
     ) internal pure returns (uint256 rate, uint256 absorbed) {
-        uint256 value = amortizedValue + shortfall.mulDivUp(credit - amortizedValue, totalInterest);
+        uint256 value = amortizedValue
+            + MathLib.min(shortfall.mulDivUp(credit - amortizedValue, totalInterest), remainingShortfall);
         rate = (credit - value).mulDivDown(WAD, value * ttm);
         uint256 actualValue = credit.mulDivDown(WAD, WAD + rate * ttm);
         assertGe(actualValue, value, "actual value covers target");
         absorbed = actualValue - amortizedValue;
+    }
+
+    function testShortfallCapsLastMarketUpliftAtRemainder() public {
+        Offer memory first = buyAtDiscount(1 days, 100);
+        Offer memory second = buyAtDiscount(7 days, 100);
+        Offer memory last = buyAtDiscount(30 days, 100);
+        MarketData memory firstData = adapter.marketData(_marketId(first.market));
+        MarketData memory secondData = adapter.marketData(_marketId(second.market));
+        MarketData memory lastData = adapter.marketData(_marketId(last.market));
+        uint256 firstValue = uint256(90).mulDivDown(WAD, WAD + firstData.netRate * 1 days);
+        uint256 secondValue = uint256(100).mulDivDown(WAD, WAD + secondData.netRate * 7 days);
+        uint256 lastValue = uint256(100).mulDivDown(WAD, WAD + lastData.netRate * 30 days);
+        uint256 shortfall = uint256(10).mulDivUp(WAD, WAD + firstData.netRate * 1 days) - 5;
+        uint256 totalInterest = 290 - firstValue - secondValue - lastValue;
+        (, uint256 firstAbsorbed) =
+            expectedShortfallReduction(90, firstValue, 1 days, shortfall, totalInterest, shortfall);
+        (, uint256 secondAbsorbed) =
+            expectedShortfallReduction(100, secondValue, 7 days, shortfall, totalInterest, shortfall - firstAbsorbed);
+        uint256 remainder = shortfall - firstAbsorbed - secondAbsorbed;
+        assertGt(remainder, 0, "last market is needed");
+        assertLt(remainder, shortfall.mulDivUp(100 - lastValue, totalInterest), "remainder below proportional uplift");
+        (uint256 expectedRate, uint256 absorbed) =
+            expectedShortfallReduction(100, lastValue, 30 days, shortfall, totalInterest, remainder);
+        assertApproxEqAbs(absorbed, remainder, 1, "only remainder absorbed up to rounding");
+
+        sellUnits(first.market, 10, MAX_TICK / 2);
+
+        assertEq(adapter.marketData(_marketId(last.market)).netRate, expectedRate, "last rate uses only remainder");
     }
 
     // also test early stopping when actual amortized value increase > shortfall
@@ -5376,7 +5406,8 @@ contract MidnightAdapterTest is Test {
                 state.values[i],
                 state.beforeData[i].maturity - block.timestamp,
                 state.shortfall,
-                state.totalInterest
+                state.totalInterest,
+                state.shortfall - state.absorbed
             );
             if (largePosition) {
                 assertLt(
@@ -5438,12 +5469,16 @@ contract MidnightAdapterTest is Test {
         }
         uint256 assetsBefore = adapter.realAssets();
         uint256[] memory expectedRates = new uint256[](offers.length);
+        uint256 absorbed;
         for (uint256 i; i < offers.length; i++) {
+            expectedRates[i] = adapter.marketData(_marketId(offers[i].market)).netRate;
+            if (absorbed >= shortfall) continue;
             uint256 interest = values[i][0] - values[i][1];
             uint256 share = shortfall.mulDivUp(interest, totalInterest);
             assertApproxEqAbs(share, shortfall.mulDivDown(interest, totalInterest), 1, "proportional share");
-            uint256 newValue = values[i][1] + share;
+            uint256 newValue = values[i][1] + MathLib.min(share, shortfall - absorbed);
             expectedRates[i] = (values[i][0] - newValue).mulDivDown(WAD, newValue * values[i][2]);
+            absorbed += values[i][0].mulDivDown(WAD, WAD + expectedRates[i] * values[i][2]) - values[i][1];
             vm.expectEmit(address(adapter));
             emit IMidnightAdapterBase.ReduceRate(_marketId(offers[i].market), expectedRates[i]);
         }
