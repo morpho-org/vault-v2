@@ -325,7 +325,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxNetSellRate(newMaxNetSellRate);
     }
 
-    /// @dev Curator-only and immediate in either direction.
+
     function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
         require(isCurator(msg.sender), NotAuthorized());
         marketData[marketId].minForceSellPrice = newMinForceSellPrice;
