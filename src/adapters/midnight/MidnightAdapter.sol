@@ -19,6 +19,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
 /// @dev When rounded, position amortized values and rates are rounded down on buys, sales, and realAssets evaluations, which can accrue some interest earlier.
+/// @dev Tokens with an expensive smallest unit (e.g. WBTC, cbBTC, 2-decimal stablecoins) are not supported: rounding and 0-asset buys can accrue significant interest too early.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
