@@ -19,7 +19,7 @@ struct MarketData {
     bool forceSellable;
     bool forceRemoved;
     /// @dev Minimum price of a maker or taker sale while forceSellable, per unit of sold net credit (WAD = face value).
-    /// @dev Defaults to WAD.
+    /// @dev Defaults to WAD and cannot exceed WAD.
     uint256 minForceSellPrice;
 }
 
@@ -97,6 +97,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error MaxTtmTooLow();
     error MinForceSellPriceTooLow();
     error MinForceSellPriceTooHigh();
+    error MinForceSellPriceAboveWad();
     error MaxNetSellRateTooLow();
     error MaxNetSellRateTooHigh();
     error MinNetBuyRateTooLow();

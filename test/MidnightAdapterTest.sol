@@ -710,7 +710,9 @@ contract MidnightAdapterTest is Test {
         adapter.increaseMaxNetSellRate(uint256(type(uint128).max) + 1);
     }
 
-    function testMinForceSellPriceDirections(uint128 low, uint128 high, bytes32 marketId) public {
+    function testMinForceSellPriceDirections(uint256 low, uint256 high, bytes32 marketId) public {
+        low = bound(low, 0, WAD);
+        high = bound(high, 0, WAD);
         if (low > high) (low, high) = (high, low);
         setMinForceSellPrice(marketId, low);
         vm.expectEmit(address(adapter));
@@ -747,6 +749,14 @@ contract MidnightAdapterTest is Test {
         vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceTooLow.selector);
         vm.prank(curator);
         adapter.increaseMinForceSellPrice(marketId, 0);
+    }
+
+    function testMinForceSellPriceAboveWad(bytes32 marketId, uint256 price) public {
+        price = bound(price, WAD + 1, type(uint256).max);
+        vm.expectRevert(IMidnightAdapterBase.MinForceSellPriceAboveWad.selector);
+        vm.prank(curator);
+        adapter.increaseMinForceSellPrice(marketId, price);
+        assertEq(adapter.marketData(marketId).minForceSellPrice, WAD);
     }
 
     function testMinForceSellPriceNotAuthorized(address caller, bool sentinel, bytes32 marketId) public {
@@ -934,6 +944,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testForceSellablePreservesMarketData(bool newForceSellable, uint256 newMinForceSellPrice) public {
+        newMinForceSellPrice = bound(newMinForceSellPrice, 0, WAD);
         Offer memory first = buy(1 days, 1e18);
         Offer memory second = buy(7 days, 1e18, discountTick);
         bytes32 marketId = _marketId(second.market);
@@ -1884,6 +1895,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinForceSellPriceRetainedOnReentry(uint256 price) public {
+        price = bound(price, 0, WAD);
         Offer memory initial = buy(30 days, 1e18, MAX_TICK);
         bytes32 marketId = _marketId(initial.market);
         setMinForceSellPrice(marketId, price);
@@ -1924,7 +1936,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(initial.market);
         deal(address(loanToken), taker, 1e18);
 
-        setMinForceSellPrice(marketId, type(uint128).max);
+        setMinForceSellPrice(marketId, WAD);
         sellUnits(initial.market, 1e18, MAX_TICK);
         assertEq(adapter.marketData(marketId).netCredit, 0, "net credit");
     }
@@ -1935,7 +1947,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), address(this), 0.25e18);
 
         setForceSellable(marketId);
-        setMinForceSellPrice(marketId, type(uint128).max);
+        setMinForceSellPrice(marketId, WAD);
         forceDeallocate(initial.market, 0.25e18);
         assertEq(adapter.marketData(marketId).netCredit, 0.75e18);
     }
@@ -5813,7 +5825,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
         if (forceSellable) setForceSellable(marketId);
-        setMinForceSellPrice(marketId, type(uint256).max);
+        setMinForceSellPrice(marketId, 0);
         if (forceRemoved) forceRemove(marketId);
 
         vm.record();
@@ -5826,9 +5838,7 @@ contract MidnightAdapterTest is Test {
         assertEq(uint64(packed >> 128), data.netRate, "packed net rate");
         assertEq(uint8(packed >> 240), forceSellable ? 1 : 0, "force sellable shares first slot");
         assertEq(uint8(packed >> 248), forceRemoved ? 1 : 0, "force removed shares first slot");
-        assertEq(
-            uint256(vm.load(address(adapter), reads[1])), type(uint256).max ^ WAD, "encoded full-width minimum price"
-        );
+        assertEq(uint256(vm.load(address(adapter), reads[1])), WAD, "one minus minimum price");
     }
 
     function testRealAssetsReadsOneMarketDataSlotPerMarket() public {

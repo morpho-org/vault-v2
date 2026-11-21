@@ -114,7 +114,7 @@ The curator can constrain allocator trades through these settings:
 - **`minNetBuyRate`**: Minimum simple net interest rate on each buy.
 - **`maxNetSellRate`**: Maximum simple net interest rate on sales, except in [force-sellable markets](#force-sellable-markets).
 - **`shortfallAllowance`**: Total shortfall allowed from sales, in asset units. It is consumed at every sale below amortized value, unless the market is [force-sellable](#force-sellable-markets).
-- **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). Defaults to WAD (face value).
+- **`minForceSellPrice`**: Minimum assets received per unit of sold net credit, set per market and used only for [force-sellable markets](#force-sellable-markets). Defaults to WAD (face value) and can be set between 0 and WAD.
 
 Only `minForceSellPrice` is set per market.
 The other three settings are set for the whole adapter.

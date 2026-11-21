@@ -7,12 +7,14 @@ methods {
     function minNetBuyRate() external returns (uint128) envfree;
     function maxNetSellRate() external returns (uint128) envfree;
     function shortfallAllowance() external returns (uint128) envfree;
-    function marketData(bytes32) external returns (uint128, uint64, uint40, uint8, bool, bool, uint256) envfree;
 }
 
 definition WAD() returns mathint = 10 ^ 18;
 
 definition mulDivUp(mathint x, mathint y, mathint d) returns mathint = (x * y + (d - 1)) / d;
+
+strong invariant oneMinusMinForceSellPriceBounded()
+    forall bytes32 marketId. currentContract.storedMarketData[marketId].oneMinusMinForceSellPrice <= WAD();
 
 // Check that a buy reverts in a forceSellable market.
 rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
@@ -52,8 +54,7 @@ rule buyRevertsIfNetRateTooLow(env e, bytes32 marketId, MidnightAdapter.Market m
 rule forceSaleRevertsIfPriceTooLow(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 sellerAssets, uint256 soldCredit, uint256 sellPendingFeeDecrease, address seller, address receiver, bytes callbackData) {
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require currentContract.storedMarketData[marketId].forceSellable, "assume the market is forceSellable";
-    uint128 netCredit; uint64 netRate; uint40 maturity; uint8 index; bool forceSellable; bool forceRemoved; uint256 minForceSellPrice;
-    netCredit, netRate, maturity, index, forceSellable, forceRemoved, minForceSellPrice = marketData(marketId);
+    mathint minForceSellPrice = WAD() - currentContract.storedMarketData[marketId].oneMinusMinForceSellPrice;
     require sellerAssets * WAD() < soldNetCredit * minForceSellPrice, "assume the price is below minForceSellPrice";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);

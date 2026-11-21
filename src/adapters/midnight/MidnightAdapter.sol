@@ -11,7 +11,7 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../../libraries/MathLib.sol";
 import {WAD} from "../../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
-import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterBase, IMidnightAdapterStaticTyping} from "./interfaces/IMidnightAdapter.sol";
 import {PackedDurationsLib} from "./libraries/PackedDurationsLib.sol";
 import {IIKRCompatibleEnterGate} from "./gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
@@ -85,6 +85,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint40;
     using PackedDurationsLib for bytes32;
 
+    struct StoredMarketData {
+        uint128 netCredit;
+        uint64 netRate;
+        uint40 maturity;
+        uint8 index;
+        bool forceSellable;
+        bool forceRemoved;
+        uint256 oneMinusMinForceSellPrice;
+    }
+
     /* CONSTANTS */
 
     /// @dev Fillable with dust takes.
@@ -127,8 +137,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
-    /// @dev minForceSellPrice is XOR-encoded with WAD so zero storage means face value.
-    mapping(bytes32 marketId => MarketData) internal storedMarketData;
+    /// @dev Stores WAD - minForceSellPrice so zero storage means face value.
+    mapping(bytes32 marketId => StoredMarketData) internal storedMarketData;
 
     uint128 public maxTtm;
     /// @dev Minimum net rate implied by a maker or taker buy, relative to the paid assets.
@@ -143,7 +153,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint128 public shortfallAllowance;
 
     function marketData(bytes32 marketId) external view returns (uint128, uint64, uint40, uint8, bool, bool, uint256) {
-        MarketData memory data = storedMarketData[marketId];
+        StoredMarketData memory data = storedMarketData[marketId];
         return (
             data.netCredit,
             data.netRate,
@@ -151,7 +161,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             data.index,
             data.forceSellable,
             data.forceRemoved,
-            data.minForceSellPrice ^ WAD
+            WAD - data.oneMinusMinForceSellPrice
         );
     }
 
@@ -341,17 +351,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
         require(isCurator(msg.sender), NotAuthorized());
-        require(newMinForceSellPrice >= (storedMarketData[marketId].minForceSellPrice ^ WAD), MinForceSellPriceTooLow());
-        storedMarketData[marketId].minForceSellPrice = newMinForceSellPrice ^ WAD;
+        require(newMinForceSellPrice <= WAD, MinForceSellPriceAboveWad());
+        require(
+            newMinForceSellPrice >= (WAD - storedMarketData[marketId].oneMinusMinForceSellPrice),
+            MinForceSellPriceTooLow()
+        );
+        storedMarketData[marketId].oneMinusMinForceSellPrice = WAD - newMinForceSellPrice;
         emit IncreaseMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
     function decreaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
         timelocked();
         require(
-            newMinForceSellPrice <= (storedMarketData[marketId].minForceSellPrice ^ WAD), MinForceSellPriceTooHigh()
+            newMinForceSellPrice <= (WAD - storedMarketData[marketId].oneMinusMinForceSellPrice),
+            MinForceSellPriceTooHigh()
         );
-        storedMarketData[marketId].minForceSellPrice = newMinForceSellPrice ^ WAD;
+        storedMarketData[marketId].oneMinusMinForceSellPrice = WAD - newMinForceSellPrice;
         emit DecreaseMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
@@ -395,7 +410,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev When submitting forceRemove, it's recommended to put the cap of at least one of the market's ids (e.g. the caps of the id of a broken collateral) to zero, to avoid allocators buying in the market just before it is force removed.
     function forceRemove(bytes32 marketId) external {
         timelocked();
-        MarketData storage _marketData = storedMarketData[marketId];
+        StoredMarketData storage _marketData = storedMarketData[marketId];
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
@@ -449,7 +464,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(market.loanToken == asset, LoanAssetMismatch());
             bytes32 marketId = IdLib.toId(market);
             require(!liquidationLocked(marketId), SellInProgress());
-            MarketData storage _marketData = storedMarketData[marketId];
+            StoredMarketData storage _marketData = storedMarketData[marketId];
             require(!_marketData.forceRemoved, ForceRemoved());
             Offer memory offer = Offer({
                 market: market,
@@ -547,7 +562,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(block.timestamp < market.maturity, BuyPostMaturity());
             uint256 ttm = market.maturity - block.timestamp;
             require(ttm <= maxTtm, BuyTtmTooHigh());
-            MarketData storage _marketData = storedMarketData[id];
+            StoredMarketData storage _marketData = storedMarketData[id];
             require(!_marketData.forceRemoved, ForceRemoved());
             require(!_marketData.forceSellable, UnauthorizedBuy());
             uint256 boughtNetCredit = units - pendingFeeIncrease;
@@ -645,7 +660,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
         require(data.length == 0, NonEmptyCallbackData());
-        MarketData storage _marketData = storedMarketData[id];
+        StoredMarketData storage _marketData = storedMarketData[id];
         require(!_marketData.forceRemoved, ForceRemoved());
 
         uint128 newNetCredit = currentNetCredit(id);
@@ -655,7 +670,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 shortfall;
         if (_marketData.forceSellable) {
             require(
-                sellerAssets >= soldNetCredit.mulDivUp(_marketData.minForceSellPrice ^ WAD, WAD), ForceSellPriceTooLow()
+                sellerAssets >= soldNetCredit.mulDivUp(WAD - _marketData.oneMinusMinForceSellPrice, WAD),
+                ForceSellPriceTooLow()
             );
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
@@ -670,7 +686,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 uint256 totalInterest;
                 for (uint256 i; i < length; i++) {
                     bytes32 otherMarketId = marketIdAt(i);
-                    MarketData storage otherMarketData = storedMarketData[otherMarketId];
+                    StoredMarketData storage otherMarketData = storedMarketData[otherMarketId];
                     require(otherMarketId == id || !liquidationLocked(otherMarketId), OtherSellInProgress());
                     uint256 netCredit = IMidnight(midnight).lossFactor(otherMarketId) == 0
                         ? otherMarketData.netCredit
@@ -691,7 +707,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     uint256 targetAmortizedValue =
                         amortizedValue + shortfall.mulDivUp(netCredit - amortizedValue, totalInterest);
                     bytes32 otherMarketId = marketIdAt(i);
-                    MarketData storage otherMarketData = storedMarketData[otherMarketId];
+                    StoredMarketData storage otherMarketData = storedMarketData[otherMarketId];
                     uint256 otherTtm = otherMarketData.maturity.zeroFloorSub(block.timestamp);
                     uint64 newRate =
                         (netCredit - targetAmortizedValue).mulDivDown(WAD, targetAmortizedValue * otherTtm).toUint64();
@@ -740,7 +756,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(market.loanToken == asset, LoanAssetMismatch());
         bytes32 marketId = IdLib.toId(market);
         require(!liquidationLocked(marketId), SellInProgress());
-        MarketData storage _marketData = storedMarketData[marketId];
+        StoredMarketData storage _marketData = storedMarketData[marketId];
         require(!_marketData.forceRemoved, ForceRemoved());
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
@@ -785,7 +801,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function removeMarket(bytes32 marketId) internal {
-        MarketData storage _marketData = storedMarketData[marketId];
+        StoredMarketData storage _marketData = storedMarketData[marketId];
         bytes32 lastMarketId = marketIds[marketIds.length - 1];
         marketIds[_marketData.index] = lastMarketId;
         storedMarketData[lastMarketId].index = _marketData.index;
@@ -837,7 +853,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256[] memory allocations = new uint256[](length);
         if (length == 0) return allocations;
         for (uint256 i; i < marketIds.length; i++) {
-            MarketData storage _marketData = storedMarketData[marketIds[i]];
+            StoredMarketData storage _marketData = storedMarketData[marketIds[i]];
             uint256 ttm = _marketData.maturity.zeroFloorSub(block.timestamp);
             uint256 bucket;
             for (; bucket < length; bucket++) {
@@ -856,7 +872,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 assets;
         for (uint256 i = 0; i < marketIds.length; i++) {
             bytes32 marketId = marketIdAt(i);
-            MarketData storage _marketData = storedMarketData[marketId];
+            StoredMarketData storage _marketData = storedMarketData[marketId];
             uint128 storedNetCredit = _marketData.netCredit;
             uint64 netRate;
             uint40 maturity = _marketData.maturity;
