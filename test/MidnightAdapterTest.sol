@@ -3827,6 +3827,32 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testForceDeallocateRestoresMidnightAllowance() public {
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        skip(1);
+        uint256 assets = 0.5e18;
+        uint256 settlementFee = assets.mulDivUp(10 * CBP, 1e18);
+        deal(address(loanToken), address(this), assets + settlementFee);
+        vm.prank(address(adapter));
+        loanToken.approve(address(midnight), 0);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
+
+        forceDeallocate(offer.market, assets);
+
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault balance");
+        assertEq(adapter.marketData(marketId).netCredit, 1e18 - assets, "netCredit");
+        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid credit value and settlement fee");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
+        assertEq(
+            midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + settlementFee, "settlement fee"
+        );
+    }
+
     /// @dev Funded: no allowance. Not funded: the allowance from setUp, no balance.
     function testForceDeallocateCallerMustPay(bool funded) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
