@@ -3838,7 +3838,7 @@ contract MidnightAdapterTest is Test {
         uint256 settlementFee = assets.mulDivUp(10 * CBP, 1e18);
         deal(address(loanToken), address(this), assets + settlementFee);
         vm.prank(address(adapter));
-        loanToken.approve(address(midnight), 0);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 0);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
 
