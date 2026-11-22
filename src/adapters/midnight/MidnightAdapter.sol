@@ -78,6 +78,9 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev To preserve the vault's non-custodial guarantees, increaseMaxTtm, setForceSellable and forceRemove must be timelocked long enough for depositors to exit.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
+/// TOKEN REQUIREMENTS
+/// @dev The loan token is the parent vault's asset and must satisfy its token requirements. It must also not re-enter the adapter on transfer or transferFrom.
+///
 /// MISC
 /// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each other, as the buyer's onBuy accrues interest on the vault mid-sale.
 contract MidnightAdapter is IMidnightAdapterStaticTyping {
