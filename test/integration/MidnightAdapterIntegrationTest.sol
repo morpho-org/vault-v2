@@ -287,10 +287,6 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         testMakerBuy();
         Market memory market = _market(7 days);
         _submitAndSet(address(adapter), abi.encodeCall(IMidnightAdapterBase.setForceSellable, (IdLib.toId(market))));
-        vm.startPrank(curator);
-        adapter.setMinForceSellPrice(IdLib.toId(market), WAD);
-        adapter.setMinForceSellPrice(IdLib.toId(market), 0);
-        vm.stopPrank();
 
         uint256 units = 1000 * oneToken;
         Offer memory offer = Offer({
