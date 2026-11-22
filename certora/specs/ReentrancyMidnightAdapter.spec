@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+// With optimistic_loop and loop_iter 2, longer loops preserve the relevant call/store ordering.
+// onSell's scanning loop only makes static calls, and its rate-update loop makes no external calls.
+// onBuy's duration-cap calls occur after the last adapter store, so additional iterations cannot introduce a call between stores.
+
 // VaultV2 and Midnight are in the scene only to name the selectors of the ignored calls. They are not linked, so the calls of the adapter stay unresolved.
 using VaultV2 as VaultV2;
 using Midnight as Midnight;

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+// With optimistic_loop and loop_iter 2, longer loops preserve the relevant static-call/store ordering.
+// onSell's scanning loop only calls the exempt liquidationLocked, lossFactor and updatePositionView getters, and its rate-update loop makes no external calls.
+// onBuy's duration-cap calls occur after the last adapter store, so additional iterations cannot introduce a non-exempt static call between stores.
+
 // Midnight and the enter gate contracts are in the scene only to name the selectors of the ignored static calls. They are not linked, so the calls of the adapter stay unresolved.
 using Midnight as Midnight;
 using VaultV2CompatibleEnterGateFactory as VaultV2CompatibleEnterGateFactory;
