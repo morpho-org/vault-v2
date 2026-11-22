@@ -1,18 +1,18 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "../BaseTest.sol";
-import {IMidnightAdapter, IMidnightAdapterBase} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
-import {IMidnightAdapterFactory} from "../../src/adapters/interfaces/IMidnightAdapterFactory.sol";
+import {IMidnightAdapter, IMidnightAdapterBase} from "../../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "../../src/adapters/midnight/interfaces/IMidnightAdapterFactory.sol";
 import {
     IMidnightAdapterPriceRatifierV1
-} from "../../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+} from "../../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
-import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {IIKRCompatibleEnterGate} from "../../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {
-    IVaultV2CompatibleEnterGateFactory
-} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGateFactory.sol";
+    IIKRCompatibleEnterGateFactory
+} from "../../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGateFactory.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 import {WAD} from "../../src/libraries/ConstantsLib.sol";
@@ -22,8 +22,10 @@ import {IFlashLoanCallback} from "../../lib/midnight/src/interfaces/ICallbacks.s
 import {IMidnight, Market, Offer, CollateralParams} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {HashLib} from "../../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {ISetterRatifier} from "../../lib/midnight/src/ratifiers/interfaces/ISetterRatifier.sol";
-import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
-import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
+import {IWhitelistEnterSubGate} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {
+    IWhitelistEnterSubGateFactory
+} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
@@ -86,15 +88,25 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         vault.setMaxRate(1e18 / uint256(365 days));
         vm.prank(allocator);
         adapter.setIsSubRatifier(address(priceSubRatifier), true);
-        vm.prank(curator);
-        adapter.setMaxNetSellRate(1e18 / uint256(365 days));
-        vm.prank(curator);
-        adapter.setShortfallAllowance(type(uint128).max);
+        _submitAndSet(
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxNetSellRate, (1e18 / uint256(365 days)))
+        );
+        _submitAndSet(
+            address(adapter), abi.encodeCall(IMidnightAdapterBase.increaseShortfallAllowance, (type(uint128).max))
+        );
 
         _increaseCaps(abi.encode("this", address(adapter)));
         _increaseCaps(abi.encode("collateralToken", address(collateralToken)));
         Market memory market = _market(0);
-        _increaseCaps(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
+        _increaseCaps(
+            abi.encode(
+                "collateralParams/rcfThreshold/liquidatorGate/enterGate",
+                market.collateralParams,
+                market.rcfThreshold,
+                market.liquidatorGate,
+                market.enterGate
+            )
+        );
         _increaseCaps(abi.encode("this/duration", address(adapter), 7 days));
 
         deal(address(underlyingToken), depositor, initialAssets);
@@ -321,7 +333,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
     }
 
     function testWrapperGateForceDeallocateAfterRevocation() public {
-        address enterGateFactory = deployCode("VaultV2CompatibleEnterGateFactory.sol:VaultV2CompatibleEnterGateFactory");
+        address enterGateFactory = deployCode("IKRCompatibleEnterGateFactory.sol:IKRCompatibleEnterGateFactory");
         IMidnightAdapterFactory factory = IMidnightAdapterFactory(
             deployCode("MidnightAdapterFactory.sol:MidnightAdapterFactory", abi.encode(address(midnight)))
         );
@@ -334,8 +346,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         IWhitelistEnterSubGate subGate =
             IWhitelistEnterSubGate(subGateFactory.createWhitelistEnterSubGate(owner, owner, false, false, bytes32(0)));
         Market memory market = _market(7 days);
-        market.enterGate = IVaultV2CompatibleEnterGateFactory(enterGateFactory)
-            .createVaultV2CompatibleEnterGate(address(subGate), bytes32(0));
+        market.enterGate = IIKRCompatibleEnterGateFactory(enterGateFactory)
+            .createIKRCompatibleEnterGate(address(subGate), true, bytes32(0));
         bytes32 marketId = IdLib.toId(market);
 
         vm.startPrank(owner);
@@ -347,7 +359,7 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         subGate.setIsWhitelisted(true, address(gatedAdapter), true);
         // Let the borrower take on debt in the markets of this subgate.
         subGate.setIsWhitelisted(false, borrower, true);
-        IVaultV2CompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
+        IIKRCompatibleEnterGate(market.enterGate).addAdmitterFactory(address(factory));
         vm.stopPrank();
 
         _submitAndSet(address(gatedAdapter), abi.encodeCall(IMidnightAdapterBase.increaseMaxTtm, (90 days)));
@@ -358,7 +370,15 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         );
         _increaseCaps(abi.encode("this", address(gatedAdapter)));
         _increaseCaps(abi.encode("this/duration", address(gatedAdapter), 7 days));
-        _increaseCaps(abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate));
+        _increaseCaps(
+            abi.encode(
+                "collateralParams/rcfThreshold/liquidatorGate/enterGate",
+                market.collateralParams,
+                market.rcfThreshold,
+                market.liquidatorGate,
+                market.enterGate
+            )
+        );
         uint256 units = initialAssets * WAD / TickLib.tickToPrice(TICK);
         Offer memory borrowerOffer = Offer({
             market: market,

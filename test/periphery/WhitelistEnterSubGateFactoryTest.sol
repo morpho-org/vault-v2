@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
-import {WhitelistEnterSubGate} from "../../src/periphery/gates/WhitelistEnterSubGate.sol";
-import {WhitelistEnterSubGateFactory} from "../../src/periphery/gates/WhitelistEnterSubGateFactory.sol";
-import {IWhitelistEnterSubGateFactory} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
+import {WhitelistEnterSubGate} from "../../src/adapters/midnight/gates/WhitelistEnterSubGate.sol";
+import {WhitelistEnterSubGateFactory} from "../../src/adapters/midnight/gates/WhitelistEnterSubGateFactory.sol";
+import {
+    IWhitelistEnterSubGateFactory
+} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 
 contract WhitelistEnterSubGateFactoryTest is Test {
     WhitelistEnterSubGateFactory internal factory;

@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IEnterGate} from "../../../../lib/midnight/src/interfaces/IGate.sol";
+import {IEnterGate} from "../../../../../lib/midnight/src/interfaces/IGate.sol";
 
-interface IVaultV2CompatibleEnterGate is IEnterGate {
+interface IIKRCompatibleEnterGate is IEnterGate {
     /* EVENTS */
 
     event AddAdmitterFactory(address indexed adapterFactory);
@@ -13,11 +13,13 @@ interface IVaultV2CompatibleEnterGate is IEnterGate {
     /* ERRORS */
 
     error Unauthorized();
+    error AdmitDisabled();
 
     /* FUNCTIONS */
 
     function subGate() external view returns (address);
-    function canAdmit(address adapterFactory) external view returns (bool);
+    function admitEnabled() external view returns (bool);
+    function admitterFactory(address account) external view returns (bool);
     function roleSetter() external view returns (address);
     function addAdmitterFactory(address adapterFactory) external;
     function admit(address user, address adapterFactory) external;

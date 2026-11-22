@@ -12,7 +12,7 @@ All the contracts are immutable.
 
 Vaults allocate assets to underlying markets via separate contracts called adapters.
 They hold positions on behalf of the vault.
-Adapters are also used to know how much these investments are worth (interest and loss realization).
+Adapters are also used to know how much these positions are worth (interest and loss realization).
 
 An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapters a vault can have and add.
 This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
@@ -21,11 +21,11 @@ The following adapters are currently available:
 
 - [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol) (Morpho Blue).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-- Midnight Adapter. WIP
+- [Midnight Adapter](./src/adapters/midnight/README.md) (fixed-rate, fixed-maturity markets).
 
 ### Caps
 
-The funds allocation of the vault is constrained by an id-based caps system.
+The allocation of the vault is constrained by an id-based caps system.
 An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
@@ -61,11 +61,11 @@ With the Midnight adapter, the user instead buys the adapter's credit through `f
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
-Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
+Midnight also charges its settlement fee for in-kind redemptions.
 
 ### Non-custodial guarantees
 
-Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#timelocks).
 These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
 
 ### Gates
@@ -105,7 +105,7 @@ Each fee goes to its respective recipient set by the curator.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying markets (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
-  They are notably responsible for the vault's performance and liquidity.
+  Their allocations notably determine the vault's performance and liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
   They are able to revoke pending actions, deallocate funds to idle and decrease caps.

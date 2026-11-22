@@ -21,7 +21,7 @@ interface IMidnightAdapterFactory {
     function isCreated(address account) external view returns (bool);
     function createMidnightAdapter(
         address parentVault,
-        uint256[] memory durations,
+        uint256[] calldata durations,
         address enterGateFactory,
         bytes32 preSalt
     ) external returns (address);

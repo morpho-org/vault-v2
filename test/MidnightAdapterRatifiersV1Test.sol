@@ -9,14 +9,16 @@ import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {Signature} from "../lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {SET_IS_ROOT_RATIFIED_SUCCESS} from "../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
-import {MidnightAdapterPriceRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterPriceRatifierV1.sol";
-import {MidnightAdapterRateRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterRateRatifierV1.sol";
+import {MidnightAdapterPriceRatifierV1} from "../src/adapters/midnight/ratifiers/MidnightAdapterPriceRatifierV1.sol";
+import {MidnightAdapterRateRatifierV1} from "../src/adapters/midnight/ratifiers/MidnightAdapterRateRatifierV1.sol";
 import {
     IMidnightAdapterPriceRatifierV1,
     EIP712_DOMAIN_TYPEHASH
-} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
-import {IMidnightAdapterRateRatifierV1} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterRateRatifierV1.sol";
-import {IMidnightAdapter, IMidnightAdapterBase} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+} from "../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+import {
+    IMidnightAdapterRateRatifierV1
+} from "../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterRateRatifierV1.sol";
+import {IMidnightAdapter, IMidnightAdapterBase} from "../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
