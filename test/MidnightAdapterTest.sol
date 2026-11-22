@@ -67,6 +67,35 @@ contract ExtraAssetsAdapter is IAdapter {
     }
 }
 
+contract NestedWithdrawAdapter is IAdapter {
+    VaultV2Mock internal immutable vault;
+    IAdapter internal immutable targetAdapter;
+    Market internal market;
+    uint256 internal immutable nestedAssets;
+
+    constructor(VaultV2Mock vault_, IAdapter targetAdapter_, Market memory market_, uint256 nestedAssets_) {
+        vault = vault_;
+        targetAdapter = targetAdapter_;
+        market = market_;
+        nestedAssets = nestedAssets_;
+        SafeERC20Lib.safeApprove(address(vault_.asset()), address(vault_), type(uint256).max);
+    }
+
+    function allocate(bytes memory, uint256, bytes4, address) external pure returns (bytes32[] memory, int256) {
+        return (new bytes32[](0), 0);
+    }
+
+    function deallocate(bytes memory, uint256, bytes4, address) external returns (bytes32[] memory, int256) {
+        require(msg.sender == address(vault));
+        vault.deallocate(address(targetAdapter), abi.encode(market), nestedAssets);
+        return (new bytes32[](0), 0);
+    }
+
+    function realAssets() external pure returns (uint256) {
+        return 0;
+    }
+}
+
 /// @notice Returns a value other than CALLBACK_SUCCESS.
 contract GarbageSubRatifier {
     function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
@@ -5764,6 +5793,39 @@ contract MidnightAdapterTest is Test {
         take(roll);
 
         assertEq(adapter.marketData(marketId).netCredit, 100e18);
+    }
+
+    function testBuyEventNetCreditDoesNotIncludeNestedWithdrawal() public {
+        Offer memory initial = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(initial.market);
+        uint256 preBuyNetCredit = adapter.marketData(marketId).netCredit;
+        deal(address(loanToken), address(this), 75e18);
+        SafeERC20Lib.safeApprove(address(loanToken), address(midnight), 75e18);
+        midnight.repay(initial.market, 75e18, taker, address(0), "");
+        NestedWithdrawAdapter fundingAdapter = new NestedWithdrawAdapter(parentVault, adapter, initial.market, 75e18);
+        deal(address(loanToken), address(fundingAdapter), 50e18);
+        parentVault.allocate(address(fundingAdapter), hex"", 50e18);
+
+        Offer memory offer = makeBuyOffer(30 days, 50e18, MAX_TICK);
+        offer.market = initial.market;
+        offer.group = bytes32(vm.randomUint());
+        offer.callbackData = abi.encode(address(fundingAdapter), bytes(""));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.recordLogs();
+        take(offer);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundBuy;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(adapter) && logs[i].topics[0] == IMidnightAdapterBase.Buy.selector) {
+                (,, uint256 newNetCredit,) = abi.decode(logs[i].data, (uint256, uint256, uint256, uint256));
+                assertGe(newNetCredit, preBuyNetCredit);
+                foundBuy = true;
+                break;
+            }
+        }
+        assertTrue(foundBuy, "Buy event not found");
     }
 
     /* STORAGE */
