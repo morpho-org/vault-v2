@@ -61,6 +61,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   It follows that a market with a non-zero stored net credit is listed.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `shortfallAllowance`, or `minForceSellPrice` in forceSellable markets.
 - [`ForceRemoveMidnightAdapter.spec`](specs/ForceRemoveMidnightAdapter.spec) checks the Midnight adapter's force removal: a force removed market has a zero stored net credit, and buys, sales, withdrawals and force deallocations of this market revert.
+  The spec does not model a market being force removed during a call (e.g. by a reentrant funding adapter).
 
 ## Caps and configuration delays
 

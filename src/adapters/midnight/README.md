@@ -94,6 +94,7 @@ Bad debt reduces `realAssets` immediately without changing the `netRate` of the 
 Buys can use the idle assets of the vault, assets deallocated from another adapter, or withdrawable liquidity from the markets of the adapter.
 On buys, the callback data of the trade selects the funding source, and allocators control it (as part of the take function arguments, or of the offer callback data).
 Allocators and sentinels can withdraw assets from a Midnight market of the adapter.
+The funding adapter's deallocate can reenter the adapter, for example to execute a pending `forceRemove` (permissionless once its timelock has passed), so a market can be force removed during a buy, after `onBuy` has checked that it is not.
 
 ### Sub-ratifiers
 

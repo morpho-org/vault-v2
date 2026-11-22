@@ -33,6 +33,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// BUYING
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, to abi.encode(address(0), "") to pull the liquidity from the vault's idle funds, or to abi.encode(address(this), abi.encode(market)) to withdraw from a Midnight market on the adapter.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
+/// @dev The funding adapter's deallocate can reenter the adapter (e.g. to execute a pending forceRemove, which is permissionless once its timelock has passed), so a market can be force removed during a buy, after onBuy's forceRemoved check.
 /// @dev Sub-ratifiers can constrain the funding source of maker buys if needed.
 ///
 /// SELLING
