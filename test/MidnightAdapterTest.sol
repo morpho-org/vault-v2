@@ -5742,7 +5742,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 0.02e18, MAX_TICK);
     }
 
-    function testBuySelfFundedSameMarketEmitsFinalNetCredit() public {
+    function testBuySelfFundedSameMarketEmitsNetCreditBeforeNestedWithdrawal() public {
         Offer memory initial = buy(30 days, 100e18);
         bytes32 marketId = _marketId(initial.market);
         skip(1 days);
@@ -5758,9 +5758,9 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
         midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
+        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 150e18, 0);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.Buy(marketId, 50e18, 50e18, 100e18, 0);
+        emit IMidnightAdapterBase.WithdrawToVault(marketId, 50e18, 100e18);
         take(roll);
 
         assertEq(adapter.marketData(marketId).netCredit, 100e18);

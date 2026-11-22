@@ -550,6 +550,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 removeMarket(id);
             }
 
+            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
+
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
 
@@ -601,8 +603,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                     buyerAssets
                 );
-
-            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
         SafeERC20Lib.forceApproveMax(asset, midnight);
         return CALLBACK_SUCCESS;
