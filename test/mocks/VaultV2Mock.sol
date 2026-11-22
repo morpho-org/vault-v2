@@ -5,6 +5,10 @@ pragma solidity ^0.8.0;
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 
+interface IDeallocateCallback {
+    function onDeallocate() external;
+}
+
 /// @notice Minimal stub contract used as the parent vault to test adapters.
 contract VaultV2Mock {
     address public asset;
@@ -22,6 +26,7 @@ contract VaultV2Mock {
     uint256 public adaptersLength;
     address[] public adapters;
     uint256 public _timelock;
+    address public deallocateCallback;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -47,6 +52,11 @@ contract VaultV2Mock {
         external
         returns (bytes32[] memory, int256)
     {
+        if (deallocateCallback != address(0)) {
+            address callback = deallocateCallback;
+            deallocateCallback = address(0);
+            IDeallocateCallback(callback).onDeallocate();
+        }
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
@@ -101,6 +111,10 @@ contract VaultV2Mock {
 
     function setTimelock(uint256 newTimelock) external {
         _timelock = newTimelock;
+    }
+
+    function setDeallocateCallback(address newCallback) external {
+        deallocateCallback = newCallback;
     }
 
     function timelock(bytes4) external view returns (uint256) {

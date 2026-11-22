@@ -10,7 +10,7 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {newTokenOfType} from "./mocks/TokenMocks.sol";
 import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
 import {OracleMock} from "../lib/morpho-blue/test/mocks/OracleMock.sol";
-import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
+import {VaultV2Mock, IDeallocateCallback} from "./mocks/VaultV2Mock.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
@@ -144,6 +144,92 @@ contract HookedToken is ERC20Mock {
             }
         }
         return super.transferFrom(from, to, value);
+    }
+}
+
+contract ForceRemovingAdapter is IAdapter {
+    IMidnightAdapterBase internal immutable target;
+    bytes32 internal immutable marketId;
+
+    constructor(IMidnightAdapterBase target_, bytes32 marketId_, address token, address vault) {
+        target = target_;
+        marketId = marketId_;
+        SafeERC20Lib.safeApprove(token, vault, type(uint256).max);
+    }
+
+    function allocate(bytes memory, uint256, bytes4, address) external pure returns (bytes32[] memory, int256) {
+        return (new bytes32[](0), 0);
+    }
+
+    function deallocate(bytes memory, uint256, bytes4, address) external returns (bytes32[] memory, int256) {
+        target.forceRemove(marketId);
+        return (new bytes32[](0), 0);
+    }
+
+    function realAssets() external pure returns (uint256) {
+        return 0;
+    }
+}
+
+contract ReentrantEnterGate {
+    IMidnightAdapterBase internal immutable target;
+    bool public armed;
+    bytes32 internal marketId;
+
+    constructor(IMidnightAdapterBase target_) {
+        target = target_;
+    }
+
+    function setMarketId(bytes32 marketId_) external {
+        marketId = marketId_;
+    }
+
+    function arm() external {
+        armed = true;
+    }
+
+    function admitEnabled() external pure returns (bool) {
+        return true;
+    }
+
+    function admitterFactory(address) external pure returns (bool) {
+        return true;
+    }
+
+    function admit(address, address) external {
+        if (armed) target.forceRemove(marketId);
+    }
+
+    function unadmit() external {}
+
+    function canIncreaseCredit(address) external pure returns (bool) {
+        return true;
+    }
+
+    function canIncreaseDebt(address) external pure returns (bool) {
+        return true;
+    }
+}
+
+contract EnterGateFactoryMock {
+    mapping(address => bool) public isCreated;
+
+    function register(address gate) external {
+        isCreated[gate] = true;
+    }
+}
+
+contract ForceRemovingDeallocateCallback is IDeallocateCallback {
+    IMidnightAdapterBase internal immutable target;
+    bytes32 internal immutable marketId;
+
+    constructor(IMidnightAdapterBase target_, bytes32 marketId_) {
+        target = target_;
+        marketId = marketId_;
+    }
+
+    function onDeallocate() external {
+        target.forceRemove(marketId);
     }
 }
 
@@ -1158,6 +1244,89 @@ contract MidnightAdapterTest is Test {
             take(offer);
         }
         assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "credit unchanged");
+    }
+
+    function testBuyRevertsWhenFundingAdapterForceRemovesMarket() public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "market starts active");
+        ForceRemovingAdapter fundingAdapter = new ForceRemovingAdapter(
+            IMidnightAdapterBase(address(adapter)), marketId, address(loanToken), address(parentVault)
+        );
+        deal(address(loanToken), address(fundingAdapter), 1e18);
+        offer.callbackData = abi.encode(address(fundingAdapter), bytes(""));
+        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+
+        bytes memory forceRemoveData = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        vm.prank(curator);
+        adapter.submit(forceRemoveData);
+
+        vm.expectCall(address(adapter), forceRemoveData);
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        take(offer);
+
+        assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
+        assertEq(adapter.marketData(marketId).netCredit, 0, "buy rolled back");
+    }
+
+    function testForceDeallocateRevertsWhenEnterGateForceRemovesMarket() public {
+        EnterGateFactoryMock gateFactory = new EnterGateFactoryMock();
+        adapter = IMidnightAdapter(
+            factory.createMidnightAdapter(address(parentVault), allDurations, address(gateFactory), bytes32(uint256(1)))
+        );
+        disableDurationCaps(adapter);
+        setUpMaxTtm(type(uint32).max);
+        addSubRatifier(adapter, address(priceRatifier));
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        storedOffer.callback = address(adapter);
+        SafeERC20Lib.safeApprove(address(loanToken), address(adapter), type(uint256).max);
+        midnight.setIsAuthorized(address(adapter), true, address(this));
+
+        ReentrantEnterGate gate = new ReentrantEnterGate(IMidnightAdapterBase(address(adapter)));
+        gateFactory.register(address(gate));
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offer.market.enterGate = address(gate);
+        bytes32 marketId = _marketId(offer.market);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "market starts active");
+        gate.setMarketId(marketId);
+        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+        take(offer);
+
+        bytes memory forceRemoveData = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        vm.prank(curator);
+        adapter.submit(forceRemoveData);
+        gate.arm();
+        deal(address(loanToken), address(this), 0.5e18);
+
+        vm.expectCall(address(gate), abi.encodeCall(ReentrantEnterGate.admit, (address(this), address(factory))));
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        forceDeallocate(offer.market, 0.5e18);
+
+        assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "credit retained");
+    }
+
+    function testSellRevertsWhenVaultForceRemovesMarket() public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        assertFalse(adapter.marketData(marketId).forceRemoved, "market starts active");
+
+        bytes memory forceRemoveData = abi.encodeCall(IMidnightAdapterBase.forceRemove, (marketId));
+        vm.prank(curator);
+        adapter.submit(forceRemoveData);
+        ForceRemovingDeallocateCallback callback =
+            new ForceRemovingDeallocateCallback(IMidnightAdapterBase(address(adapter)), marketId);
+        parentVault.setDeallocateCallback(address(callback));
+
+        vm.expectCall(address(callback), abi.encodeCall(IDeallocateCallback.onDeallocate, ()));
+        vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
+        sellUnits(offer.market, 0.5e18, MAX_TICK);
+
+        assertFalse(adapter.marketData(marketId).forceRemoved, "removal rolled back");
+        assertEq(adapter.marketData(marketId).netCredit, 1e18, "credit retained");
     }
 
     function testForceRemovedSaleCanRevertDuringShortfallAccounting() public {
