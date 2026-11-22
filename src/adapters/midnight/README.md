@@ -78,7 +78,8 @@ assets = floor(netCredit / (1 + netRate * ttm))
 Unearned interest is the difference between net credit and amortized net credit.
 
 On buys, the adapter adjusts `netRate` based on the net credit bought and the assets paid.
-On sales, if proceeds are above the amortized value of the sold net credit, the adapter realizes any gain immediately.
+On sales, the amortized value sold is the difference between the market's amortized values before and after the sale, at the same rate.
+If proceeds are above that value, the adapter realizes any gain immediately.
 Otherwise, the difference with the proceeds is a shortfall.
 
 Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall using proportional shares of unearned interest from active markets.
