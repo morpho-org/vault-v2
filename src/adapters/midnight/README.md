@@ -31,7 +31,7 @@ Registered adapter factories are trusted to always return true to `isCreated` on
 ### Timelocked settings
 
 The adapter has its own [timelock system](../../../README.md#timelocks), with the same flow as the vault.
-Decreasing `minNetBuyRate` or `minForceSellPrice`, increasing `maxNetSellRate`, `shortfallAllowance` or `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
+Decreasing `minNetBuyRate`, increasing `maxNetSellRate`, `shortfallAllowance` or `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault's timelocks.
 These delays ensure that depositors can always withdraw their assets before any critical configuration change takes effect.
 
@@ -120,7 +120,7 @@ The curator can constrain allocator trades through these settings:
 Only `minForceSellPrice` is set per market.
 The other three settings are set for the whole adapter.
 
-`decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate.
+`decreaseMinNetBuyRate`, `increaseMaxNetSellRate` and `increaseShortfallAllowance` are timelocked. Their opposite-direction functions are curator-only and immediate. `setMinForceSellPrice` is curator-only and immediate in either direction.
 These timelocks are not hard guarantees on depositors' future interest, and the adapter does not need them to be noncustodial.
 
 ### Force-sellable markets
