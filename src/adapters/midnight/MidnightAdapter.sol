@@ -682,7 +682,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
-                    // Stop once the shortfall is realized to not reduce rates more than needed.
+                    // Stop once the shortfall is realized, leaving the rates of the remaining markets unchanged.
+                    // The market where the loop stops still takes its full proportional share, so it can absorb more than the remaining shortfall.
                     if (realizedShortfall >= shortfall) break;
                 }
             }
