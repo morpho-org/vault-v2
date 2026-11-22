@@ -1216,7 +1216,8 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
         vm.prank(address(adapter));
-        loanToken.approve(address(midnight), 0);
+        (bool success,) = address(loanToken).call(abi.encodeCall(IERC20.approve, (address(midnight), 0)));
+        assertTrue(success, "approval reset");
         vm.expectCall(address(loanToken), abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
         vm.expectRevert(IMidnightAdapterBase.ForceRemoved.selector);
         take(offer);
