@@ -1,19 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
-import {IEnterSubGate} from "../../src/periphery/gates/interfaces/IEnterSubGate.sol";
-import {IWhitelistEnterSubGate} from "../../src/periphery/gates/interfaces/IWhitelistEnterSubGate.sol";
-import {VaultV2CompatibleEnterGate} from "../../src/periphery/gates/VaultV2CompatibleEnterGate.sol";
-import {IVaultV2CompatibleEnterGate} from "../../src/periphery/gates/interfaces/IVaultV2CompatibleEnterGate.sol";
+import {IEnterSubGate} from "../../src/adapters/midnight/gates/interfaces/IEnterSubGate.sol";
+import {IWhitelistEnterSubGate} from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGate.sol";
+import {IKRCompatibleEnterGate} from "../../src/adapters/midnight/gates/IKRCompatibleEnterGate.sol";
+import {IIKRCompatibleEnterGate} from "../../src/adapters/midnight/gates/interfaces/IIKRCompatibleEnterGate.sol";
 import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
 
 /// forge-config: default.isolate = false
-contract VaultV2CompatibleEnterGateTest is Test {
+contract IKRCompatibleEnterGateTest is Test {
     IWhitelistEnterSubGate internal subGate;
     MidnightAdapterFactoryMock internal adapterFactory;
-    VaultV2CompatibleEnterGate internal wrapper;
+    IKRCompatibleEnterGate internal wrapper;
     address internal creditRoleSetter = makeAddr("creditRoleSetter");
     address internal debtRoleSetter = makeAddr("debtRoleSetter");
     address internal adapter = makeAddr("adapter");
@@ -34,29 +34,59 @@ contract VaultV2CompatibleEnterGateTest is Test {
         subGate.setIsWhitelister(false, address(this), true);
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsCreated(adapter, true);
-        wrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        wrapper = new IKRCompatibleEnterGate(address(subGate), true);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(address(adapterFactory));
     }
 
     function testConstructor() public view {
+        assertTrue(wrapper.admitEnabled());
         assertEq(wrapper.subGate(), address(subGate));
         assertEq(wrapper.roleSetter(), creditRoleSetter);
-        assertTrue(wrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)));
+    }
+
+    function testConstructorAdmissionDisabled() public {
+        IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
+        assertEq(disabled.subGate(), address(subGate));
+        assertFalse(disabled.admitEnabled());
+        assertFalse(disabled.admitterFactory(address(adapterFactory)));
+    }
+
+    function testAdmitDisabledEvenWithRegisteredFactory(address user) public {
+        IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
+        vm.prank(creditRoleSetter);
+        disabled.addAdmitterFactory(address(adapterFactory));
+        assertTrue(disabled.admitterFactory(address(adapterFactory)));
+
+        vm.expectRevert(IIKRCompatibleEnterGate.AdmitDisabled.selector);
+        vm.prank(adapter);
+        disabled.admit(user, address(adapterFactory));
+        assertFalse(disabled.canIncreaseCredit(user));
+    }
+
+    function testDisabledAdmissionPreservesSubGatePermissions() public {
+        IKRCompatibleEnterGate disabled = new IKRCompatibleEnterGate(address(subGate), false);
+        subGate.setIsWhitelisted(true, depositor, true);
+        subGate.setIsWhitelisted(false, depositor, true);
+        assertTrue(disabled.canIncreaseCredit(depositor));
+        assertTrue(disabled.canIncreaseDebt(depositor));
+        assertFalse(disabled.canIncreaseCredit(recipient));
+        assertFalse(disabled.canIncreaseDebt(recipient));
     }
 
     function testAddAdmitterFactory(address factory) public {
         vm.expectEmit();
-        emit IVaultV2CompatibleEnterGate.AddAdmitterFactory(factory);
+        emit IIKRCompatibleEnterGate.AddAdmitterFactory(factory);
         vm.prank(creditRoleSetter);
         wrapper.addAdmitterFactory(factory);
-        assertTrue(wrapper.canAdmit(factory));
-        assertTrue(wrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(factory));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)));
     }
 
     function testAddAdmitterFactoryRequiresCreditRoleSetter(address caller) public {
         vm.assume(caller != creditRoleSetter);
-        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
         wrapper.addAdmitterFactory(makeAddr("otherFactory"));
     }
@@ -71,7 +101,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmitEmitsEvent() public {
         vm.expectEmit();
-        emit IVaultV2CompatibleEnterGate.Admit(adapter, depositor, address(adapterFactory));
+        emit IIKRCompatibleEnterGate.Admit(adapter, depositor, address(adapterFactory));
         vm.prank(adapter);
         wrapper.admit(depositor, address(adapterFactory));
     }
@@ -88,7 +118,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     function testAdmitRequiresAllowedFactory() public {
         MidnightAdapterFactoryMock otherFactory = new MidnightAdapterFactoryMock();
         otherFactory.setIsCreated(adapter, true);
-        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         wrapper.admit(depositor, address(otherFactory));
         assertFalse(wrapper.canIncreaseCredit(depositor));
@@ -96,7 +126,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
 
     function testAdmitRequiresFactoryMembership(address caller) public {
         vm.assume(caller != adapter);
-        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(caller);
         wrapper.admit(depositor, address(adapterFactory));
         assertFalse(wrapper.canIncreaseCredit(depositor));
@@ -188,7 +218,7 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateSharesWhitelist() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        IKRCompatibleEnterGate otherWrapper = new IKRCompatibleEnterGate(address(subGate), true);
         subGate.setIsWhitelisted(true, depositor, true);
         subGate.setIsWhitelisted(false, recipient, true);
         assertTrue(wrapper.canIncreaseCredit(depositor));
@@ -200,9 +230,9 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateKeepsAdmissionsAndFactoriesSeparate() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
-        assertFalse(otherWrapper.canAdmit(address(adapterFactory)));
-        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        IKRCompatibleEnterGate otherWrapper = new IKRCompatibleEnterGate(address(subGate), true);
+        assertFalse(otherWrapper.admitterFactory(address(adapterFactory)));
+        vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(adapter);
         otherWrapper.admit(depositor, address(adapterFactory));
 
@@ -226,20 +256,20 @@ contract VaultV2CompatibleEnterGateTest is Test {
     }
 
     function testSharedSubGateRoleSetterChangesForBothWrappers() public {
-        VaultV2CompatibleEnterGate otherWrapper = new VaultV2CompatibleEnterGate(address(subGate));
+        IKRCompatibleEnterGate otherWrapper = new IKRCompatibleEnterGate(address(subGate), true);
         address newRoleSetter = makeAddr("newRoleSetter");
         vm.prank(creditRoleSetter);
         subGate.setRoleSetter(true, newRoleSetter);
         assertEq(wrapper.roleSetter(), newRoleSetter);
         assertEq(otherWrapper.roleSetter(), newRoleSetter);
 
-        vm.expectRevert(IVaultV2CompatibleEnterGate.Unauthorized.selector);
+        vm.expectRevert(IIKRCompatibleEnterGate.Unauthorized.selector);
         vm.prank(creditRoleSetter);
         otherWrapper.addAdmitterFactory(address(adapterFactory));
         vm.prank(newRoleSetter);
         otherWrapper.addAdmitterFactory(address(adapterFactory));
-        assertTrue(wrapper.canAdmit(address(adapterFactory)), "existing registration remains");
-        assertTrue(otherWrapper.canAdmit(address(adapterFactory)));
+        assertTrue(wrapper.admitterFactory(address(adapterFactory)), "existing registration remains");
+        assertTrue(otherWrapper.admitterFactory(address(adapterFactory)));
     }
 
     function testSharedSubGateOpenSides(bool creditOpen, bool debtOpen) public {
@@ -247,8 +277,8 @@ contract VaultV2CompatibleEnterGateTest is Test {
             "WhitelistEnterSubGate.sol:WhitelistEnterSubGate:default",
             abi.encode(creditRoleSetter, debtRoleSetter, creditOpen, debtOpen)
         );
-        VaultV2CompatibleEnterGate first = new VaultV2CompatibleEnterGate(openSubGate);
-        VaultV2CompatibleEnterGate second = new VaultV2CompatibleEnterGate(openSubGate);
+        IKRCompatibleEnterGate first = new IKRCompatibleEnterGate(openSubGate, true);
+        IKRCompatibleEnterGate second = new IKRCompatibleEnterGate(openSubGate, true);
         assertEq(first.canIncreaseCredit(depositor), creditOpen);
         assertEq(second.canIncreaseCredit(depositor), creditOpen);
         assertEq(first.canIncreaseDebt(depositor), debtOpen);

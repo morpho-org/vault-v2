@@ -4,11 +4,15 @@ pragma solidity ^0.8.0;
 
 import {BaseTest} from "./BaseTest.sol";
 import {Vm} from "../lib/forge-std/src/Vm.sol";
-import {IMidnightAdapter, IMidnightAdapterBase, MarketData} from "../src/adapters/interfaces/IMidnightAdapter.sol";
-import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
+import {
+    IMidnightAdapter,
+    IMidnightAdapterBase,
+    MarketData
+} from "../src/adapters/midnight/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "../src/adapters/midnight/interfaces/IMidnightAdapterFactory.sol";
 import {
     IMidnightAdapterPriceRatifierV1
-} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
+} from "../src/adapters/midnight/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {SafeERC20Lib} from "../src/libraries/SafeERC20Lib.sol";
@@ -506,7 +510,13 @@ contract MidnightAdapterGasTest is BaseTest {
     }
 
     function _familyIdData(Market memory market) internal pure returns (bytes memory) {
-        return abi.encode("family", market.collateralParams, market.rcfThreshold, market.liquidatorGate);
+        return abi.encode(
+            "collateralParams/rcfThreshold/liquidatorGate/enterGate",
+            market.collateralParams,
+            market.rcfThreshold,
+            market.liquidatorGate,
+            market.enterGate
+        );
     }
 
     function _increaseCaps(bytes memory idData) internal {

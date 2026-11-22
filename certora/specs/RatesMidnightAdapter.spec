@@ -7,11 +7,12 @@ methods {
     function minNetBuyRate() external returns (uint128) envfree;
     function maxNetSellRate() external returns (uint128) envfree;
     function shortfallAllowance() external returns (uint128) envfree;
+    function currentNetCredit(bytes32 marketId) internal returns (uint128) => liveNetCredit[marketId];
 }
 
-definition WAD() returns mathint = 10 ^ 18;
+persistent ghost mapping(bytes32 => uint128) liveNetCredit;
 
-definition mulDivUp(mathint x, mathint y, mathint d) returns mathint = (x * y + (d - 1)) / d;
+definition WAD() returns mathint = 10 ^ 18;
 
 // Check that a buy reverts in a forceSellable market.
 rule buyRevertsInForceSellableMarket(env e, bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) {
@@ -75,7 +76,10 @@ rule saleRevertsIfShortfallAboveAllowance(env e, bytes32 marketId, MidnightAdapt
     mathint ttm = market.maturity > e.block.timestamp ? market.maturity - e.block.timestamp : 0;
     mathint soldNetCredit = soldCredit - sellPendingFeeDecrease;
     require !currentContract.marketData[marketId].forceSellable, "assume the market is not forceSellable";
-    require mulDivUp(soldNetCredit, WAD(), WAD() + currentContract.marketData[marketId].netRate * ttm) - sellerAssets > shortfallAllowance(), "assume the shortfall exceeds shortfallAllowance";
+    mathint newNetCredit = liveNetCredit[marketId];
+    mathint discount = WAD() + currentContract.marketData[marketId].netRate * ttm;
+    mathint soldAmortizedValue = (newNetCredit + soldNetCredit) * WAD() / discount - newNetCredit * WAD() / discount;
+    require soldAmortizedValue - sellerAssets > shortfallAllowance(), "assume the shortfall exceeds shortfallAllowance";
 
     onSell@withrevert(e, marketId, market, sellerAssets, soldCredit, sellPendingFeeDecrease, seller, receiver, callbackData);
 
