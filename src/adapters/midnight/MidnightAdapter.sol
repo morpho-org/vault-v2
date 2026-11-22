@@ -610,9 +610,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     buyerAssets
                 );
 
-            SafeERC20Lib.forceApproveMax(asset, midnight);
             emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
+        SafeERC20Lib.forceApproveMax(asset, midnight);
         return CALLBACK_SUCCESS;
     }
 
