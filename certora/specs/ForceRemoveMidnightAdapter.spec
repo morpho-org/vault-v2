@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+import "../helpers/UtilityMidnightAdapter.spec";
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
-
-    // Same summaries as in MarketIdsMidnightAdapter.spec, where they are explained.
-    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
-    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
 
     // The id is a nested hash of the ABI-encoded market, which the prover handles poorly; any id is allowed.
     // The id is a ghost so that deallocateRevertsInForceRemovedMarket can refer to it. No call computes the id of two different markets.
@@ -15,17 +13,6 @@ methods {
 
 // The id of the market given to the adapter, when the adapter computes it from the market.
 persistent ghost bytes32 globalMarketId;
-
-function arbitraryIds() returns bytes32[] {
-    bytes32[] idsArray;
-    return idsArray;
-}
-
-function arbitraryAllocations(uint256 length) returns uint256[] {
-    uint256[] allocations;
-    require allocations.length == length, "durationAllocations returns length allocations";
-    return allocations;
-}
 
 // Prove that a force removed market has a zero stored net credit.
 strong invariant forceRemovedHasZeroNetCredit()

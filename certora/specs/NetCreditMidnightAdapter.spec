@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
 
+import "../helpers/UtilityMidnightAdapter.spec";
+
 using Havoc as havocCallback;
 
 methods {
@@ -8,9 +10,7 @@ methods {
 
     function MAX_MARKETS() external returns (uint256) envfree;
 
-    // Same summaries as in MarketIdsMidnightAdapter.spec, where they are explained.
-    function durationAllocations(uint256 length) internal returns (uint256[] memory) => arbitraryAllocations(length);
-    function ids(MidnightAdapter.Market memory) internal returns (bytes32[] memory) => arbitraryIds();
+    // Same summary as in MarketIdsMidnightAdapter.spec, where it is explained.
     function IdLib.toId(MidnightAdapter.Market memory) internal returns (bytes32) => NONDET;
 
     // Midnight.withdraw does not reenter the adapter, assuming the loan token does not reenter.
@@ -45,17 +45,6 @@ function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (ui
 }
 
 definition isArbitraryCallback(address callback) returns bool = callback != 0 && callback != currentContract;
-
-function arbitraryIds() returns bytes32[] {
-    bytes32[] idsArray;
-    return idsArray;
-}
-
-function arbitraryAllocations(uint256 length) returns uint256[] {
-    uint256[] allocations;
-    require allocations.length == length, "durationAllocations returns length allocations";
-    return allocations;
-}
 
 // Market list properties proved in MarketIdsMidnightAdapter.spec.
 function requireMarketIdsInvariants() {
