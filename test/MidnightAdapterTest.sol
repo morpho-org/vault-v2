@@ -3257,6 +3257,37 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 19, "held plus paid");
     }
 
+    function testShortfallRoundsTargetAmortizedValueUp() public {
+        Offer memory sold = buyAtDiscount(30 days, 100);
+        Offer memory other = buyAtDiscount(7 days, 100);
+        bytes32 soldId = _marketId(sold.market);
+        MarketData memory soldData = adapter.marketData(soldId);
+        MarketData memory otherData = adapter.marketData(_marketId(other.market));
+        uint256 ttm = soldData.maturity - block.timestamp;
+        uint256 value = uint256(90).mulDivDown(WAD, WAD + soldData.netRate * ttm);
+        uint256 totalInterest = 190 - value
+            - uint256(100).mulDivDown(WAD, WAD + otherData.netRate * (otherData.maturity - block.timestamp));
+
+        vm.recordLogs();
+        sellUnits(sold.market, 10, MAX_TICK / 2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 shortfall;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == address(adapter) && logs[i].topics[0] == IMidnightAdapterBase.Sell.selector) {
+                (,,, shortfall,) = abi.decode(logs[i].data, (uint256, uint256, uint256, uint256, uint256));
+            }
+        }
+
+        uint256 upTarget = value + shortfall.mulDivUp(90 - value, totalInterest);
+        uint256 downTarget = value + shortfall.mulDivDown(90 - value, totalInterest);
+        assertGt(upTarget, downTarget, "share is not exact");
+        assertEq(
+            adapter.marketData(soldId).netRate,
+            (90 - upTarget).mulDivDown(WAD, upTarget * ttm),
+            "target amortized value rounded up"
+        );
+    }
+
     function testSellFromMaturityChecksMaxNetSellRate(
         bool takerSale,
         bool zeroProceeds,

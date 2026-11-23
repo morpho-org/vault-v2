@@ -18,7 +18,9 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev When rounded, position amortized values and rates are rounded down on buys, sales, and realAssets evaluations, which can accrue some interest earlier.
+/// @dev Amortized values of held net credit are rounded down, as in realAssets.
+/// @dev Rates are rounded down on buys and sales, which can accrue some interest earlier.
+/// @dev On sales with a shortfall, each market's target amortized value is rounded up so that the rate reductions cover the whole shortfall, which can also accrue some interest earlier.
 /// @dev Tokens with an expensive smallest unit (e.g. WBTC, cbBTC, 2-decimal stablecoins) are not supported: rounding and 0-asset buys can accrue significant interest too early.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
@@ -137,7 +139,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint128 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
-    /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
+    /// @dev Rounding target amortized values up and rates down can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint128 public shortfallAllowance;
 
@@ -674,7 +676,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
-                    // Rates are rounded down (and shares up), so stop once the shortfall is realized to not reduce rates more than needed.
+                    // Stop once the shortfall is realized, leaving the rates of the remaining markets unchanged.
+                    // The market where the loop stops still takes its full proportional share, so it can absorb more than the remaining shortfall.
                     if (realizedShortfall >= shortfall) break;
                 }
             }
