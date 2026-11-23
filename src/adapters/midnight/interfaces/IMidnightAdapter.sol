@@ -46,8 +46,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event DecreaseShortfallAllowance(uint256 newShortfallAllowance);
     event IncreaseMaxNetSellRate(uint256 newMaxNetSellRate);
     event DecreaseMaxNetSellRate(uint256 newMaxNetSellRate);
-    event IncreaseMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
-    event DecreaseMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
+    event SetMinForceSellPrice(bytes32 indexed marketId, uint256 newMinForceSellPrice);
     event SetForceSellable(bytes32 indexed marketId);
     event UnsetForceSellable(address indexed sender, bytes32 indexed marketId);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
@@ -94,8 +93,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error LoanAssetMismatch();
     error MaxTtmTooHigh();
     error MaxTtmTooLow();
-    error MinForceSellPriceTooLow();
-    error MinForceSellPriceTooHigh();
     error MaxNetSellRateTooLow();
     error MaxNetSellRateTooHigh();
     error MinNetBuyRateTooLow();
@@ -158,8 +155,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function decreaseShortfallAllowance(uint256 allowanceDecrease) external;
     function increaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
     function decreaseMaxNetSellRate(uint256 newMaxNetSellRate) external;
-    function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
-    function decreaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
+    /// @dev Curator-only and immediate in either direction.
+    function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external;
     function setForceSellable(bytes32 marketId) external;
     function unsetForceSellable(bytes32 marketId) external;
     function isSubRatifier(address subRatifier) external view returns (bool);

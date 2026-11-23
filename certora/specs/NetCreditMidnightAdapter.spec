@@ -32,7 +32,7 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 }
 
 // An arbitrary call if a callback is neither the adapter nor absent.
-// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
+// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy clears transient flags that neither these invariants nor the remaining code read and refreshes the Midnight allowance.
 function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
     if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
         env e;
@@ -87,7 +87,7 @@ strong invariant midnightNetCreditBelowStoredNetCredit()
     {
         preserved onBuy(bytes32 marketId, MidnightAdapter.Market market, uint256 paidAssets, uint256 boughtCredit, uint256 buyPendingFeeIncrease, address buyer, bytes callbackData) with (env e) {
             // Midnight credits the adapter before calling onBuy, including when the adapter is the maker.
-            // Exception: forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            // Exception: forceDeallocate sells the adapter's position, so the position does not increase. onBuy clears the enterGate bypass and refreshes the Midnight allowance.
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
             }
@@ -107,7 +107,7 @@ strong invariant nonZeroNetCreditIsListed()
             requireInvariant midnightNetCreditBelowStoredNetCredit();
             requireMarketIdsInvariants();
         
-            // forceDeallocate sells the adapter's position, so the position does not increase.  onBuy is called only to clear enterGate bypass
+            // forceDeallocate sells the adapter's position, so the position does not increase. onBuy clears the enterGate bypass and refreshes the Midnight allowance.
             if (!currentContract.inForceDeallocate) {
                 increaseMidnightNetCredit(marketId);
             }

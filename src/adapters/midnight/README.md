@@ -31,7 +31,7 @@ Registered adapter factories are trusted to always return true to `isCreated` on
 ### Timelocked settings
 
 The adapter has its own [timelock system](../../../README.md#timelocks), with the same flow as the vault.
-Decreasing `minNetBuyRate` or `minForceSellPrice`, increasing `maxNetSellRate`, `shortfallAllowance` or `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
+Decreasing `minNetBuyRate`, increasing `maxNetSellRate`, `shortfallAllowance` or `maxTtm`, enabling `forceSellable`, force-removing a market, setting `skimRecipient`, changing a timelock duration and abdicating a timelocked function are timelocked.
 Increasing [caps](#caps) or [duration caps](#duration-caps) goes through the vault's timelocks.
 These delays ensure that depositors can always withdraw their assets before any critical configuration change takes effect.
 
@@ -41,7 +41,7 @@ The vault caps the stored net credit of the adapter, not its amortized net credi
 The granularity of the caps is the following:
 
 - Adapter-wide
-- Market "family": the market configuration without the maturity and enter gate
+- Market "family": collateral parameters, RCF threshold, liquidator gate, and enter gate, regardless of maturity
 - Each collateral token
 
 ### Duration caps
@@ -78,7 +78,8 @@ assets = floor(netCredit / (1 + netRate * ttm))
 Unearned interest is the difference between net credit and amortized net credit.
 
 On buys, the adapter adjusts `netRate` based on the net credit bought and the assets paid.
-On sales, if proceeds are above the amortized value of the sold net credit, the adapter realizes any gain immediately.
+On sales, the amortized value sold is the difference between the market's amortized values before and after the sale, at the same rate.
+If proceeds are above that value, the adapter realizes any gain immediately.
 Otherwise, the difference with the proceeds is a shortfall.
 
 Unless the sold market is [force-sellable](#force-sellable-markets), the adapter absorbs the shortfall using proportional shares of unearned interest from active markets.
@@ -119,7 +120,7 @@ The curator can constrain allocator trades through these settings:
 Only `minForceSellPrice` is set per market.
 The other three settings are set for the whole adapter.
 
-`decreaseMinNetBuyRate`, `increaseMaxNetSellRate`, `increaseShortfallAllowance` and `decreaseMinForceSellPrice` are timelocked. Their opposite-direction functions are curator-only and immediate.
+`decreaseMinNetBuyRate`, `increaseMaxNetSellRate` and `increaseShortfallAllowance` are timelocked. Their opposite-direction functions are curator-only and immediate. `setMinForceSellPrice` is curator-only and immediate in either direction.
 These timelocks are not hard guarantees on depositors' future interest, and the adapter does not need them to be noncustodial.
 
 ### Force-sellable markets

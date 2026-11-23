@@ -786,7 +786,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence, totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of rounding errors), but the amount of assets actually controlled by the vault is not decreased.
-    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)). This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, and the vault has been accrued in the current transaction, the optimal amount to force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)). This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)

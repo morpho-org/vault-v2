@@ -511,10 +511,11 @@ contract MidnightAdapterGasTest is BaseTest {
 
     function _familyIdData(Market memory market) internal pure returns (bytes memory) {
         return abi.encode(
-            "collateralParams/rcfThreshold/liquidatorGate",
+            "collateralParams/rcfThreshold/liquidatorGate/enterGate",
             market.collateralParams,
             market.rcfThreshold,
-            market.liquidatorGate
+            market.liquidatorGate,
+            market.enterGate
         );
     }
 

@@ -18,7 +18,10 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 
 /// VALUATION
 /// @dev Approximates held assets by discounting the net credit of each market at a constant simple net rate until maturity.
-/// @dev When rounded, position amortized values and rates are rounded down on buys, sales, and realAssets evaluations, which can accrue some interest earlier.
+/// @dev Amortized values of held net credit are rounded down, as in realAssets.
+/// @dev Rates are rounded down on buys and sales, which can accrue some interest earlier.
+/// @dev On sales with a shortfall, each market's target amortized value is rounded up so that the rate reductions cover the whole shortfall, which can also accrue some interest earlier.
+/// @dev Tokens with an expensive smallest unit (e.g. WBTC, cbBTC, 2-decimal stablecoins) are not supported: rounding and 0-asset buys can accrue significant interest too early.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev Markets with a zero loss factor use stored net credit; otherwise realAssets reads it from Midnight.
 ///
@@ -70,12 +73,16 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 /// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory, has admission enabled and lists the adapter's factory in admitterFactory.
+/// @dev Gates created by enterGateFactory must not reenter the adapter, directly or indirectly, on `admit` or `unadmit`.
 /// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
 /// @dev To preserve the vault's non-custodial guarantees, increaseMaxTtm, setForceSellable and forceRemove must be timelocked long enough for depositors to exit.
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
+///
+/// TOKEN REQUIREMENTS
+/// @dev The loan token is the parent vault's asset and must satisfy its token requirements. It must also not re-enter the adapter on transfer or transferFrom.
 ///
 /// MISC
 /// @dev MidnightAdapters of the same vault, directly or through nested vaults, might not be able to trade with each other, as the buyer's onBuy accrues interest on the vault mid-sale.
@@ -136,7 +143,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint128 public maxNetSellRate;
     /// @dev Total shortfall that sales can still incur. Each sale with a shortfall consumes it.
-    /// @dev Rate rounding can reduce interest by slightly more than the shortfall consumed.
+    /// @dev Rounding target amortized values up and rates down can reduce interest by slightly more than the shortfall consumed.
     /// @dev Superseded by minForceSellPrice for forceSellable markets.
     uint128 public shortfallAllowance;
 
@@ -324,18 +331,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit DecreaseMaxNetSellRate(newMaxNetSellRate);
     }
 
-    function increaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
+    function setMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
         require(isCurator(msg.sender), NotAuthorized());
-        require(newMinForceSellPrice >= marketData[marketId].minForceSellPrice, MinForceSellPriceTooLow());
         marketData[marketId].minForceSellPrice = newMinForceSellPrice;
-        emit IncreaseMinForceSellPrice(marketId, newMinForceSellPrice);
-    }
-
-    function decreaseMinForceSellPrice(bytes32 marketId, uint256 newMinForceSellPrice) external {
-        timelocked();
-        require(newMinForceSellPrice <= marketData[marketId].minForceSellPrice, MinForceSellPriceTooHigh());
-        marketData[marketId].minForceSellPrice = newMinForceSellPrice;
-        emit DecreaseMinForceSellPrice(marketId, newMinForceSellPrice);
+        emit SetMinForceSellPrice(marketId, newMinForceSellPrice);
     }
 
     /* ALLOCATOR FUNCTIONS */
@@ -382,13 +381,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
+        emit ForceRemove(marketId, oldNetCredit);
         if (oldNetCredit > 0) {
             removeMarket(marketId);
             Market memory market = IMidnight(midnight).toMarket(marketId);
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
         }
-        emit ForceRemove(marketId, oldNetCredit);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -557,6 +556,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 removeMarket(id);
             }
 
+            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
+
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
 
@@ -608,10 +609,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                     buyerAssets
                 );
-
-            SafeERC20Lib.forceApproveMax(asset, midnight);
-            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
+        SafeERC20Lib.forceApproveMax(asset, midnight);
         return CALLBACK_SUCCESS;
     }
 
@@ -641,7 +640,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         } else {
             uint256 ttm = market.maturity.zeroFloorSub(block.timestamp);
             require(sellerAssets >= soldNetCredit.mulDivUp(WAD, WAD + maxNetSellRate * ttm), NetSellRateTooHigh());
-            shortfall = soldNetCredit.mulDivUp(WAD, WAD + _marketData.netRate * ttm).zeroFloorSub(sellerAssets);
+            uint256 soldAmortizedValue = (newNetCredit + soldNetCredit).mulDivDown(WAD, WAD + _marketData.netRate * ttm)
+                - uint256(newNetCredit).mulDivDown(WAD, WAD + _marketData.netRate * ttm);
+            shortfall = soldAmortizedValue.zeroFloorSub(sellerAssets);
             if (shortfall > 0) {
                 require(shortfall <= shortfallAllowance, ShortfallAllowanceExceeded());
                 shortfallAllowance -= shortfall.toUint128();
@@ -679,13 +680,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     otherMarketData.netRate = newRate;
                     emit ReduceRate(otherMarketId, newRate);
                     realizedShortfall += netCredit.mulDivDown(WAD, WAD + newRate * otherTtm) - amortizedValue;
-                    // Rates are rounded down (and shares up), so stop once the shortfall is realized to not reduce rates more than needed.
+                    // Stop once the shortfall is realized, leaving the rates of the remaining markets unchanged.
+                    // The market where the loop stops still takes its full proportional share, so it can absorb more than the remaining shortfall.
                     if (realizedShortfall >= shortfall) break;
                 }
             }
         }
 
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -693,8 +696,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 sellerAssets
             );
-
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -783,8 +784,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return marketIds.length;
     }
 
-    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold and liquidator gate), and each collateral token.
-    /// @dev The ids ignore maturity and enterGate, so markets differing only by them share caps.
+    /// @dev Returns the ids that the vault caps for the market: the adapter, the family (collateral params, RCF threshold, liquidator gate and enter gate), and each collateral token.
+    /// @dev The ids ignore maturity, so markets differing only by maturity share caps.
+    /// @dev Regardless of id caps, adapters that use IKRCompatibleEnterGateFactory as enterGateFactory will only enter ungated markets or markets with gates that allow in-kind redemptions.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length);
 
@@ -792,10 +794,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         idsArray[j++] = adapterId;
         idsArray[j++] = keccak256(
             abi.encode(
-                "collateralParams/rcfThreshold/liquidatorGate",
+                "collateralParams/rcfThreshold/liquidatorGate/enterGate",
                 market.collateralParams,
                 market.rcfThreshold,
-                market.liquidatorGate
+                market.liquidatorGate,
+                market.enterGate
             )
         );
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
