@@ -59,10 +59,10 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   These hold whatever the adapter's net credit in Midnight is.
 - [`NetCreditMidnightAdapter.spec`](specs/NetCreditMidnightAdapter.spec) checks that the adapter's net credit in Midnight never exceeds its stored net credit unless the market was force removed.
   It follows that a market with a non-zero stored net credit is listed.
-  It assumes that the loan token and the enter gate's `admit` do not reenter the adapter.
+  It assumes that the loan token and the enter gate's `admit` and `unadmit` do not reenter the adapter.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `shortfallAllowance`, or `minForceSellPrice` in forceSellable markets.
 - [`ForceRemoveMidnightAdapter.spec`](specs/ForceRemoveMidnightAdapter.spec) checks the Midnight adapter's force removal: a force removed market has a zero stored net credit, and buys, sales, withdrawals and force deallocations of this market revert.
-  It assumes that external calls do not reenter the adapter, which in particular requires the enter gate's `admit` not to reenter it during force deallocations.
+  It assumes that external calls do not reenter the adapter, which in particular requires the enter gate's `admit` and `unadmit` not to reenter it during force deallocations.
 
 ## Caps and configuration delays
 
