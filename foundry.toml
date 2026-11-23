@@ -4,6 +4,7 @@ optimizer = true
 optimizer_runs = 100000
 bytecode_hash = "none"
 evm_version = "cancun"
+# Contracts use transient storage.
 ignored_error_codes = ["transient-storage"]
 ignored_error_codes_from = [["test", ["code-size", "init-code-size"]]]
 ignored_warnings_from = ["lib"]

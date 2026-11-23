@@ -97,7 +97,7 @@ jobs:
         with:
           version: nightly
 
-      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
+      - name: Run forge test
         run: if [ "${{ matrix.isolate }}" = true ]; then forge test --deny warnings -vvv --isolate; else forge test --deny warnings -vvv; fi
         env:
           FOUNDRY_FUZZ_SEED: 0x${{ github.sha }}
