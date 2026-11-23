@@ -55,7 +55,7 @@ jobs:
       - name: Run Certora Specs Formatter
         run: |
           file="certora/specs/$CONF.spec"
-          echo "Fix lint errors by applying the following diff to $file:"
+          echo "Fix formatting errors by applying the following diff to $file:"
           diff -u "$file" <(certoraCVLFormatter "$file")
         env:
           CONF: ${{ matrix.conf }}
