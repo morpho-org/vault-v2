@@ -17,6 +17,7 @@ interface IIKRCompatibleEnterGateFactory is IEnterGateFactory {
 
     /* FUNCTIONS */
 
+    // forge-lint: disable-next-line(mixed-case-function) IKR is an acronym.
     function createIKRCompatibleEnterGate(address subGate, bool admitEnabled, bytes32 preSalt)
         external
         returns (address);

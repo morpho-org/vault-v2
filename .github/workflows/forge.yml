@@ -1,4 +1,4 @@
-name: Foundry
+name: Forge
 
 on:
   push:
@@ -7,53 +7,68 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
-  fmt:
+  format:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
+          persist-credentials: false
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: nightly
 
       - name: Run forge fmt
-        run: forge fmt src test script certora --check
+        run: forge fmt src test certora --check
 
   lint:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           submodules: recursive
-
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
-
+        with:
+          version: nightly
       - name: Run forge lint
-        run: forge lint src certora --deny notes
+        run: forge lint src certora test --deny notes
 
-  sizes:
+  build:
+    name: sizes-and-locked
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: nightly
 
       - name: Run forge build
-        run: forge build --force --sizes
-
-      - name: Check foundry.lock matches submodule pins
-        run: forge build --locked
+        run: forge build --sizes --locked
 
   test:
-    needs: sizes
+    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, ${{ matrix.token }} token)"
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         decimals: [0, 6, 8, 18, 24]
         isolate: [true, false]
@@ -68,19 +83,22 @@ jobs:
           - { decimals: 18, isolate: false, token-type: 2, token: usdt }
           - { decimals: 18, isolate: false, token-type: 3, token: revert-to-zero }
           - { decimals: 18, isolate: false, token-type: 4, token: no-return }
-
-    runs-on: ubuntu-latest
-    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }}, ${{ matrix.token }} token)"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           submodules: recursive
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        with:
+          version: nightly
 
-      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
-        run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
+      - name: Run forge test
+        run: if [ "${{ matrix.isolate }}" = true ]; then forge test --deny warnings -vvv --isolate; else forge test --deny warnings -vvv; fi
         env:
+          FOUNDRY_FUZZ_SEED: 0x${{ github.sha }}
+          FOUNDRY_FUZZ_MAX_TEST_REJECTS: 500000
+          FOUNDRY_FUZZ_RUNS: 10000
           DECIMALS: ${{ matrix.decimals }}
           TOKEN_TYPE: ${{ matrix.token-type }}
