@@ -381,13 +381,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 oldNetCredit = _marketData.netCredit;
         _marketData.netCredit = 0;
         _marketData.forceRemoved = true;
+        emit ForceRemove(marketId, oldNetCredit);
         if (oldNetCredit > 0) {
             removeMarket(marketId);
             Market memory market = IMidnight(midnight).toMarket(marketId);
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), -int256(oldNetCredit)), 0);
         }
-        emit ForceRemove(marketId, oldNetCredit);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -556,6 +556,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 removeMarket(id);
             }
 
+            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
+
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
 
@@ -607,8 +609,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                     buyerAssets
                 );
-
-            emit Buy(id, buyerAssets, boughtNetCredit, _marketData.netCredit, _marketData.netRate);
         }
         SafeERC20Lib.forceApproveMax(asset, midnight);
         return CALLBACK_SUCCESS;
@@ -688,6 +688,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
 
         if (newNetCredit == 0 && oldNetCredit > 0) removeMarket(id);
+        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         IVaultV2(parentVault)
             .deallocate(
@@ -695,8 +696,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 abi.encode(ids(market), int256(uint256(newNetCredit)) - int256(oldNetCredit)),
                 sellerAssets
             );
-
-        emit Sell(id, sellerAssets, soldNetCredit, newNetCredit, shortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
