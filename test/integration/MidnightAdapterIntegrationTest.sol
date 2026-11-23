@@ -491,7 +491,9 @@ contract MidnightAdapterExitRouter is IFlashLoanCallback {
         uint256 settlementFee = IMidnight(midnight)
             .settlementFee(IdLib.toId(market), MathLib.zeroFloorSub(market.maturity, block.timestamp));
         uint256 settlementFeeAssets = MathLib.mulDivUp(assets, settlementFee, WAD);
-        SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
+        if (settlementFeeAssets > 0) {
+            SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), settlementFeeAssets);
+        }
         address[] memory tokens = new address[](1);
         tokens[0] = asset;
         uint256[] memory amounts = new uint256[](1);
