@@ -31,6 +31,19 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
     init_state axiom forall bytes32 marketId. ghostMidnightNetCredit[marketId] == 0;
 }
 
+persistent ghost bool wroteCreditToRemovedMarket {
+    init_state axiom !wroteCreditToRemovedMarket;
+}
+
+persistent ghost bytes32 removedMarketWithCreditWrite;
+
+hook Sstore currentContract.marketData[KEY bytes32 marketId].netCredit uint128 newNetCredit {
+    if (!wroteCreditToRemovedMarket && newNetCredit != 0 && currentContract.marketData[marketId].forceRemoved) {
+        wroteCreditToRemovedMarket = true;
+        removedMarketWithCreditWrite = marketId;
+    }
+}
+
 // An arbitrary call if a callback is neither the adapter nor absent.
 // Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy only clears transient flags that neither these invariants nor the remaining code read.
 function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
@@ -94,10 +107,11 @@ strong invariant midnightNetCreditBelowStoredNetCredit()
         }
     }
 
-// Prove that a market with a non-zero stored net credit is in the list.
-// This relies on midnightNetCreditBelowStoredNetCredit: onSell and deallocate store the adapter's net credit in Midnight without listing the market.
+// Sales and deallocations store Midnight credit without adding markets to the list.
+// A callback can write credit to a force-removed market before its final guard.
+// In that case, track irreversible removal across external calls; writingCreditToRemovedMarketReverts proves the call rolls back.
 strong invariant nonZeroNetCreditIsListed()
-    forall bytes32 marketId. currentContract.marketData[marketId].netCredit != 0 => currentContract.marketData[marketId].index < currentContract.marketIds.length && currentContract.marketIds[currentContract.marketData[marketId].index] == marketId
+    wroteCreditToRemovedMarket ? currentContract.marketData[removedMarketWithCreditWrite].forceRemoved : (forall bytes32 marketId. currentContract.marketData[marketId].netCredit != 0 => currentContract.marketData[marketId].index < currentContract.marketIds.length && currentContract.marketIds[currentContract.marketData[marketId].index] == marketId)
     {
         preserved {
             requireInvariant midnightNetCreditBelowStoredNetCredit();
@@ -113,3 +127,12 @@ strong invariant nonZeroNetCreditIsListed()
             }
         }
     }
+
+rule writingCreditToRemovedMarketReverts(env e, method f, calldataarg args) {
+    requireInvariant nonZeroNetCreditIsListed();
+    require !wroteCreditToRemovedMarket, "start tracking writes at the beginning of the call";
+
+    f@withrevert(e, args);
+
+    assert wroteCreditToRemovedMarket => lastReverted;
+}
