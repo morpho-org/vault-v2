@@ -71,7 +71,7 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// ENTER GATE
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 /// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory, has admission enabled and lists the adapter's factory in admitterFactory.
-/// @dev Gates created by enterGateFactory must not reenter the adapter, directly or indirectly, when the adapter calls `admit` or `unadmit` during forceDeallocate. Gates created by IKRCompatibleEnterGateFactory satisfy this.
+/// @dev Gates created by enterGateFactory must not reenter the adapter, directly or indirectly, when the adapter calls `admit` or `unadmit` during forceDeallocate.
 /// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
 ///
 /// TIMELOCKS
