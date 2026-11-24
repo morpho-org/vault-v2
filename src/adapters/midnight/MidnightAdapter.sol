@@ -74,7 +74,8 @@ import {IEnterGateFactory} from "./gates/interfaces/IEnterGateFactory.sol";
 /// @dev When configured with an enter gate factory, the adapter can temporarily allow buyers to increase their credit in its registered gates by calling `admit`, and it clears that admission from its own buyer callback, before Midnight transfers the loan token.
 /// @dev With enterGateFactory set, the adapter can only enter gated markets whose gate was created by enterGateFactory, has admission enabled and lists the adapter's factory in admitterFactory.
 /// @dev Gates created by enterGateFactory must not reenter the adapter, directly or indirectly, on `admit` or `unadmit`.
-/// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions, and this action cannot be put behind a timelock. In particular, with enterGateFactory = address(0), no restriction is put on the enter gate of the adapter's markets.
+/// @dev If enterGateFactory is not IKRCompatibleEnterGateFactory, the adapter may enter gated markets that do not allow in-kind redemptions. In particular, with enterGateFactory = address(0), the adapter does not restrict which enter gates it accepts.
+/// @dev The enterGateFactory is immutable, so adding an adapter with a different enterGateFactory goes through the vault's addAdapter timelock. The vault can also delay exposure to a new market family through its cap increase timelocks, since the family cap ID includes the enter gate.
 ///
 /// TIMELOCKS
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set and no unsafe actions may be pending.
