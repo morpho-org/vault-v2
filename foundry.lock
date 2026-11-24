@@ -10,8 +10,5 @@
   },
   "lib/morpho-blue": {
     "rev": "d73c0b02eb1f3ed878857b3930034d4fcf263955"
-  },
-  "lib/openzeppelin-contracts": {
-    "rev": "b72e3da0ec1f47e4a7911a4c06dc92e78c646607"
   }
 }
