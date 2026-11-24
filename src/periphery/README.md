@@ -36,4 +36,4 @@ Adapter registries implement the vault's `IAdapterRegistry` interface (`isInRegi
 `RegistryList` is an owner-controlled, append-only list of sub-registries; an adapter is in the registry if it is in any sub-registry.
 `MorphoMarketV1RegistryV2` validates adapters created by the `MorphoMarketV1AdapterV2Factory`.
 `MorphoVaultV1Registry` validates adapters created by the `MorphoVaultV1AdapterFactory` whose underlying MetaMorpho vault was created by the MetaMorpho factory.
-`MidnightAdapterRegistry` validates adapters created by its configured `MidnightAdapterFactory` (which hardcodes the right midnight instance).
+`MidnightAdapterRegistry` validates adapters created by its configured `MidnightAdapterFactory` (which hardcodes the right Midnight instance).
