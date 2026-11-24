@@ -3,6 +3,9 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
+import {IMetaMorphoFactory} from "../../lib/metamorpho/src/v1.0/interfaces/IMetaMorphoFactory.sol";
+import {IMorphoVaultV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "../../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {MorphoVaultV1Registry} from "../../src/periphery/registries/MorphoVaultV1Registry.sol";
 import {IMorphoVaultV1Registry} from "../../src/periphery/registries/interfaces/IMorphoVaultV1Registry.sol";
 
@@ -12,9 +15,7 @@ contract MorphoVaultV1RegistryTest is Test {
     address morphoVaultV1AdapterFactory = address(0x1002);
 
     function setUp() public {
-        registry = IMorphoVaultV1Registry(
-            address(new MorphoVaultV1Registry(morphoVaultV1AdapterFactory, morphoVaultV1Factory))
-        );
+        registry = new MorphoVaultV1Registry(morphoVaultV1AdapterFactory, morphoVaultV1Factory);
     }
 
     function testConstructor() public view {
@@ -28,15 +29,15 @@ contract MorphoVaultV1RegistryTest is Test {
         vm.assume(adapter != address(vm));
         vm.mockCall(
             morphoVaultV1AdapterFactory,
-            abi.encodeWithSignature("isMorphoVaultV1Adapter(address)", adapter),
+            abi.encodeCall(IMorphoVaultV1AdapterFactory.isMorphoVaultV1Adapter, (adapter)),
             abi.encode(isMorphoVaultV1Adapter)
         );
 
         if (isMorphoVaultV1Adapter) {
-            vm.mockCall(adapter, abi.encodeWithSignature("morphoVaultV1()"), abi.encode(morphoVaultV1));
+            vm.mockCall(adapter, abi.encodeCall(IMorphoVaultV1Adapter.morphoVaultV1, ()), abi.encode(morphoVaultV1));
             vm.mockCall(
                 morphoVaultV1Factory,
-                abi.encodeWithSignature("isMetaMorpho(address)", morphoVaultV1),
+                abi.encodeCall(IMetaMorphoFactory.isMetaMorpho, (morphoVaultV1)),
                 abi.encode(isMetaMorpho)
             );
         }
@@ -49,7 +50,7 @@ contract MorphoVaultV1RegistryTest is Test {
     function testNoObscureRevert(address adapter) public {
         vm.mockCall(
             morphoVaultV1AdapterFactory,
-            abi.encodeWithSignature("isMorphoVaultV1Adapter(address)", adapter),
+            abi.encodeCall(IMorphoVaultV1AdapterFactory.isMorphoVaultV1Adapter, (adapter)),
             abi.encode(false)
         );
 
