@@ -21,7 +21,7 @@ import {WAD} from "../src/VaultV2.sol";
 import {IMorphoMarketV1AdapterV2} from "../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 import {IMorphoMarketV1AdapterV2Factory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {IAdaptiveCurveIrm} from "../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
+import {IAdaptiveCurveIrm} from "../lib/morpho-blue/src/periphery/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
 contract MorphoMarketV1AdapterV2Test is Test {
     using MorphoBalancesLib for IMorpho;

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.28;
 
-import {IMetaMorphoFactory} from "../../../lib/metamorpho/src/interfaces/IMetaMorphoFactory.sol";
+import {IMetaMorphoFactory} from "../../../lib/metamorpho/src/v1.0/interfaces/IMetaMorphoFactory.sol";
 import {IMorphoVaultV1AdapterFactory} from "../../adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
 import {IMorphoVaultV1Adapter} from "../../adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {IMorphoVaultV1Registry} from "./interfaces/IMorphoVaultV1Registry.sol";

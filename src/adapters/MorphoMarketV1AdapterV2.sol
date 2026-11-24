@@ -11,7 +11,7 @@ import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.so
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
-} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
+} from "../../lib/morpho-blue/src/periphery/adaptive-curve-irm/libraries/AdaptiveCurveIrmLib.sol";
 
 /// @dev Morpho Blue is also known as Morpho Market V1; this adapter's name uses the latter.
 /// @dev This adapter must be used with Morpho Blue markets that are protected against inflation attacks with an initial supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.

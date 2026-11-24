@@ -3,19 +3,13 @@
     "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
   },
   "lib/metamorpho": {
-    "rev": "00da9ad27da8051bce663eeac02f3b9c0c0aa8d8"
-  },
-  "lib/metamorpho-v1.1": {
-    "rev": "2d160ba9bb945ca3bf12efb182427445dce59c27"
+    "rev": "a9935316fdaf4e2d197c9285da8e0397bfa66418"
   },
   "lib/midnight": {
     "rev": "4e2570e51171d09228645b2d5bdf84ef24b1720b"
   },
   "lib/morpho-blue": {
-    "rev": "bc479b91828f697d88a8cd6adaee4e6992b80ec6"
-  },
-  "lib/morpho-blue-irm": {
-    "rev": "2bce6da3ebe910ceeec963781aa3f4b4322c296e"
+    "rev": "d73c0b02eb1f3ed878857b3930034d4fcf263955"
   },
   "lib/openzeppelin-contracts": {
     "rev": "b72e3da0ec1f47e4a7911a4c06dc92e78c646607"

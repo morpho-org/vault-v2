@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "./MorphoVaultV1_1IntegrationTest.sol";
-import {EventsLib as MorphoEventsLib} from "../../lib/metamorpho-v1.1/lib/morpho-blue/src/libraries/EventsLib.sol";
+import {EventsLib as MorphoEventsLib} from "../../lib/metamorpho/lib/morpho-blue/src/libraries/EventsLib.sol";
 
 contract MorphoVaultV1_1IntegrationBadDebtTest is MorphoVaultV1_1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
