@@ -35,7 +35,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          submodules: recursive
+          submodules: true
+
+      - name: Checkout nested source dependencies
+        run: |
+          git -C lib/metamorpho submodule update --init lib/forge-std lib/morpho-blue lib/openzeppelin-contracts
+          git -C lib/midnight submodule update --init lib/morpho-blue
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
@@ -52,7 +57,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          submodules: recursive
+          submodules: true
+
+      - name: Checkout nested source dependencies
+        run: |
+          git -C lib/metamorpho submodule update --init lib/forge-std lib/morpho-blue lib/openzeppelin-contracts
+          git -C lib/midnight submodule update --init lib/morpho-blue
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
@@ -87,7 +97,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          submodules: recursive
+          submodules: true
+
+      - name: Checkout nested source dependencies
+        run: |
+          git -C lib/metamorpho submodule update --init lib/forge-std lib/morpho-blue lib/openzeppelin-contracts
+          git -C lib/midnight submodule update --init lib/morpho-blue
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
