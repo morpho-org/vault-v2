@@ -14,7 +14,7 @@ import {
     MarketParamsLib,
     Id,
     MorphoBalancesLib
-} from "../../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
+} from "../../lib/metamorpho/test/v1.0/helpers/IntegrationTest.sol";
 
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
