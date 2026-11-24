@@ -27,7 +27,7 @@ import {
     IWhitelistEnterSubGateFactory
 } from "../../src/adapters/midnight/gates/interfaces/IWhitelistEnterSubGateFactory.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
-import {TickLib, MAX_TICK} from "../../lib/midnight/src/libraries/TickLib.sol";
+import {TickLib} from "../../lib/midnight/src/libraries/TickLib.sol";
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 /// @dev Spec tests: full production flows of the MidnightAdapter, which only check that nothing reverts. Changes to this file require a human review.
@@ -56,9 +56,8 @@ contract MidnightAdapterIntegrationTest is BaseTest {
         oneToken = 10 ** underlyingTokenDecimals;
         initialAssets = 100_000 * oneToken;
 
-        vm.prank(owner);
-        midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         vm.startPrank(owner);
+        midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         midnight.enableLltv(1e18);
         midnight.enableLiquidationCursor(0.25e18);
         vm.stopPrank();

@@ -125,7 +125,7 @@ Verification is performed according to the following modeling conventions:
 
 - loops are bounded according to each configuration file, using `loop_iter` and, where enabled, `optimistic_loop`; hashing loops are similarly modeled with `optimistic_hashing`;
 - vault-level properties summarize adapter calls with the id, cap, allocation, and liveness postconditions required by the rule, while adapter-level properties link the concrete adapters to Morpho Blue or Morpho Vault V1 (MetaMorpho) harnesses;
-- ERC-20 behavior is checked against the [`ERC20Standard`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20Standard.sol), [`ERC20NoRevert`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20NoRevert.sol), and [`ERC20USDT`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20USDT.sol) models.
+- ERC-20 behavior is checked against the [`ERC20Standard`](https://github.com/morpho-org/metamorpho/blob/main/certora/v1.0/dispatch/ERC20Standard.sol), [`ERC20NoRevert`](https://github.com/morpho-org/metamorpho/blob/main/certora/v1.0/dispatch/ERC20NoRevert.sol), and [`ERC20USDT`](https://github.com/morpho-org/metamorpho/blob/main/certora/v1.0/dispatch/ERC20USDT.sol) models.
   These cover standard reverting tokens, false-returning tokens, and tokens that omit return values; fee-on-transfer and reentrant tokens are not supported;
 - `multicall` is removed in properties that reason about a single entry point.
   Because it only calls the vault itself, invariants preserved by every individual entry point are preserved by induction across a multicall;

@@ -14,7 +14,9 @@ import {OracleMock} from "../../lib/morpho-blue/test/mocks/OracleMock.sol";
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {IAdaptiveCurveIrm} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
+import {
+    IAdaptiveCurveIrm
+} from "../../lib/morpho-blue/src/periphery/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
 contract MorphoMarketV1IntegrationTest is BaseTest {
     IMorpho internal morpho;
