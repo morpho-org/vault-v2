@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
+import {IAdapterRegistry} from "../../src/interfaces/IAdapterRegistry.sol";
 import {RegistryList} from "../../src/periphery/registries/RegistryList.sol";
 import {IRegistryList} from "../../src/periphery/registries/interfaces/IRegistryList.sol";
 
@@ -11,7 +12,7 @@ contract RegistryListTest is Test {
     address user = address(0x1);
 
     function setUp() public {
-        registry = IRegistryList(address(new RegistryList()));
+        registry = new RegistryList();
     }
 
     function testConstructor() public view {
@@ -65,10 +66,10 @@ contract RegistryListTest is Test {
         registry.addSubRegistry(subRegistry2);
 
         vm.mockCall(
-            subRegistry1, abi.encodeWithSignature("isInRegistry(address)", adapter), abi.encode(subRegistry1Result)
+            subRegistry1, abi.encodeCall(IAdapterRegistry.isInRegistry, (adapter)), abi.encode(subRegistry1Result)
         );
         vm.mockCall(
-            subRegistry2, abi.encodeWithSignature("isInRegistry(address)", adapter), abi.encode(subRegistry2Result)
+            subRegistry2, abi.encodeCall(IAdapterRegistry.isInRegistry, (adapter)), abi.encode(subRegistry2Result)
         );
 
         bool expected = subRegistry1Result || subRegistry2Result;
@@ -89,7 +90,7 @@ contract RegistryListTest is Test {
         registry.addSubRegistry(legitSubRegistry);
         registry.addSubRegistry(revertingSubRegistry);
 
-        vm.mockCall(legitSubRegistry, abi.encodeWithSignature("isInRegistry(address)", adapter), abi.encode(true));
+        vm.mockCall(legitSubRegistry, abi.encodeCall(IAdapterRegistry.isInRegistry, (adapter)), abi.encode(true));
 
         assertTrue(registry.isInRegistry(adapter));
     }
