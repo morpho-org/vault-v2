@@ -4,6 +4,6 @@ pragma solidity >=0.5.0;
 
 import {IAdapterRegistry} from "../../../interfaces/IAdapterRegistry.sol";
 
-interface IMidnightAdapterRegistry is IAdapterRegistry {
+interface IMidnightRegistry is IAdapterRegistry {
     function midnightAdapterFactory() external view returns (address);
 }
