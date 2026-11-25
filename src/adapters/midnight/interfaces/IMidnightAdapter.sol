@@ -136,7 +136,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function inProgressBuyMarketId() external view returns (bytes32);
     function inProgressBuyNetCredit() external view returns (uint256);
     function inProgressBuyNetRate() external view returns (uint64);
-    function admitting() external view returns (bool);
     function maxNetSellRate() external view returns (uint128);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);

@@ -5,10 +5,8 @@
 // onSell's scanning loop only calls the exempt liquidationLocked, lossFactor and updatePositionView getters, and its rate-update loop makes no external calls.
 // onBuy's duration-cap calls occur after the last adapter store, so additional iterations cannot introduce a non-exempt static call between stores.
 
-// Midnight and the enter gate contracts are in the scene only to name the selectors of the ignored static calls. They are not linked, so the calls of the adapter stay unresolved.
+// Midnight is in the scene only to name the selectors of the ignored static calls. It is not linked, so the calls of the adapter stay unresolved.
 using Midnight as Midnight;
-using IKRCompatibleEnterGateFactory as IKRCompatibleEnterGateFactory;
-using IKRCompatibleEnterGate as IKRCompatibleEnterGate;
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
@@ -37,23 +35,18 @@ hook ALL_TSTORE(uint _, uint _) {
     }
 }
 
-// These six static calls are assumed to not re-enter the adapter.
+// These three static calls are assumed to not re-enter the adapter.
 // updatePositionView, liquidationLocked and lossFactor: sound because they make no calls.
 // why do we need it:
 // - onSell reads the three of them between the store of the sold market and the stores of the reduced rates.
 // - A self-funded onBuy reads liquidationLocked and updatePositionView between the stores of the bought market and the store of the funding market.
-// - forceDeallocate reads updatePositionView between the writes of inForceDeallocate and admitting and the store of the net credit.
-// The enter gate factory's isCreated and the enter gate's admitEnabled and admitterFactory: sound because they are assumed to not re-enter.
-// Needed because onBuy reads them for a new market between the stores of this market and the reset of the in-progress buy.
+// - forceDeallocate reads updatePositionView between the write of inForceDeallocate and the store of the net credit.
 hook STATICCALL(uint256 _, address _, uint256 _, uint256 _, uint256 _, uint256 _) uint256 _ {
     if (
         storageChanged
             && selector != sig:Midnight.updatePositionView(Midnight.Market, bytes32, address).selector
             && selector != sig:Midnight.liquidationLocked(bytes32, address).selector
             && selector != sig:Midnight.lossFactor(bytes32).selector
-            && selector != sig:IKRCompatibleEnterGateFactory.isCreated(address).selector
-            && selector != sig:IKRCompatibleEnterGate.admitEnabled().selector
-            && selector != sig:IKRCompatibleEnterGate.admitterFactory(address).selector
     ) {
         staticCallAfterStore = true;
     }

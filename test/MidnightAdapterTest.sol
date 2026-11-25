@@ -4179,26 +4179,22 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = false
-    function testEnterGateUnadmitsWithoutRequeryingGateFactory() public {
+    function testEnterGateForceDeallocateDoesNotQueryGateFactory() public {
         (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
         address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);
         Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
         take(boughtOffer);
         address buyer = makeForceDeallocateBuyer(adapter);
         realVault.transfer(buyer, 1);
-        // The gate factory answers true once, then false. The adapter unadmits the gate anyway.
-        bytes[] memory answers = new bytes[](2);
-        answers[0] = abi.encode(true);
-        answers[1] = abi.encode(false);
-        vm.mockCalls(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), answers);
+        // Even if the gate factory later answers false, forceDeallocate admits and unadmits without querying it.
+        vm.mockCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), abi.encode(false));
 
-        vm.expectCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), 1);
+        vm.expectCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), 0);
         vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.admit, (buyer, address(factory))), 1);
         vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.unadmit, ()), 1);
         realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0.5e18, address(this));
 
         assertFalse(IKRCompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
-        assertFalse(adapter.admitting());
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0.5e18);
     }
 
@@ -4277,8 +4273,24 @@ contract MidnightAdapterTest is Test {
         midnight.touchMarket(otherMarket);
 
         vm.mockCall(address(gateFactory), abi.encodeCall(gateFactory.isCreated, (wrapper)), abi.encode(false));
+        vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.admit, (buyer, address(factory))), 0);
         vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.unadmit, ()), 0);
         realVault.forceDeallocate(address(adapter), abi.encode(otherMarket, buyer), 0, address(this));
+    }
+
+    /// forge-config: default.isolate = false
+    function testEnterGateZeroForceDeallocateHeldMarketDoesNotAdmit() public {
+        (IKRCompatibleEnterGateFactory gateFactory, IWhitelistEnterSubGate gate) = setUpEnterGateRealVault(true);
+        address wrapper = createIKRCompatibleEnterGate(gateFactory, gate);
+        Offer memory boughtOffer = makeEnterGateBuyOffer(wrapper, true);
+        take(boughtOffer);
+
+        address buyer = makeForceDeallocateBuyer(adapter);
+        realVault.transfer(buyer, 1);
+
+        vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.admit, (buyer, address(factory))), 0);
+        vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.unadmit, ()), 0);
+        realVault.forceDeallocate(address(adapter), abi.encode(boughtOffer.market, buyer), 0, address(this));
     }
 
     /// forge-config: default.isolate = false
@@ -4374,13 +4386,15 @@ contract MidnightAdapterTest is Test {
         assertFalse(IKRCompatibleEnterGate(wrapper).canIncreaseCredit(buyer));
 
         // The funding transfer runs before admission. The vault's own checks pass.
+        deal(address(hookedToken), address(this), 0.5e18);
+        SafeERC20Lib.safeApprove(address(hookedToken), address(hookedAdapter), 0.5e18);
         vm.expectCall(wrapper, abi.encodeCall(IKRCompatibleEnterGate.admit, (buyer, address(factory))), 1);
-        hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(gatedMarket, buyer), 0, address(this));
+        hookedVault.forceDeallocate(address(hookedAdapter), abi.encode(gatedMarket, buyer), 0.5e18, address(this));
 
         assertTrue(hookedToken.attackAttempted());
         assertEq(hookedToken.attackRevert(), IMidnight.BuyerGatedFromIncreasingCredit.selector);
         assertEq(midnight.credit(_marketId(boughtOffer.market), buyer), 0);
-        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), heldCredit);
+        assertEq(midnight.credit(_marketId(gatedMarket), address(hookedAdapter)), heldCredit - 0.5e18);
     }
 
     function testEnterGateFactoryDisabled(bool adapterIsMaker) public {

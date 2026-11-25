@@ -29,8 +29,8 @@ hook ALL_SSTORE(uint _, uint _) {
     }
 }
 
-// Writes to transient slot 0 are ignored. This slot holds inForceDeallocate and admitting.
-// A force deallocation sets them before Midnight's take, because the callbacks of this take read them, and it stores the net credit after the take.
+// Writes to transient slot 0 are ignored. This slot holds inForceDeallocate.
+// A force deallocation sets it before Midnight's take, because the callbacks of this take read it, and it stores the net credit after the take.
 hook ALL_TSTORE(uint loc, uint _) {
     if (loc != 0) {
         storageChanged = true;
