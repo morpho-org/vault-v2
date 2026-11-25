@@ -353,7 +353,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* OPERATIONS */
 
-    /// @inheritdoc IMidnightAdapterBase
+    /// @dev Returns buyerAssets and sellerAssets.
     function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
         external
         returns (uint256 buyerAssets, uint256 sellerAssets)
