@@ -3388,9 +3388,18 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeExternalOffer(boughtOffer.market, true, credit, MAX_TICK);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
-        vm.prank(signerAllocator);
-        adapter.take(offer, "", credit, "");
+        uint256 snapshot = vm.snapshotState();
+        vm.prank(address(adapter));
+        (uint256 midnightBuyerAssets, uint256 midnightSellerAssets) =
+            midnight.take(offer, "", credit, address(adapter), address(adapter), address(adapter), "");
+        vm.revertToStateAndDelete(snapshot);
 
+        vm.prank(signerAllocator);
+        (uint256 returnedBuyerAssets, uint256 returnedSellerAssets) = adapter.take(offer, "", credit, "");
+
+        assertGt(midnightBuyerAssets, midnightSellerAssets, "buyer pays settlement fee");
+        assertEq(returnedBuyerAssets, midnightBuyerAssets, "buyer assets");
+        assertEq(returnedSellerAssets, midnightSellerAssets, "seller assets");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + sellerAssets, "net proceeds");
         assertEq(adapter.marketData(marketId).netCredit, 0, "position sold");
         (, uint128 remainingPendingFee,) = midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));

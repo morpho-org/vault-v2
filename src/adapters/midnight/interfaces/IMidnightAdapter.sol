@@ -167,8 +167,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durationsLength() external view returns (uint256);
     function durationAllocations(uint256 length) external view returns (uint256[] memory);
     function forceRemove(bytes32 marketId) external;
+    /// @notice Takes an offer on Midnight as the adapter.
+    /// @return buyerAssets The assets paid by the buyer, as returned by Midnight.
+    /// @return sellerAssets The assets received by the seller, as returned by Midnight.
     function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
-        external;
+        external
+        returns (uint256 buyerAssets, uint256 sellerAssets);
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);

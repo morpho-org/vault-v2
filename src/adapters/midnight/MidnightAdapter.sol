@@ -353,14 +353,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* OPERATIONS */
 
+    /// @inheritdoc IMidnightAdapterBase
     function take(Offer memory offer, bytes calldata ratifierData, uint256 units, bytes calldata takerCallbackData)
         external
+        returns (uint256 buyerAssets, uint256 sellerAssets)
     {
         require(isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(!liquidationLocked(IdLib.toId(offer.market)), SellInProgress());
         emit Take(msg.sender);
-        IMidnight(midnight)
+        return IMidnight(midnight)
             .take(
                 offer,
                 ratifierData,
