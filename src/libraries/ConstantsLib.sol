@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.0;
 
 uint256 constant WAD = 1e18;
 bytes32 constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(uint256 chainId,address verifyingContract)");
