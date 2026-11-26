@@ -1,0 +1,57 @@
+import MidnightAdapterProofs.Lemmas
+import MidnightAdapterProofs.Theorems
+
+namespace MidnightAdapterProofs
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+theorem sharePriceBuy : SharePriceBuy (ι := ι) := by
+  intro s m buyerAssets boughtNetCredit s' hSuccess
+  unfold buy at hSuccess
+  split_ifs at hSuccess with h
+  · cases hSuccess
+    exact sharePrice_accrued
+      (realAssets_buy s m buyerAssets boughtNetCredit h.2.1 h.2.2) rfl rfl rfl
+
+theorem sharePriceSelfFundedBuy : SharePriceSelfFundedBuy (ι := ι) := by
+  intro s m fundingMarket buyerAssets boughtNetCredit s' hSuccess
+  unfold selfFundedBuy at hSuccess
+  split_ifs at hSuccess with hBuyAtLoss
+  · unfold withdraw at hSuccess
+    split_ifs at hSuccess with hWithdrawable
+    · cases hSuccess
+      exact sharePrice_accrued
+        (realAssets_selfFundedBuy s m fundingMarket buyerAssets boughtNetCredit hBuyAtLoss.2
+          hWithdrawable.2) rfl rfl rfl
+    · cases hSuccess
+
+theorem sharePriceSell [LinearOrder ι] : SharePriceSell (ι := ι) := by
+  intro s m sellerAssets soldNetCredit s' hSuccess
+  unfold sell at hSuccess
+  dsimp only at hSuccess
+  split_ifs at hSuccess with h
+  · cases hSuccess
+    exact sharePrice_mono
+      (realAssets_sell s m sellerAssets soldNetCredit h.2.1 h.2.2) rfl rfl
+
+theorem sharePriceWithdraw : SharePriceWithdraw (ι := ι) := by
+  intro s m assets s' hSuccess
+  unfold withdraw at hSuccess
+  split_ifs at hSuccess with hWithdrawable
+  · cases hSuccess
+    exact sharePrice_mono (realAssets_withdraw s m assets hWithdrawable.2) rfl rfl
+
+theorem sharePriceForceDeallocate : SharePriceForceDeallocate (ι := ι) := by
+  intro s m assets soldNetCredit penalty s' hSuccess hSoldLessThanAssets hPositiveVirtualShares
+  unfold forceDeallocate at hSuccess
+  split_ifs at hSuccess with hSold
+  · unfold penaltyExit at hSuccess
+    split_ifs at hSuccess with h
+    · cases hSuccess
+      exact le_trans
+        (sharePrice_mono
+          (realAssets_recordForceDeallocate s m assets soldNetCredit hSold.2 hSoldLessThanAssets)
+          rfl rfl)
+        (sharePrice_penaltyExit _ penalty hPositiveVirtualShares h.1 h.2)
+
+end MidnightAdapterProofs
