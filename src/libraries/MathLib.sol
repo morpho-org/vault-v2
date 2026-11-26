@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Morpho Association
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.0;
 
 import {ErrorsLib} from "./ErrorsLib.sol";
 
