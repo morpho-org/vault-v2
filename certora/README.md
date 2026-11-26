@@ -58,6 +58,7 @@ Adapters report stable ids and keep the vault's allocation accounting aligned wi
   It has at most `MAX_MARKETS` entries, each listed market's stored index is its position in the list, and each listed market has a non-zero stored net credit.
   These hold whatever the adapter's net credit in Midnight is.
 - [`RatesMidnightAdapter.spec`](specs/RatesMidnightAdapter.spec) checks the Midnight adapter's guardrails: buys respect `maxTtm` and `minNetBuyRate` and are rejected in forceSellable markets, and sales respect `maxNetSellRate` and `noSalesWithShortfall`, or `minForceSellPrice` in forceSellable markets.
+- [`SlippageMorphoMarketV1AdapterV2.spec`](specs/SlippageMorphoMarketV1AdapterV2.spec) checks that allocation mints the adapter at least one share per deposited asset, reverting when Blue's share price is above one, and that deallocation burns exactly the shares the withdrawn assets convert to, rounded up at the market's share price.
 
 ## Caps and configuration delays
 

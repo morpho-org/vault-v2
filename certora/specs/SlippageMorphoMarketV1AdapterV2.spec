@@ -45,6 +45,7 @@ function summaryMulDivUp(uint256 x, uint256 y, uint256 d) returns uint256 {
 }
 
 // Check that each allocation gets the adapter shares for at most one asset each.
+// This holds because allocate reverts with SharePriceAboveOne when Blue mints fewer shares than assets.
 rule allocateGetsSharesForAtMostOneAssetEach(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     bytes32 marketId = Utils.unwrapId(Utils.id(Utils.decodeMarketParams(data)));
     uint256 sharesBefore = supplyShares(marketId);
@@ -54,9 +55,9 @@ rule allocateGetsSharesForAtMostOneAssetEach(env e, bytes data, uint256 assets, 
     assert supplyShares(marketId) - sharesBefore >= assets;
 }
 
-// Check that each deallocation burns less than one share in excess of the withdrawn assets, at the share price of the market.
-// Together with allocateGetsSharesForAtMostOneAssetEach, this means that deallocating loses at most one asset: the adapter loses at most one more share than the fair price, but each share was acquired for less than one asset.
-rule deallocateLosesLessThanOneShare(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+// Check that each deallocation burns the amount of shares equivalent to withdrawn assets rounded up, at the share price of the market.
+// Together with allocateGetsSharesForAtMostOneAssetEach, this means that deallocating loses at most one asset: the adapter loses at most one more share than the fair price, but each share was acquired for at most one asset.
+rule deallocateToSharesUp(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     MorphoHarness.Id id = Utils.id(Utils.decodeMarketParams(data));
     bytes32 marketId = Utils.unwrapId(id);
     uint256 sharesBefore = supplyShares(marketId);
@@ -71,5 +72,7 @@ rule deallocateLosesLessThanOneShare(env e, bytes data, uint256 assets, bytes4 s
 
     mathint burnedShares = sharesBefore - supplyShares(marketId);
 
+    // We prove that toSharesUp(assets) - 1 < burnedShares <= toSharesUp(assets)
     assert (burnedShares - 1) * (totalAssets + 1) < assets * (totalShares + 10 ^ 6);
+    assert assets * (totalShares + 10 ^ 6) <= burnedShares * (totalAssets + 1);
 }
