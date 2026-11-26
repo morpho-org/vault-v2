@@ -32,7 +32,7 @@ persistent ghost mapping(bytes32 => uint128) ghostMidnightNetCredit {
 }
 
 // An arbitrary call if a callback is neither the adapter nor absent.
-// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy clears transient flags that neither these invariants nor the remaining code read and refreshes the Midnight allowance.
+// Otherwise, the callbacks are the adapter's own: in take, the Midnight call is last, so they are checked as entry points; in forceDeallocate, onBuy clears inForceDeallocate, which neither these invariants nor the remaining code read, and refreshes the Midnight allowance.
 function cvlTake(MidnightAdapter.Offer offer, address takerCallback) returns (uint256, uint256) {
     if (isArbitraryCallback(offer.callback) || isArbitraryCallback(takerCallback)) {
         env e;

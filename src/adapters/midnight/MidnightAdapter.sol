@@ -113,8 +113,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Set to true during forceDeallocate's take, cleared in the buy callback.
     bool public transient inForceDeallocate;
-    /// @dev Set to true after admitting the taker of forceDeallocate's take, cleared in the buy callback.
-    bool public transient admitting;
     /// @dev Pre-buy net credit and net rate of the market being bought, used by realAssets during onBuy, before allocate.
     bytes32 public transient inProgressBuyMarketId;
     uint256 public transient inProgressBuyNetCredit;
@@ -418,7 +416,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Called by anyone through forceDeallocate. The adapter sells credit of the given market to the given taker at face value plus the settlement fee, paid by the sender.
     /// @dev Called by an allocator or sentinel through deallocate: withdraws `assets` from the given market (`abi.encode(market)`) to the vault.
     /// @dev Called by this adapter from a sell callback or a self-funded buy callback: `data` is already ABI-encoded `(bytes32[] ids, int256 change)`.
-    /// @dev If the market's enter gate comes from enterGateFactory, the adapter admits the taker in it during the sale.
+    /// @dev For a non-zero forceDeallocate in a held gated market with enterGateFactory set, the adapter admits the taker in the market's enter gate during the sale.
     /// @dev Returns the market's ids and the change in the adapter's net credit in this market.
     function deallocate(bytes calldata data, uint256 assets, bytes4 selector, address sender)
         external
@@ -457,12 +455,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
             SafeERC20Lib.safeTransferFrom(asset, sender, address(this), assets + settlementFeeAssets);
             if (
-                market.enterGate != address(0) && enterGateFactory != address(0)
-                    && IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                assets > 0 && market.enterGate != address(0) && enterGateFactory != address(0)
+                    && _marketData.netCredit > 0
             ) {
                 // forge-lint: disable-next-item(reentrancy-no-eth) admit must not reenter.
                 IIKRCompatibleEnterGate(market.enterGate).admit(taker, factory);
-                admitting = true;
             }
             inForceDeallocate = true;
             // Skip onSell since we are already in a deallocate call.
@@ -522,8 +519,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (inForceDeallocate) {
             // Clear the ratifier bypass and the admission before Midnight transfers the loan token.
             inForceDeallocate = false;
-            if (admitting) {
-                admitting = false;
+            if (units > 0 && market.enterGate != address(0) && enterGateFactory != address(0)) {
                 IIKRCompatibleEnterGate(market.enterGate).unadmit();
             }
         } else {
@@ -540,6 +536,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             uint128 newNetCredit = currentNetCredit(id);
             uint256 oldNetCredit = _marketData.netCredit;
+            if (newNetCredit > 0 && oldNetCredit == 0) {
+                require(
+                    market.enterGate == address(0) || enterGateFactory == address(0)
+                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
+                            && IIKRCompatibleEnterGate(market.enterGate).admitEnabled()
+                            && IIKRCompatibleEnterGate(market.enterGate).admitterFactory(factory)),
+                    IncorrectEnterGate()
+                );
+            }
             uint64 oldNetRate = _marketData.netRate;
             _marketData.netCredit = newNetCredit;
             if (newNetCredit > 0) {
@@ -562,16 +567,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
             (inProgressBuyMarketId, inProgressBuyNetCredit, inProgressBuyNetRate) =
             (id, newNetCredit - boughtNetCredit, oldNetRate);
-
-            if (newNetCredit > 0 && oldNetCredit == 0) {
-                require(
-                    market.enterGate == address(0) || enterGateFactory == address(0)
-                        || (IEnterGateFactory(enterGateFactory).isCreated(market.enterGate)
-                            && IIKRCompatibleEnterGate(market.enterGate).admitEnabled()
-                            && IIKRCompatibleEnterGate(market.enterGate).admitterFactory(factory)),
-                    IncorrectEnterGate()
-                );
-            }
 
             // forge-lint: disable-next-item(reentrancy-no-eth) accrueInterest only calls view functions of adapters.
             IVaultV2(parentVault).accrueInterest();
